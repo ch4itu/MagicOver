@@ -147,7 +147,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
     <div class="stack">
       <button id="btnAi" class="primary" type="button">Bat vs AI · no sign-up</button>
       <button id="btnFriend" class="teal" type="button">Play a friend</button>
-      <button id="btnLeaderboard" type="button">Recent leaderboard</button>
+      <button id="btnLeaderboard" type="button">Leaderboard</button>
     </div>
     <details>
       <summary>How to play</summary>
@@ -190,7 +190,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <input id="joinCode" inputmode="numeric" placeholder="Match code, e.g. 3-12" aria-label="Match code">
       <button id="joinGo" class="teal" type="submit">Join</button>
     </form>
-    <div class="stack"><button id="lobbyLeaderboard" type="button">Recent leaderboard</button></div>
+    <div class="stack"><button id="lobbyLeaderboard" type="button">Leaderboard</button></div>
     <label>Open matches</label>
     <div id="openList"></div>
     <div class="stack"><button type="button" data-back="home">Back</button></div>
@@ -200,8 +200,8 @@ details p, details li { color: var(--muted); font-size: 14px; }
 <section id="leaderboard" class="screen card-screen" hidden>
   <div class="card leaderboard-card">
     <div class="eyebrow">Magic Over · friend matches</div>
-    <h2>Recent leaderboard</h2>
-    <p class="muted">This shared view uses the latest completed result on each of the eight match tables. Results leave this view when a table is reused. These are recent scores, not lifetime totals.</p>
+    <h2>Leaderboard</h2>
+    <p class="muted">Recorded friend-match totals stay when match tables are reused. They are shared across devices and saved back to Solana Devnet. Saving status is shown below.</p>
     <p class="muted">Win: 3 points · Draw: 1 · Loss: 0. Ties in points use wins, then player key. AI practice is separate. No entry fees or prizes.</p>
     <p id="leaderboardStatus" class="muted" role="status"></p>
     <div class="leaderboard-scroll"><table class="leaderboard-table"><thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">W</th><th scope="col">L</th><th scope="col">D</th><th scope="col">Pts</th></tr></thead><tbody id="leaderboardRows"></tbody></table></div>
@@ -252,6 +252,8 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <h2 id="finishTitle">Match over</h2>
       <div id="finishLines" class="muted"></div>
       <p id="rematchStatus" class="muted" role="status"></p>
+      <p id="leaderboardSave" class="muted" role="status"></p>
+      <button id="retryLeaderboard" type="button">Retry leaderboard save</button>
       <div class="stack"><button id="btnAgain" class="primary" type="button">Play again</button><button id="btnExit" type="button">Back</button></div>
     </div>
   </div>
@@ -714,6 +716,9 @@ globalThis.SONet = (() => {
   'use strict';
   const C = globalThis.SabhaChainKey, S = globalThis.SabhaSol, nacl = globalThis.nacl, A = C.solana;
   const TEE = 'https://devnet-tee.magicblock.app';
+  const LEADERBOARD_PROGRAM = 'BcS2Gb1Gihfzqs1UkViNnbQzjGcCGyvXu81VhwsFrUzU';
+  const LEADERBOARD_ADDRESS = 'AbHYLgyXTPC5bUoP1UdZmC8zAVbmddPKGCEjrk4MeJcC';
+  const LEADERBOARD_FEE_VAULT = 'EUJssY6kG5fb35s9Lc6jyh6joRPo2e2MhJqoKCqcTt5b';
   const TEE_VALIDATOR = 'MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo';
   const ADDR = {"program": "HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT", "identity": "A9RdrZTb7ZtmkwMCdm3PsmM37TBDVtfjq1mKatHA1WcP", "tables": [{"state": "G3tXC9BCEwTXpgoncTAzTg58t4qoa12Gawn6T6wLruR1", "ball": "C3t8U7kjEEdqgQMEM99aJBPk6Yf57v4Fu7jsBXqZgTpz", "permission": "2M2m1PiSTVDYrn251q5njM1t1nQ6TCmJcu7BFp1uzxc9"}, {"state": "H8Dqk7oTSp8BYLoKCNAB5sQYzuR8q4u4J9goSNiZ49uP", "ball": "5jFjPBEtJ3vVRx83HhMkAoFyBB6yQTRRpWTv96d6Ms72", "permission": "3L3miUX6TuQ5qWT1Zq7k7P6ea8T6unVo6gsHokCrPXNk"}, {"state": "4Ks3k2bT78hrcgxLKswfwZgmwRKtAV9Ba9gk4SDKnh6L", "ball": "474EnFqPQfnsBzbguCeYXPSbqqytqsUAy9JphLGRRqcd", "permission": "erB65kECigh6J66mW4y2oeKRrGNd6MnQ6gTWtCH1Wx6"}, {"state": "Ga5MnqLx4oifLep6UPUg83rEySYoWW5m443H9V8nLNc9", "ball": "8NYnZB3ncMXxPnVfagkJxN29W6TLMe85tTZNfWRTyAYE", "permission": "98yrapCwVpijSaWa5GuXyhp7SieAk1iAoKKYKnCYerCz"}, {"state": "44ZnJnhCuLvr3kVT2MCgdKVZp8zyeBkQppfH2q5B7h6q", "ball": "9jcqBEqEwVUk7Hmu5eMZUqgvHeSrrhgrm1ro6wevr5XD", "permission": "6UPoXCnmyGrUxkaDxgGMqTMiYR3FR5ZmrP52pXUoUwfy"}, {"state": "dKvf3t6DknhnrADQ4rFmnAiBbzehymx5eL18fwhkrJs", "ball": "8U6HbNNLWM5xy5osfGD92WXHnjHbBgUL2WAjrUfoHzk3", "permission": "B2hjQNJ2BJkL9A4dTUEE4oBvAVkT6Hep6yvSJzNLw16h"}, {"state": "Bc94359okhwZCH2YGDQRmy9uPW9hNnbSHQsUEY4SCAnA", "ball": "B9sYm4cTB11kfEyzNXCwX6Z7fDQysDjAMgr19X5EQtty", "permission": "5FzecL2HiuAVas1frXFaaCQRNwq6SYVrCuDxzbVkF8yg"}, {"state": "cJaa7UP1i8VqxyKDtZoaMkFhrjVchEW1wfv2w4S4kiT", "ball": "AoSvxoFs8yasoXzYdgvJgcKC53HbhRUaxGPocBf1Y6Hg", "permission": "8oas3sdBt3jnLm8kMjjoNHwxEKbHJbYnajqvR9ttH3P8"}]};
   const pk = text => S.b58decode(text);
@@ -729,7 +734,7 @@ globalThis.SONet = (() => {
   const FLIGHT = [120, 95, 75];
   const SLOT_MS = 10;
   const PHASES = ['FREE', 'WAITING', 'BOWLING', 'LIVE', 'AI_NEED', 'AI_REQUESTED', 'FINISHED'];
-  const ERRORS = { 5: 'That is not possible right now.', 6: 'It is not your turn.', 7: 'The match moved on. Try again.', 8: 'Too early: the ball has not been released.', 14: 'That table is busy.', 15: 'The delivery was not armed.' };
+  const ERRORS = { 5: 'That is not possible right now.', 6: 'It is not your turn.', 7: 'The match moved on. Try again.', 8: 'Too early: the ball has not been released.', 14: 'That table is busy.', 15: 'The delivery was not armed.', 17: 'The leaderboard sponsor reserve needs a refill.' };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // ------------------------------------------------------------ player and session
@@ -851,6 +856,7 @@ globalThis.SONet = (() => {
     shot: (i, seq, shot) => ix([meta(player.key, true, true), ...table(i), ...privacy(i)], C.concat(Uint8Array.of(6, i), u32(seq), Uint8Array.of(shot))),
     advance: i => ix([meta(player.key, true, true), ...table(i), ...privacy(i)], Uint8Array.of(7, i)),
     aiNext: (i, seq) => ix([meta(player.key, true, true), ...table(i), meta(IDENTITY, false, false), meta(VRF_PROGRAM, false, false), meta(VRF_QUEUE, false, true), meta(SYSTEM, false, false), meta(SLOT_HASHES, false, false)], C.concat(Uint8Array.of(8, i), u32(seq))),
+    recordResult: (i, matchId) => ({ programId: pk(LEADERBOARD_PROGRAM), keys: [meta(player.key, true, true), meta(pk(LEADERBOARD_ADDRESS), false, true), meta(TABLES[i].state, false, false), meta(MAGIC_PROGRAM, false, false), meta(pk('MagicContext1111111111111111111111111111111'), false, true), meta(pk(LEADERBOARD_FEE_VAULT), false, true)], data: C.concat(Uint8Array.of(2, i), u32(matchId)) }),
     concede: i => ix([meta(player.key, true, true), ...table(i), ...privacy(i)], Uint8Array.of(9, i)),
   };
 
@@ -886,36 +892,56 @@ globalThis.SONet = (() => {
     return r.value.map((v, i) => v ? parseState(C.base64ToBytes(v.data[0]), i) : null);
   }
   function eligibleResult(s) {
-    return s && s.phase === 'FINISHED' && s.mode === 'PVP' && [1, 2, 3].includes(s.winner) && s.a !== s.b && s.a !== '11111111111111111111111111111111' && s.b !== '11111111111111111111111111111111';
+    const zero='11111111111111111111111111111111';
+    return !!(s && s.phase==='FINISHED' && s.mode==='PVP' && [1,2,3].includes(s.winner) && s.a!==s.b && s.a!==zero && s.b!==zero);
   }
-  function rankRecentResults(tables) {
-    const entries = new Map(), seen = new Set();
-    let matches = 0;
-    for (const s of tables) {
-      if (!eligibleResult(s)) continue;
-      const id = s.idx + ':' + s.matchId;
-      if (seen.has(id)) continue;
-      seen.add(id); matches++;
-      for (const [side, key, name] of [[1, s.a, s.aName], [2, s.b, s.bName]]) {
-        const entry = entries.get(key) || { key, name: name || '', wins: 0, losses: 0, draws: 0, played: 0, points: 0 };
-        if (name) entry.name = name;
-        if (s.winner === 3) entry.draws++;
-        else if (s.winner === side) entry.wins++;
-        else entry.losses++;
-        entry.played++; entry.points = entry.wins * 3 + entry.draws;
-        entries.set(key, entry);
-      }
+  function parseLeaderboard(value,source='rollup',expectedBoard=0) {
+    if(!value || !(value.owner===LEADERBOARD_PROGRAM || (source==='solana' && value.owner===S.DELEGATION_PROGRAM))) throw new Error('Unexpected leaderboard owner.');
+    const d=C.base64ToBytes(value.data[0]);
+    if(d.length!==10208 || td.decode(d.slice(0,8))!=='MOBOARD1' || d[8]!==1 || d[9]!==expectedBoard) throw new Error('Unexpected leaderboard format.');
+    const v=new DataView(d.buffer,d.byteOffset,d.byteLength),count=v.getUint16(10,true),matches=v.getUint32(12,true);
+    if(count>140)throw new Error('Unexpected leaderboard capacity.');
+    const entries=[],seen=new Set();let playedTotal=0,winsTotal=0,lossesTotal=0,drawsTotal=0;
+    for(let i=0;i<count;i++){
+      const o=128+i*72,key=S.b58encode(d.slice(o,o+32));
+      if(d[o+32]>23 || seen.has(key) || key==='11111111111111111111111111111111')throw new Error('Unexpected leaderboard entry.');seen.add(key);
+      const wins=v.getUint32(o+56,true),losses=v.getUint32(o+60,true),draws=v.getUint32(o+64,true),played=wins+losses+draws;
+      playedTotal+=played;winsTotal+=wins;lossesTotal+=losses;drawsTotal+=draws;
+      entries.push({key,name:td.decode(d.slice(o+33,o+33+d[o+32])),wins,losses,draws,played,points:wins*3+draws});
     }
-    return { scope: 'recent', matches, entries: [...entries.values()].sort((a, b) => b.points - a.points || b.wins - a.wins || a.key.localeCompare(b.key)) };
+    if(playedTotal!==matches*2 || winsTotal!==lossesTotal || drawsTotal%2)throw new Error('Inconsistent leaderboard totals.');
+    entries.sort((a,b)=>b.points-a.points||b.wins-a.wins||(a.key<b.key?-1:a.key>b.key?1:0));
+    return {scope:'persistent',entries,matches,source,lastMatchIds:Array.from({length:8},(_,i)=>v.getUint32(48+i*4,true)),lamports:value.lamports};
   }
-  async function readLeaderboard() { return rankRecentResults(await readTables()); }
+  async function readRollupLeaderboard(){const r=await rpc('getAccountInfo',[LEADERBOARD_ADDRESS,{encoding:'base64',commitment:'processed'}]);return parseLeaderboard(r?.value);}
+  async function readCommittedLeaderboard(){const r=await S.rpc(S.DEFAULT_BASE,'getAccountInfo',[LEADERBOARD_ADDRESS,{encoding:'base64',commitment:'confirmed'}]);return parseLeaderboard(r?.value,'solana');}
+  async function readLeaderboard(){
+    const r=await Promise.allSettled([readRollupLeaderboard(),readCommittedLeaderboard()]);
+    const live=r[0].status==='fulfilled'?r[0].value:null,base=r[1].status==='fulfilled'?r[1].value:null;
+    if(!live&&!base)throw new Error('Could not read leaderboard from MagicBlock or Solana Devnet.');
+    const selected=live&&(!base||live.matches>=base.matches)?live:base;
+    return {...selected,committedMatches:base?.matches??null};
+  }
+  const recording=new Map();
+  async function recordResult(s){
+    if(!eligibleResult(s))return {recorded:false};
+    const id=s.idx+':'+s.matchId;if(recording.has(id))return recording.get(id);
+    const p=(async()=>{const before=await readRollupLeaderboard();if(before.lastMatchIds[s.idx]>s.matchId)throw new Error('This table has moved to a later result. Check the leaderboard totals.');
+      let signature=null;if(before.lastMatchIds[s.idx]<s.matchId){await freshBlockhash(true);signature=await send([I.recordResult(s.idx,s.matchId)],{label:'Save leaderboard result'});}
+      return {recorded:true,signature};})();recording.set(id,p);try{return await p;}finally{recording.delete(id);}
+  }
+  async function waitForLeaderboardCommit(s,{timeout=45000}={}){
+    const end=performance.now()+timeout;do{try{const b=await readCommittedLeaderboard();if(b.lastMatchIds[s.idx]>=s.matchId)return true;}catch{}
+      if(performance.now()>=end)break;await sleep(1200);
+    }while(performance.now()<end);return false;
+  }
   const battingSide = s => s.batFirst ^ s.inn; // 0 = A, 1 = B
   const sideKey = (s, side) => side === 0 ? s.a : s.b;
   const reclaimable = (s, slot) => s.phase === 'FREE' || (s.phase === 'FINISHED' && slot > s.deadline) || slot > s.deadline + 6000;
   async function currentSlot() { return rpc('getSlot', [{ commitment: 'processed' }]); }
 
   return Object.freeze({
-    TEE, TABLES, FLIGHT, SLOT_MS, readLeaderboard, rankRecentResults, eligibleResult, setPlayer, login, get player() { return player; }, get clock() { return clock; },
+    TEE, TABLES, FLIGHT, SLOT_MS, LEADERBOARD_PROGRAM, LEADERBOARD_ADDRESS, LEADERBOARD_FEE_VAULT, readLeaderboard, readRollupLeaderboard, readCommittedLeaderboard, parseLeaderboard, recordResult, waitForLeaderboardCommit, eligibleResult, setPlayer, login, get player() { return player; }, get clock() { return clock; },
     syncClock, slotNow, timeOfSlot, freshBlockhash, send, prepareShots, sendPreparedShot, I, readTable, readTables, battingSide, sideKey, reclaimable, currentSlot, sleep,
   });
 })();
@@ -3637,7 +3663,8 @@ globalThis.SOCompetition = (() => {
     const order = tables.map((t, i) => ({ t, i })).filter(x => x.t && N.reclaimable(x.t, slot)).sort(() => Math.random() - 0.5);
     if (!order.length) throw new Error('All tables are busy. Try again in a minute.');
     let lastError = null;
-    for (const { i } of order) {
+    for (const { i, t } of order) {
+      if(N.eligibleResult(t)){try{await N.recordResult(t);}catch(e){lastError=e;continue;}}
       try {
         await N.send([N.I.create(i, mode, N.player.guest ? '' : N.player.name)], { label: 'Create match' });
       } catch (e) { lastError = e; continue; }
@@ -3952,6 +3979,9 @@ globalThis.SOCompetition = (() => {
   function finish(session, s) {
     session.ended = true;
     session.result = s;
+    $('leaderboardSave').textContent=s.mode==='PVP'?'Recording this result…':'AI practice is separate from the friend leaderboard.';
+    $('retryLeaderboard').hidden=s.mode!=='PVP';
+    if(s.mode==='PVP')session.savePromise=saveResult(session);
     hidePads();
     status('');
     $('btnAgain').textContent = s.mode === 'PVP' ? 'Rematch with this friend' : 'Play again';
@@ -3985,6 +4015,10 @@ globalThis.SOCompetition = (() => {
     const active = () => M === session;
     try {
       if (session.mode === 'PVP') {
+        const saved=await session.savePromise;
+        if(!active())return;
+        if(!saved&&!await saveResult(session))throw new Error('Save this result before starting the rematch.');
+        if(!active())return;
         const next = await COMP.rematch(N, session.result, { active, onStatus: text => { if (active()) $('rematchStatus').textContent = text; } });
         if (!active()) return;
         await startMatch(next.idx, s => s.matchId === next.matchId && s.a === session.result.a && (s.phase === 'WAITING' || s.b === session.result.b) && s.phase !== 'FINISHED', { a: session.result.a, b: session.result.b });
@@ -3998,7 +4032,7 @@ globalThis.SOCompetition = (() => {
   $('btnConcede').onclick = async () => {
     if (!M) return;
     const session = M;
-    if (!session.ended) await N.send([N.I.concede(session.idx)], { label: 'Concede' }).catch(() => {});
+    if(!session.ended){await N.send([N.I.concede(session.idx)],{label:'Concede'}).catch(()=>{});const r=await N.readTable(session.idx).catch(()=>null);if(r?.matchId===session.matchId&&N.eligibleResult(r))await N.recordResult(r).catch(()=>{});}
     leaveMatch();
     show(N.player && !N.player.guest ? 'lobby' : 'home');
     if (N.player && !N.player.guest) openLobby();
@@ -4013,6 +4047,13 @@ globalThis.SOCompetition = (() => {
     V.setBallDriver(null); V.resetBowler(); V.resetBat(); V.resetStumps();
     if (!keepScreen) V.setCamera('orbit');
   }
+  async function saveResult(session){
+    try{const r=await N.recordResult(session.result);if(!r.recorded)return false;
+      if(M===session)$('leaderboardSave').textContent='Result recorded. Saving the totals to Solana Devnet…';
+      N.waitForLeaderboardCommit(session.result).then(saved=>{if(M===session)$('leaderboardSave').textContent=saved?'Leaderboard totals saved on Solana Devnet.':'Result recorded; Solana confirmation is pending. Retry can check again.';}).catch(()=>{});return true;
+    }catch(e){if(M===session)$('leaderboardSave').textContent='Result not recorded yet. '+(e.message||String(e));return false;}
+  }
+  $('retryLeaderboard').onclick=async()=>{const session=M;if(!session?.result||session.mode!=='PVP')return;const b=$('retryLeaderboard');busy(b,true,'Saving…');try{session.savePromise=saveResult(session);await session.savePromise;}finally{busy(b,false);}};
   // ------------------------------------------------------------ shared friend leaderboard
   let leaderboardBack = 'home', leaderboardGeneration = 0;
   async function openLeaderboard(back) {
@@ -4023,12 +4064,13 @@ globalThis.SOCompetition = (() => {
   async function refreshLeaderboard() {
     const generation = ++leaderboardGeneration, button = $('leaderboardRefresh');
     busy(button, true, 'Reading results…');
-    $('leaderboardStatus').textContent = 'Reading recent completed friend matches…';
+    $('leaderboardStatus').textContent = 'Reading the shared leaderboard…';
     $('leaderboardRows').replaceChildren();
     try {
       const board = await N.readLeaderboard();
       if (generation !== leaderboardGeneration || $('leaderboard').hidden) return;
-      $('leaderboardStatus').textContent = board.matches ? `${board.matches} completed friend match${board.matches === 1 ? '' : 'es'} on the current tables · ${board.entries.length} players` : 'No completed friend matches on the current tables yet.';
+      const saved=board.committedMatches===board.matches?'Saved on Solana Devnet':board.committedMatches===null?'Solana confirmation unavailable':`${board.committedMatches} saved on Solana · latest result saving`;
+      $('leaderboardStatus').textContent=board.matches?`${board.matches} recorded friend match${board.matches===1?'':'es'} · ${board.entries.length} players · ${saved}`:'No friend results recorded yet. Play a friend to get started.';
       for (const [i, entry] of board.entries.entries()) {
         const row = document.createElement('tr');
         if (entry.key === N.player?.b58) row.className = 'you';
@@ -4040,7 +4082,7 @@ globalThis.SOCompetition = (() => {
         $('leaderboardRows').appendChild(row);
         if (entry.name) verifyName(entry.name, entry.key).then(ok => { if (generation === leaderboardGeneration) address.textContent = `${short(entry.key)} · ${ok ? '✓ verified name' : 'name not verified'}`; });
       }
-    } catch (e) { if (generation === leaderboardGeneration) $('leaderboardStatus').textContent = 'Could not load recent results. ' + (e.message || String(e)); }
+    } catch (e) { if (generation === leaderboardGeneration) $('leaderboardStatus').textContent = 'Could not load the shared leaderboard. ' + (e.message || String(e)); }
     finally { if (generation === leaderboardGeneration) busy(button, false); }
   }
   $('btnLeaderboard').onclick = () => openLeaderboard('home');
