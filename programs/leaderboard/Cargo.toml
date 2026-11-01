@@ -1,0 +1,11 @@
+[package]
+name = "magic_over_leaderboard"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+solana-compiler-builtins.workspace = true
