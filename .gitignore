@@ -1,0 +1,19 @@
+# Deployment credentials must never be published.
+keys/
+**/keys/
+*-keypair.json
+*.keypair.json
+deployer.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.so
+target/
+**/target/
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+*.zip
