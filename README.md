@@ -1,92 +1,100 @@
-# Magic Over
+# Magic Over — cricket on MagicBlock ER · PER · VRF
 
-**Six balls. Two wickets. Open the game and play—no wallet app, seed phrase or SOL required.**
+**Six balls. Two wickets. Open the game and play. No wallet app, seed phrase or SOL required.**
 
-Magic Over is a browser-based 3D cricket game on Solana Devnet and MagicBlock. Bat against a randomness-driven AI bowler immediately, or challenge a friend using a familiar name-and-password sign-in. The browser handles signing; players do not approve a wallet popup for every ball.
+Magic Over is a browser cricket game on **Solana Devnet**. Try **Bat vs AI** without an account, or play a friend with a familiar username and passphrase. The browser signs the moves for you. MagicBlock handles the public player registry, private matches and verifiable randomness for the AI.
 
-[Watch the demo and onboarding explanation](media/demo.mp4) · [View the game program on Devnet](https://explorer.solana.com/address/HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT?cluster=devnet)
+[Watch the silent, captioned demo](media/demo.mp4) · [Pitch and demo transcript](media/transcript.md)
 
-## Start playing
+## Easy onboarding is the starting point
 
-Download this repository and open `index.html` in a modern browser with WebGL and an internet connection, or serve the repository with any static web host. The page includes its JavaScript dependencies; no package installation or application backend is needed to serve it. It still connects to Solana and MagicBlock to play.
+We want a person who has never used a wallet to be able to play cricket.
 
-For a local HTTP preview, run `python3 -m http.server 8000` from the repository folder and open `http://localhost:8000`.
-
-- **Bat vs AI:** tap the button and start as a guest. No account creation.
-- **Play a friend:** create a player name and strong password, or sign in with an existing one. Create a match and share its code; your friend joins with that code.
-- **Bat:** time Defend, Drive, Cut, Pull, Loft or Leave as the ball reaches the bat. Keyboard controls are shown on the buttons.
-- **Bowl:** choose pace, line, length and a hidden variation.
-
-Each innings lasts six balls or two wickets. In a friend match, players swap batting and bowling, and the second batter chases the first score. Ties can trigger additional rounds, up to the program's four-round limit. Guest mode gives the batter a target to chase.
-
-## Onboarding that feels familiar
-
-The player should be able to enjoy cricket without first learning how to use a crypto wallet.
-
-| What the player does | What Magic Over handles |
+| Player experience | What happens underneath |
 | --- | --- |
-| Opens the game and chooses **Bat vs AI** | Creates a temporary guest signing key in the browser. |
-| Chooses **Play a friend → New player** | Asks for a unique name and a strong password, with a 16-character minimum. |
-| Creates their player ID | Generates a random key, encrypts a recovery copy locally and registers that encrypted copy on MagicBlock's public rollup. |
-| Plays a shot or bowls a delivery | Signs and sends the game action automatically in the browser. No external wallet or repeated signing prompts. |
-| Signs in on another device | Looks up the encrypted record using the name and unlocks it locally with the password. No seed phrase to copy across. |
+| **Bat vs AI:** open and play | The browser creates a temporary guest signing key. No registration. |
+| **Play a friend:** choose a username and strong passphrase | A random key is generated in the browser. It is not derived from the password. |
+| Create the player ID | A recovery copy is encrypted locally with **Argon2id, 64 MiB, three passes**, then registered on MagicBlock's public ER. The password and plaintext key are not published. |
+| Bowl or play a shot | The browser signs and sends the action. No extension or repeated wallet prompts. |
+| Move to another device | The username locates the encrypted record; the passphrase unlocks the same key locally. |
 
-Players do not buy SOL, fund an account or install an extension. The current Devnet flow charges the player **0 SOL for registration and play**. Infrastructure and sponsor costs still exist; player-free does not mean cost-free infrastructure.
+**Players need 0 SOL for this Devnet registration and play flow.** Sponsors still cover setup, rent and applicable infrastructure/service costs. No external wallet installation, funding step or seed-phrase handling is required.
 
-### How the player keeps control
+The unlocked key stays in memory while playing; the app does not save the private key in browser storage. Recovery depends on the registry or its last Solana commit. There is no forgotten-passphrase reset. Use a strong, unique passphrase: the encrypted record is public. The recovery envelope is bound to the normalized name, owner public key and network.
 
-The signing key is generated randomly; it is not derived from the password. The password protects an encrypted recovery envelope using **Argon2id with 64 MiB of memory, three passes and parallelism one**. The envelope is bound to the normalized player name, owner public key and network genesis hash. The app publishes the encrypted envelope, not the password or plaintext key.
-
-While signed in, the unlocked key is held in browser memory to sign actions. The app does not persist the private key in browser storage. The sound preference is stored locally. There is no separate Magic Over password server or custodial wallet provider. Access to MagicBlock's private rollup still uses its challenge-signing authentication service, which the app handles automatically.
-
-A small program-checked proof of work adds friction to bulk name registration without showing a CAPTCHA. It does not establish that someone is human or prevent automated gameplay.
-
-**Recovery has limits:** the encrypted record is public, so a strong, unique passphrase matters against offline guessing. There is no forgotten-password reset in this version. Recovery requires access to the registry; the browser can fall back to the last state committed to Solana. In-game registration requests that commit in the background without confirming base-chain durability, so a newly created record is not a guaranteed backup if the rollup disappears immediately.
+There is no separate Magic Over password server or custodial wallet provider. MagicBlock's private RPC still uses challenge-signing authentication, handled by the app. A small proof of work adds a cost to bulk registration without a CAPTCHA prompt; it does not prove a player is human or stop all bots.
 
 ## What MagicBlock does
 
-| Feature | Use in Magic Over |
+| Feature | Concrete use |
 | --- | --- |
-| **Public Ephemeral Rollup** | Hosts the delegated player registry, allowing name registration and signing proofs without asking players for SOL. |
-| **Private Ephemeral Rollup** | Executes match creation, joining, bowling, shots and resolution against eight reusable match tables. |
-| **Private account permissions** | Protect the bowler's hidden variation in a separate ball account. The arming transaction touches that private account; the public delivery exposes pace, line, length and release timing. The resolved result reveals the variation. |
-| **Verifiable randomness** | Selects the AI bowler's deliveries and target. The game validates the expected VRF callback signer, table and sequence. Hidden variation also mixes a secret held in the private account. |
-| **Zero-fee player actions on the rollup** | Lets the player's browser key sign moves while the player holds 0 SOL. |
-| **Commitment and undelegation** | Program instructions support committing delegated state back to Solana Devnet and returning account control. The game browser does not automatically commit and undelegate a table after every match. |
+| **ER — Ephemeral Rollups** | The delegated player registry runs on the public rollup, enabling the name-and-passphrase onboarding flow without player funding. |
+| **PER — Private Ephemeral Rollup** | Eight reusable match tables execute create, join, bowl, shot and resolution actions on the private rollup. |
+| **Private account permissions** | A separate private ball account holds the bowler's hidden variation. Its arming transaction touches only that account. Pace, line, length and release timing are public; the resolved result reveals the variation. |
+| **VRF — verifiable randomness** | Selects AI targets and deliveries. The game validates the expected callback signer, table and sequence. Hidden variation also mixes a private secret, so the VRF value alone does not reveal it. |
+| **0 SOL player actions** | Players sign rollup moves using unfunded keys. This removes the wallet-funding step. |
+| **Saving back to Solana** | The programs support committing delegated state and undelegating accounts back to Devnet. The browser does **not** automatically commit and undelegate after each match. Registration requests a commit in the background without verifying its base-chain completion. |
 
-The game uses the rollup's slot clock with a configured **10 ms per slot**. The program grades shot timing at execution: ±6 slots is perfect, ±13 good and ±24 an edge—equivalent to ±60, ±130 and ±240 ms under that configuration. These are timing windows, not a claim of 10 ms end-to-end latency or equal network conditions for every player.
+Shot timing uses the program's configured **10 ms slots**: perfect within ±60 ms, good within ±130 ms, and an edge within ±240 ms. Timing is judged when the action executes. These are scoring windows, not a promise of 10 ms end-to-end latency; network delay still matters.
 
-The client checks the expected private-validator identity. It does not currently verify an Intel TDX hardware attestation quote itself. Privacy depends on MagicBlock's private-rollup service and its hardware trust model.
+The client pins the expected private-validator identity. It does not independently verify an Intel TDX attestation quote. Privacy relies on MagicBlock's private-rollup service and hardware trust model.
 
-This build uses native Rust programs and direct browser RPC calls. The browser uses the official **Solana web3.js 1.98.4 SDK** for key generation, seed recovery and public-key handling. The recovery cryptography lives in a dedicated Solana identity module; the former Algorand SDK dependency has been removed. It does not use BOLT, MagicBlock session keys or Magic Actions. The browser signs with the player's key; those automatic signatures are distinct from a delegated session-key feature.
+The browser uses the official **Solana web3.js 1.98.4 SDK** for key generation, seed recovery and public keys. Recovery uses a dedicated crypto module. The runtime does not use the Algorand SDK. We do not use BOLT, Magic Actions or MagicBlock session keys; automatic browser signatures are not the session-key feature.
 
-## Programs and source
+## Play, finish and play again
 
-| Program | Solana Devnet address |
+Open `index.html` in a modern WebGL browser with internet access, or serve this folder on a static host. No package installation or application login backend is required. It connects to the configured Solana and MagicBlock services.
+
+- **AI practice:** choose Bat vs AI and chase the target.
+- **Friend match:** create/sign in to a player ID, create a match and share its code. Your friend joins the code.
+- **Batting:** time Defend, Drive, Cut, Pull, Loft or Leave as the ball reaches the bat.
+- **Bowling:** choose pace, line, length and a hidden variation.
+- **Rematch:** after the result, **both players choose “Rematch with this friend.”** The original host reopens the same table after its existing reset period, and the friend joins that exact new match. Players are no longer sent into separate matches. If either player leaves or someone else takes the table, return to the lobby and share a new code.
+
+Each side has six balls and two wickets. Players swap roles for the chase. Ties can trigger further rounds, up to the program's four-round limit. The table reset lasts up to 15 seconds after the result; the rematch screen shows the wait.
+
+### Recent leaderboard
+
+Open **Recent leaderboard** from the home screen or friend lobby. It reads real completed friend matches from the eight shared match tables. It awards **3 points for a win, 1 for a draw and 0 for a loss**. Equal points are sorted by wins, then player key. Results are grouped by public key, not by display name; names are checked against the player registry. Completed forfeits count; AI practice and matches without an opponent do not.
+
+**This is a recent-results leaderboard, not a lifetime leaderboard.** Each table retains its latest match. Reusing a table removes its old result from this view, so totals can decrease. No historic wins are invented. The view is shared across devices that read the same current table state.
+
+Lifetime rankings are a planned enhancement.
+
+## Programs
+
+| Program | Solana Devnet explorer |
 | --- | --- |
 | Cricket game | [`HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT`](https://explorer.solana.com/address/HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT?cluster=devnet) |
 | Player registry | [`CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P`](https://explorer.solana.com/address/CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P?cluster=devnet) |
 
-- [`index.html`](index.html): self-contained game page.
-- [`web/`](web): editable UI, Solana identity, network, scene, character and sound modules, plus bundled dependencies. The identity source is [`chainkey-solana.js`](web/chainkey-solana.js).
-- [`programs/magic-over/`](programs/magic-over): cricket program and its rule tests.
-- [`programs/player-registry/`](programs/player-registry): encrypted player-registry program.
-- [`docs/addresses.devnet.json`](docs/addresses.devnet.json): configured table and permission addresses.
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): connection details and current limits.
-- [`media/`](media): narrated explanation, subtitles, transcript and original phone gameplay clip.
+Base RPC: `https://api.devnet.solana.com` · registry ER: `https://devnet-as.magicblock.app` · match PER: `https://devnet-tee.magicblock.app`.
 
-### Rebuild the browser page
+Expected validators: public `MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57`; private `MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`.
 
-Run `python3 tools/build.py`, then `python3 tools/build.py --check`. This rebuild uses the checked-in sources and requires only Python 3. No Node.js, pip packages or external bundle paths are needed.
+The submitted game and registry program sources are included for review. The deployed game/registry programs, seeds and recovery domains are unchanged by this browser update. A program address alone does not prove source/binary equivalence. This prototype has eight concurrent tables and registry space for 140 names; custom clients can bypass the UI's registration flow. It is not a completed anti-cheat or public-launch security audit.
 
-Run `python3 tools/verify_release.py` to check the build, preserved program hashes, SDK dependencies, branding and publication exclusions. Run `deno task test:identity` for the offline recovery and onboarding tests. The regular page rebuild still needs only Python; optional identity-source bundling is described in the [SDK migration notes](docs/SOLANA_SDK_MIGRATION.md). The Rust directories retain the supplied toolchain configuration for review; rebuilding or deploying those programs requires the separate Solana/Rust toolchain described in [deployment notes](docs/DEPLOYMENT.md).
+## A small repository
 
-## Current scope
+- `index.html` — the complete game, including browser code and bundled dependencies.
+- `programs/` — the two existing Rust programs with a shared build configuration.
+- `media/` — the silent captioned demo and the short-pitch/timecoded-demo transcript.
+- `LICENSE` and `THIRD_PARTY_NOTICES.md` — project and dependency licenses.
 
-This is a **Devnet prototype**, with eight concurrent match tables and a registry configured for 140 names. The AI is a weighted, randomness-driven bowler. This repository does not add wagering, tokens or prize payouts. Availability depends on the configured RPC and MagicBlock services; the programs are upgradeable. A program address alone does not prove that the deployed binary matches these sources.
+The self-contained page is the runnable browser artifact; readable modules and verification tools are retained in the separate maintenance archive supplied with this update. The public repository does not need duplicate browser sources, generated reports, old clips, keys or compiled program binaries.
 
-This update replaces the legacy SDK key/account helpers with Solana SDK routines while preserving existing player recovery records. Compatibility tests cover the old envelope format and the current onboarding flow. See [the SDK migration](docs/SOLANA_SDK_MIGRATION.md) and [test results](docs/sdk-verification.json). Existing account seeds, program addresses, crate names, network identifiers and cryptographic domains retain their original names for compatibility. See [release notes](docs/RELEASE_NOTES.md) for exactly what was checked.
+For the Rust programs, install the pinned toolchain and `sbpf-linker 0.2.5`. From `programs/`, use `cargo build-bpf`; host rule tests use `cargo test --target x86_64-unknown-linux-gnu -Z build-std=std,panic_unwind --release`. Building is separate from deployment; no program upgrade is required for this release.
+
+## Roadmap
+
+- Improve cricket motion using real shot references: footwork, balance, bat path, contact and follow-through.
+- Add teams, custom kit colours and cosmetic player skins.
+- Improve delivery readability, camera framing, useful replays and stadium atmosphere.
+- Keep controls accessible and mobile performance smooth as graphics improve.
+- Add a durable shared leaderboard after the result-register deployment is approved and verified.
+
+These are planned enhancements. **There are no wagers, stakes, entry fees, tokens or prize payouts in this build, and wagering is not on our roadmap.**
 
 ## License
 
-Project code retains the repository's [MIT license](LICENSE). Bundled dependencies retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
+Project code: [MIT](LICENSE). Bundled dependency notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

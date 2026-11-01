@@ -117,6 +117,13 @@ details p, details li { color: var(--muted); font-size: 14px; }
 .toast { position: fixed; left: 50%; top: max(70px, env(safe-area-inset-top)); transform: translateX(-50%) translateY(-10px); background: var(--panel-solid); border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; opacity: 0; transition: 0.2s; z-index: 50; max-width: calc(100vw - 32px); font-size: 14px; pointer-events: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.bad { border-color: var(--red); }
+.leaderboard-card { width: min(100%, 720px); }
+.leaderboard-scroll { overflow-x: auto; max-height: 48vh; }
+.leaderboard-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+.leaderboard-table th, .leaderboard-table td { padding: 10px 5px; border-bottom: 1px solid var(--line); }
+.leaderboard-table td:not(:nth-child(2)), .leaderboard-table th:not(:nth-child(2)) { text-align: center; }
+.leaderboard-table small { display: block; color: var(--muted); font-size: 10px; margin-top: 4px; overflow-wrap: anywhere; }
+.leaderboard-table .you { background: rgba(22,194,184,.13); }
 @media (max-width: 640px) {
   #batPad { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #batPad button { padding: 12px 4px; }
@@ -140,6 +147,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
     <div class="stack">
       <button id="btnAi" class="primary" type="button">Bat vs AI · no sign-up</button>
       <button id="btnFriend" class="teal" type="button">Play a friend</button>
+      <button id="btnLeaderboard" type="button">Recent leaderboard</button>
     </div>
     <details>
       <summary>How to play</summary>
@@ -182,9 +190,22 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <input id="joinCode" inputmode="numeric" placeholder="Match code, e.g. 3-12" aria-label="Match code">
       <button id="joinGo" class="teal" type="submit">Join</button>
     </form>
+    <div class="stack"><button id="lobbyLeaderboard" type="button">Recent leaderboard</button></div>
     <label>Open matches</label>
     <div id="openList"></div>
     <div class="stack"><button type="button" data-back="home">Back</button></div>
+  </div>
+</section>
+
+<section id="leaderboard" class="screen card-screen" hidden>
+  <div class="card leaderboard-card">
+    <div class="eyebrow">Magic Over · friend matches</div>
+    <h2>Recent leaderboard</h2>
+    <p class="muted">This shared view uses the latest completed result on each of the eight match tables. Results leave this view when a table is reused. These are recent scores, not lifetime totals.</p>
+    <p class="muted">Win: 3 points · Draw: 1 · Loss: 0. Ties in points use wins, then player key. AI practice is separate. No entry fees or prizes.</p>
+    <p id="leaderboardStatus" class="muted" role="status"></p>
+    <div class="leaderboard-scroll"><table class="leaderboard-table"><thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">W</th><th scope="col">L</th><th scope="col">D</th><th scope="col">Pts</th></tr></thead><tbody id="leaderboardRows"></tbody></table></div>
+    <div class="stack"><button id="leaderboardRefresh" class="teal" type="button">Refresh</button><button id="leaderboardBack" type="button">Back</button></div>
   </div>
 </section>
 
@@ -230,6 +251,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <div class="eyebrow">Result</div>
       <h2 id="finishTitle">Match over</h2>
       <div id="finishLines" class="muted"></div>
+      <p id="rematchStatus" class="muted" role="status"></p>
       <div class="stack"><button id="btnAgain" class="primary" type="button">Play again</button><button id="btnExit" type="button">Back</button></div>
     </div>
   </div>
@@ -863,13 +885,37 @@ globalThis.SONet = (() => {
     const r = await rpc('getMultipleAccounts', [ADDR.tables.map(t => t.state), { encoding: 'base64', commitment: 'processed' }]);
     return r.value.map((v, i) => v ? parseState(C.base64ToBytes(v.data[0]), i) : null);
   }
+  function eligibleResult(s) {
+    return s && s.phase === 'FINISHED' && s.mode === 'PVP' && [1, 2, 3].includes(s.winner) && s.a !== s.b && s.a !== '11111111111111111111111111111111' && s.b !== '11111111111111111111111111111111';
+  }
+  function rankRecentResults(tables) {
+    const entries = new Map(), seen = new Set();
+    let matches = 0;
+    for (const s of tables) {
+      if (!eligibleResult(s)) continue;
+      const id = s.idx + ':' + s.matchId;
+      if (seen.has(id)) continue;
+      seen.add(id); matches++;
+      for (const [side, key, name] of [[1, s.a, s.aName], [2, s.b, s.bName]]) {
+        const entry = entries.get(key) || { key, name: name || '', wins: 0, losses: 0, draws: 0, played: 0, points: 0 };
+        if (name) entry.name = name;
+        if (s.winner === 3) entry.draws++;
+        else if (s.winner === side) entry.wins++;
+        else entry.losses++;
+        entry.played++; entry.points = entry.wins * 3 + entry.draws;
+        entries.set(key, entry);
+      }
+    }
+    return { scope: 'recent', matches, entries: [...entries.values()].sort((a, b) => b.points - a.points || b.wins - a.wins || a.key.localeCompare(b.key)) };
+  }
+  async function readLeaderboard() { return rankRecentResults(await readTables()); }
   const battingSide = s => s.batFirst ^ s.inn; // 0 = A, 1 = B
   const sideKey = (s, side) => side === 0 ? s.a : s.b;
   const reclaimable = (s, slot) => s.phase === 'FREE' || (s.phase === 'FINISHED' && slot > s.deadline) || slot > s.deadline + 6000;
   async function currentSlot() { return rpc('getSlot', [{ commitment: 'processed' }]); }
 
   return Object.freeze({
-    TEE, TABLES, FLIGHT, SLOT_MS, setPlayer, login, get player() { return player; }, get clock() { return clock; },
+    TEE, TABLES, FLIGHT, SLOT_MS, readLeaderboard, rankRecentResults, eligibleResult, setPlayer, login, get player() { return player; }, get clock() { return clock; },
     syncClock, slotNow, timeOfSlot, freshBlockhash, send, prepareShots, sendPreparedShot, I, readTable, readTables, battingSide, sideKey, reclaimable, currentSlot, sleep,
   });
 })();
@@ -3375,12 +3421,74 @@ globalThis.SOScene = (() => {
 })();
 
 </script>
+<script>/* so-competition */
+// Match coordination. No new keys, payment flow or changes to cricket rules.
+globalThis.SOCompetition = (() => {
+  'use strict';
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  async function freshTable(net, idx, accept, { timeout = 8000, active = () => true, pause = sleep, now = () => performance.now() } = {}) {
+    const end = now() + timeout;
+    while (active()) {
+      let state = null;
+      try { state = await net.readTable(idx); } catch { /* retry a transient read */ }
+      if (!active()) throw new Error('Match opening cancelled.');
+      if (state && accept(state)) return state;
+      if (now() >= end) throw new Error('The new match has not appeared yet. Return to the lobby and check its code.');
+      await pause(180);
+    }
+    throw new Error('Match opening cancelled.');
+  }
+  async function rematch(net, previous, { active = () => true, onStatus = () => {}, pause = sleep, now = () => performance.now(), timeout = 180000 } = {}) {
+    if (previous.phase !== 'FINISHED' || previous.mode !== 'PVP') throw new Error('This friend match has not finished.');
+    const me = net.player.b58;
+    if (me !== previous.a && me !== previous.b) throw new Error('Only the two players can replay this match.');
+    const idx = previous.idx, nextId = previous.matchId + 1, end = now() + timeout;
+    let created = false;
+    onStatus(me === previous.a ? 'Preparing the same table for your rematch…' : 'Waiting for your friend to choose Rematch…');
+    while (active() && now() < end) {
+      const s = await net.readTable(idx);
+      if (!active()) throw new Error('Rematch cancelled.');
+      if (s.matchId === nextId && s.mode === 'PVP' && s.a === previous.a) {
+        if (s.phase === 'WAITING') {
+          if (me === previous.a) return s;
+          onStatus('Your friend is ready. Joining the rematch…');
+          await net.send([net.I.join(idx, nextId, net.player.name)], { label: 'Join rematch' });
+          return freshTable(net, idx, t => t.matchId === nextId && t.a === previous.a && t.b === previous.b && t.phase !== 'FINISHED', { active, pause, now });
+        }
+        if (s.b === previous.b && s.phase !== 'FINISHED' && s.phase !== 'FREE') return s;
+        throw new Error('This table has moved on. Return to the lobby to start a fresh match.');
+      }
+      if (s.matchId !== previous.matchId || s.phase !== 'FINISHED' || s.a !== previous.a || s.b !== previous.b) {
+        throw new Error('Another match is using this table. Return to the lobby and share a new code.');
+      }
+      if (me === previous.a && !created) {
+        const slot = await net.currentSlot();
+        if (!active()) throw new Error('Rematch cancelled.');
+        if (net.reclaimable(s, slot)) {
+          onStatus('Opening the rematch. Your friend can join by choosing Rematch.');
+          // Only the original host creates. The other player joins this exact next match.
+          created = true;
+          await net.send([net.I.create(idx, 0, net.player.name)], { label: 'Create rematch' });
+        } else {
+          const seconds = Math.max(1, Math.ceil((s.deadline - slot + 1) * net.SLOT_MS / 1000));
+          onStatus(`The table is resetting (${seconds}s). Ask your friend to choose Rematch too.`);
+        }
+      }
+      await pause(500);
+    }
+    if (!active()) throw new Error('Rematch cancelled.');
+    throw new Error('Your friend has not joined yet. You can try Rematch again or return to the lobby.');
+  }
+  return Object.freeze({ freshTable, rematch });
+})();
+
+</script>
 <script>/* so-app */
 // Magic Over app: screens, sign-in, lobby, match loop and HUD.
 (() => {
   'use strict';
   const N = globalThis.SONet, V = globalThis.SOScene, S = globalThis.SabhaSol, C = globalThis.SabhaChainKey;
-  const SND = globalThis.SOSound;
+  const SND = globalThis.SOSound, COMP = globalThis.SOCompetition;
   const $ = id => document.getElementById(id);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const SHOT_NAMES = ['Defend', 'Drive', 'Cut', 'Pull', 'Loft', 'Leave'];
@@ -3532,8 +3640,8 @@ globalThis.SOScene = (() => {
     for (const { i } of order) {
       try {
         await N.send([N.I.create(i, mode, N.player.guest ? '' : N.player.name)], { label: 'Create match' });
-        return startMatch(i, s => s.a === N.player.b58 && s.mode === (mode ? 'AI' : 'PVP') && s.phase !== 'FINISHED' && s.phase !== 'FREE');
-      } catch (e) { lastError = e; }
+      } catch (e) { lastError = e; continue; }
+      return startMatch(i, s => s.a === N.player.b58 && s.mode === (mode ? 'AI' : 'PVP') && s.phase !== 'FINISHED' && s.phase !== 'FREE');
     }
     throw lastError;
   }
@@ -3547,7 +3655,7 @@ globalThis.SOScene = (() => {
   }
 
   // ------------------------------------------------------------ match session
-  let M = null;
+  let M = null, sessionGeneration = 0;
   function role(s) {
     if (s.mode === 'AI') return { me: 0, batting: true, bowling: false };
     const me = s.a === N.player.b58 ? 0 : s.b === N.player.b58 ? 1 : -1;
@@ -3555,18 +3663,13 @@ globalThis.SOScene = (() => {
     return { me, batting: me === bat, bowling: me !== -1 && me !== bat };
   }
   // a read straight after a write can still return the table's previous match; wait until it shows ours
-  async function freshTable(idx, ok, ms = 8000) {
-    const t0 = performance.now();
-    for (;;) {
-      const s = await N.readTable(idx).catch(() => null);
-      if (s && (ok(s) || performance.now() - t0 > ms)) return s;
-      await sleep(150);
-    }
-  }
-  async function startMatch(idx, expect = null) {
+  async function startMatch(idx, expect = null, expectedPair = null) {
+    const generation = ++sessionGeneration;
+    const active = () => generation === sessionGeneration;
+    const s = expect ? await COMP.freshTable(N, idx, expect, { active }) : await N.readTable(idx);
+    if (!active()) return;
     show('match');
-    const s = expect ? await freshTable(idx, expect) : await N.readTable(idx);
-    M = { idx, prev: null, knownSeq: s.seq, live: null, busyUntil: 0, sent: {}, matchId: s.matchId, mode: s.mode, ended: false, lastClockSync: performance.now() };
+    M = { idx, expectedPair, prev: null, knownSeq: s.seq, live: null, busyUntil: 0, sent: {}, matchId: s.matchId, mode: s.mode, ended: false, lastClockSync: performance.now() };
     $('matchCode').textContent = s.mode === 'AI' ? 'vs AI' : `Code ${idx}-${s.matchId}`;
     $('copyCode').hidden = s.mode === 'AI';
     $('finishCard').hidden = true;
@@ -3578,7 +3681,8 @@ globalThis.SOScene = (() => {
       let s = null;
       try { s = await N.readTable(session.idx); } catch (e) { await sleep(400); continue; }
       if (M !== session) return;
-      if (s.matchId !== session.matchId) { toast('This table was reused for a new match.', 'bad'); leaveMatch(); return; }
+      if (s.matchId !== session.matchId) { toast('This table was reused for a new match.', 'bad'); leaveMatch(); if (N.player && !N.player.guest) openLobby(); else show('home'); return; }
+      if (session.expectedPair && (s.a !== session.expectedPair.a || (s.phase !== 'WAITING' && s.b !== session.expectedPair.b))) { toast('Someone else joined this table. Return to the lobby and share a fresh code.', 'bad'); leaveMatch(); openLobby(); return; }
       await handle(session, s);
       session.prev = s;
       $('ping').textContent = `ping ${Math.round(N.clock.upMs * 2)} ms`;
@@ -3847,8 +3951,11 @@ globalThis.SOScene = (() => {
   // ------------------------------------------------------------ end of match
   function finish(session, s) {
     session.ended = true;
+    session.result = s;
     hidePads();
     status('');
+    $('btnAgain').textContent = s.mode === 'PVP' ? 'Rematch with this friend' : 'Play again';
+    $('rematchStatus').textContent = s.mode === 'PVP' ? 'Both players choose Rematch. The same table resets after the result.' : '';
     setTimeout(() => {
       if (M !== session) return;
       const meSide = role(s).me;
@@ -3870,9 +3977,22 @@ globalThis.SOScene = (() => {
     }, 3000);
   }
   $('btnAgain').onclick = async () => {
-    const mode = M ? (M.mode === 'AI' ? 1 : 0) : 1;
-    leaveMatch(true);
-    try { await createMatch(mode); } catch (e) { toast(e.message, 'bad'); show('home'); }
+    const session = M;
+    if (!session || !session.result || session.rematching) return;
+    session.rematching = true;
+    const button = $('btnAgain');
+    busy(button, true, session.mode === 'PVP' ? 'Waiting for rematch…' : 'Opening next game…');
+    const active = () => M === session;
+    try {
+      if (session.mode === 'PVP') {
+        const next = await COMP.rematch(N, session.result, { active, onStatus: text => { if (active()) $('rematchStatus').textContent = text; } });
+        if (!active()) return;
+        await startMatch(next.idx, s => s.matchId === next.matchId && s.a === session.result.a && (s.phase === 'WAITING' || s.b === session.result.b) && s.phase !== 'FINISHED', { a: session.result.a, b: session.result.b });
+      } else {
+        await createMatch(1);
+      }
+    } catch (e) { if (active()) { $('rematchStatus').textContent = e.message || String(e); toast(e.message || String(e), 'bad'); } }
+    finally { session.rematching = false; busy(button, false); }
   };
   $('btnExit').onclick = () => { leaveMatch(); show(N.player && !N.player.guest ? 'lobby' : 'home'); if (N.player && !N.player.guest) openLobby(); };
   $('btnConcede').onclick = async () => {
@@ -3884,6 +4004,7 @@ globalThis.SOScene = (() => {
     if (N.player && !N.player.guest) openLobby();
   };
   function leaveMatch(keepScreen) {
+    sessionGeneration++;
     if (M) M.ended = true;
     M = null;
     hidePads();
@@ -3892,6 +4013,40 @@ globalThis.SOScene = (() => {
     V.setBallDriver(null); V.resetBowler(); V.resetBat(); V.resetStumps();
     if (!keepScreen) V.setCamera('orbit');
   }
+  // ------------------------------------------------------------ shared friend leaderboard
+  let leaderboardBack = 'home', leaderboardGeneration = 0;
+  async function openLeaderboard(back) {
+    leaderboardBack = back;
+    show('leaderboard');
+    await refreshLeaderboard();
+  }
+  async function refreshLeaderboard() {
+    const generation = ++leaderboardGeneration, button = $('leaderboardRefresh');
+    busy(button, true, 'Reading results…');
+    $('leaderboardStatus').textContent = 'Reading recent completed friend matches…';
+    $('leaderboardRows').replaceChildren();
+    try {
+      const board = await N.readLeaderboard();
+      if (generation !== leaderboardGeneration || $('leaderboard').hidden) return;
+      $('leaderboardStatus').textContent = board.matches ? `${board.matches} completed friend match${board.matches === 1 ? '' : 'es'} on the current tables · ${board.entries.length} players` : 'No completed friend matches on the current tables yet.';
+      for (const [i, entry] of board.entries.entries()) {
+        const row = document.createElement('tr');
+        if (entry.key === N.player?.b58) row.className = 'you';
+        const rank = document.createElement('td'); rank.textContent = String(i + 1); row.appendChild(rank);
+        const player = document.createElement('td'), name = document.createElement('b'), address = document.createElement('small');
+        name.textContent = entry.name || short(entry.key); address.textContent = short(entry.key); address.title = entry.key;
+        player.append(name, address); row.appendChild(player);
+        for (const value of [entry.wins, entry.losses, entry.draws, entry.points]) { const cell = document.createElement('td'); cell.textContent = String(value); row.appendChild(cell); }
+        $('leaderboardRows').appendChild(row);
+        if (entry.name) verifyName(entry.name, entry.key).then(ok => { if (generation === leaderboardGeneration) address.textContent = `${short(entry.key)} · ${ok ? '✓ verified name' : 'name not verified'}`; });
+      }
+    } catch (e) { if (generation === leaderboardGeneration) $('leaderboardStatus').textContent = 'Could not load recent results. ' + (e.message || String(e)); }
+    finally { if (generation === leaderboardGeneration) busy(button, false); }
+  }
+  $('btnLeaderboard').onclick = () => openLeaderboard('home');
+  $('lobbyLeaderboard').onclick = () => openLeaderboard('lobby');
+  $('leaderboardRefresh').onclick = refreshLeaderboard;
+  $('leaderboardBack').onclick = () => { leaderboardGeneration++; busy($('leaderboardRefresh'), false); if (leaderboardBack === 'lobby') openLobby(); else show('home'); };
   if (SND) {
     const wake = () => SND.init();
     for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) addEventListener(ev, wake, { capture: true });
