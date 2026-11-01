@@ -201,6 +201,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
   <div class="card leaderboard-card">
     <div class="eyebrow">Magic Over · friend matches</div>
     <h2>Leaderboard</h2>
+    <p class="muted">Updates automatically every 5 seconds while open. Returns to the latest results when you switch back to this tab.</p>
     <p class="muted">Recorded friend-match totals stay when match tables are reused. They are shared across devices and saved back to Solana Devnet. Saving status is shown below.</p>
     <p class="muted">Win: 3 points · Draw: 1 · Loss: 0. Ties in points use wins, then player key. AI practice is separate. No entry fees or prizes.</p>
     <p id="leaderboardStatus" class="muted" role="status"></p>
@@ -3531,6 +3532,7 @@ globalThis.SOCompetition = (() => {
 
   // ------------------------------------------------------------ small UI helpers
   function show(id) {
+    if (id !== 'leaderboard') stopLeaderboardRefresh();
     for (const el of document.querySelectorAll('.screen')) el.hidden = el.id !== id;
     if (id) V.setCamera(id === 'match' ? 'broadcast' : 'orbit');
   }
@@ -4055,22 +4057,36 @@ globalThis.SOCompetition = (() => {
   }
   $('retryLeaderboard').onclick=async()=>{const session=M;if(!session?.result||session.mode!=='PVP')return;const b=$('retryLeaderboard');busy(b,true,'Saving…');try{session.savePromise=saveResult(session);await session.savePromise;}finally{busy(b,false);}};
   // ------------------------------------------------------------ shared friend leaderboard
-  let leaderboardBack = 'home', leaderboardGeneration = 0;
+  let leaderboardBack = 'home', leaderboardGeneration = 0, leaderboardSession = null;
+  function stopLeaderboardRefresh() {
+    if (leaderboardSession) clearTimeout(leaderboardSession.timer);
+    leaderboardSession = null;
+    leaderboardGeneration++;
+    busy($('leaderboardRefresh'), false);
+  }
   async function openLeaderboard(back) {
+    stopLeaderboardRefresh();
     leaderboardBack = back;
     show('leaderboard');
+    leaderboardSession = { timer: 0, reading: false, pending: false };
     await refreshLeaderboard();
   }
   async function refreshLeaderboard() {
+    const session = leaderboardSession;
+    if (!session || $('leaderboard').hidden || document.hidden) return;
+    if (session.reading) { session.pending = true; return; }
+    clearTimeout(session.timer);
+    session.timer = 0;
+    session.reading = true;
     const generation = ++leaderboardGeneration, button = $('leaderboardRefresh');
     busy(button, true, 'Reading results…');
-    $('leaderboardStatus').textContent = 'Reading the shared leaderboard…';
-    $('leaderboardRows').replaceChildren();
+    if (!$('leaderboardRows').children.length) $('leaderboardStatus').textContent = 'Reading the shared leaderboard…';
     try {
       const board = await N.readLeaderboard();
-      if (generation !== leaderboardGeneration || $('leaderboard').hidden) return;
+      if (session !== leaderboardSession || generation !== leaderboardGeneration || $('leaderboard').hidden) return;
       const saved=board.committedMatches===board.matches?'Saved on Solana Devnet':board.committedMatches===null?'Solana confirmation unavailable':`${board.committedMatches} saved on Solana · latest result saving`;
       $('leaderboardStatus').textContent=board.matches?`${board.matches} recorded friend match${board.matches===1?'':'es'} · ${board.entries.length} players · ${saved}`:'No friend results recorded yet. Play a friend to get started.';
+      const rows = document.createDocumentFragment();
       for (const [i, entry] of board.entries.entries()) {
         const row = document.createElement('tr');
         if (entry.key === N.player?.b58) row.className = 'you';
@@ -4079,16 +4095,35 @@ globalThis.SOCompetition = (() => {
         name.textContent = entry.name || short(entry.key); address.textContent = short(entry.key); address.title = entry.key;
         player.append(name, address); row.appendChild(player);
         for (const value of [entry.wins, entry.losses, entry.draws, entry.points]) { const cell = document.createElement('td'); cell.textContent = String(value); row.appendChild(cell); }
-        $('leaderboardRows').appendChild(row);
-        if (entry.name) verifyName(entry.name, entry.key).then(ok => { if (generation === leaderboardGeneration) address.textContent = `${short(entry.key)} · ${ok ? '✓ verified name' : 'name not verified'}`; });
+        rows.appendChild(row);
+        if (entry.name) verifyName(entry.name, entry.key).then(ok => { if (session === leaderboardSession && generation === leaderboardGeneration) address.textContent = `${short(entry.key)} · ${ok ? '✓ verified name' : 'name not verified'}`; });
       }
-    } catch (e) { if (generation === leaderboardGeneration) $('leaderboardStatus').textContent = 'Could not load the shared leaderboard. ' + (e.message || String(e)); }
-    finally { if (generation === leaderboardGeneration) busy(button, false); }
+      $('leaderboardRows').replaceChildren(rows);
+    } catch (e) {
+      if (session === leaderboardSession && generation === leaderboardGeneration) $('leaderboardStatus').textContent = 'Could not refresh the leaderboard. '+($('leaderboardRows').children.length?'Keeping the last displayed results. ':'')+'Retrying automatically. '+(e.message || String(e));
+    } finally {
+      session.reading = false;
+      if (session === leaderboardSession) {
+        busy(button, false);
+        if (!$('leaderboard').hidden && !document.hidden) {
+          const delay = session.pending ? 0 : 5000;
+          session.pending = false;
+          session.timer = setTimeout(refreshLeaderboard, delay);
+        }
+      }
+    }
   }
   $('btnLeaderboard').onclick = () => openLeaderboard('home');
   $('lobbyLeaderboard').onclick = () => openLeaderboard('lobby');
   $('leaderboardRefresh').onclick = refreshLeaderboard;
-  $('leaderboardBack').onclick = () => { leaderboardGeneration++; busy($('leaderboardRefresh'), false); if (leaderboardBack === 'lobby') openLobby(); else show('home'); };
+  $('leaderboardBack').onclick = () => { if (leaderboardBack === 'lobby') openLobby(); else show('home'); };
+  document.addEventListener('visibilitychange', () => {
+    if (!leaderboardSession) return;
+    clearTimeout(leaderboardSession.timer);
+    leaderboardSession.timer = 0;
+    if (!document.hidden) refreshLeaderboard();
+  });
+  addEventListener('focus', () => { if (leaderboardSession && !document.hidden) refreshLeaderboard(); });
   if (SND) {
     const wake = () => SND.init();
     for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) addEventListener(ev, wake, { capture: true });
