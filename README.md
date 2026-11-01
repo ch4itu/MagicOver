@@ -1,4 +1,4 @@
-# Magic Over — cricket on MagicBlock ER · PER · VRF
+# Magic Over :: Cricket on MagicBlock ER · PER · VRF
 
 **Six balls. Two wickets. Open the game and play. No wallet app, seed phrase or SOL required.**
 
