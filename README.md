@@ -8,7 +8,7 @@ Magic Over is a browser cricket game on **Solana Devnet**. Try **Bat vs AI** wit
 
 ## Easy onboarding is the starting point
 
-We want a person who has never used a wallet to be able to play cricket.
+We want a person who has never used a wallet to be on-boarded into the Web3.
 
 | Player experience | What happens underneath |
 | --- | --- |
