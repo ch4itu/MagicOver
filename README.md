@@ -4,7 +4,7 @@
 
 Magic Over is a browser cricket game on **Solana Devnet**. Try **Bat vs AI** without an account, or play a friend with a familiar username and passphrase. The browser signs the moves for you. MagicBlock handles the public player registry, private matches and verifiable randomness for the AI.
 
-[Watch the silent, captioned demo](media/demo.mp4) · [Pitch and demo transcript](media/transcript.md)
+[Watch the demo](media/pitch.mp4)
 
 ## Easy onboarding is the starting point
 
