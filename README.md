@@ -4,9 +4,7 @@
 
 Magic Over is a browser-based 3D cricket game on Solana Devnet and MagicBlock. Bat against a randomness-driven AI bowler immediately, or challenge a friend using a familiar name-and-password sign-in. The browser handles signing; players do not approve a wallet popup for every ball.
 
-[Watch the demo and onboarding explanation](media/demo.mp4) · [Read the video transcript](media/demo-narration.txt) · [View the game program on Devnet](https://explorer.solana.com/address/HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT?cluster=devnet)
-
-![Magic Over demo](media/demo-poster.jpg)
+[Watch the demo and onboarding explanation](media/demo.mp4) · [View the game program on Devnet](https://explorer.solana.com/address/HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT?cluster=devnet)
 
 ## Start playing
 
