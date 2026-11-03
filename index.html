@@ -411,13 +411,15 @@ const SabhaSol = (() => {
 
   // ------------------------------------------------------------ JSON-RPC
   let rpcId = 0;
-  async function rpc(url, method, params = [], timeoutMs = 15000) {
+  // simple: send the JSON body as text/plain. The browser then makes a CORS "simple request" with no OPTIONS
+  // preflight. Only for endpoints that accept it (MagicBlock's rollups do; Solana's public RPC does not).
+  async function rpc(url, method, params = [], timeoutMs = 15000, { simple = false } = {}) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
     try {
       const res = await fetch(cleanUrl(url), {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': simple ? 'text/plain' : 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params }),
         signal: ctl.signal
       });
@@ -836,7 +838,9 @@ globalThis.SONet = (() => {
     if (id?.identity !== TEE_VALIDATOR) throw new Error('SAFETY STOP: the private rollup endpoint is not the expected MagicBlock TEE validator.');
     return token;
   }
-  const rpc = (method, params = [], timeout = 8000) => S.rpc(url, method, params, timeout);
+  // text/plain body: no CORS preflight (the rollup sends no Access-Control-Max-Age, so preflights would add a round
+  // trip every few seconds, often to a shot or to the read that brings its result)
+  const rpc = (method, params = [], timeout = 8000) => S.rpc(url, method, params, timeout, { simple: true });
 
   // ------------------------------------------------------------ clock: local time <-> ER slot
   // NTP-style: keep recent (rtt, offset) samples and trust the ones with the smallest round trip,
@@ -960,7 +964,9 @@ globalThis.SONet = (() => {
   async function readTable(i) {
     const r = await rpc('getAccountInfo', [ADDR.tables[i].state, { encoding: 'base64', commitment: 'processed' }], 5000);
     if (!r?.value) throw new Error('Table not found on the private rollup.');
-    return parseState(C.base64ToBytes(r.value.data[0]), i);
+    const s = parseState(C.base64ToBytes(r.value.data[0]), i);
+    s.readSlot = r.context ? r.context.slot : null; // the rollup slot this state was read at (orders overlapping reads)
+    return s;
   }
   async function readTables() {
     const r = await rpc('getMultipleAccounts', [ADDR.tables.map(t => t.state), { encoding: 'base64', commitment: 'processed' }]);
@@ -3784,16 +3790,40 @@ globalThis.SOCompetition = (() => {
       let s = null;
       try { s = await N.readTable(session.idx); } catch (e) { await sleep(400); continue; }
       if (M !== session) return;
-      if (s.matchId !== session.matchId) { toast('This table was reused for a new match.', 'bad'); leaveMatch(); if (N.player && !N.player.guest) openLobby(); else show('home'); return; }
-      if (session.expectedPair && (s.a !== session.expectedPair.a || (s.phase !== 'WAITING' && s.b !== session.expectedPair.b))) { toast('Someone else joined this table. Return to the lobby and share a fresh code.', 'bad'); leaveMatch(); openLobby(); return; }
-      await handle(session, s);
-      session.prev = s;
+      if (!await take(session, s)) return;
       $('ping').textContent = `ping ${Math.round(N.clock.upMs * 2)} ms`;
       // keep the connection warm and the slot clock fresh; a cold connection makes the first shot late
       if (performance.now() - session.lastClockSync > 1500 && s.phase !== 'LIVE') { session.lastClockSync = performance.now(); N.syncClock(1).catch(() => {}); N.freshBlockhash().catch(() => {}); }
       const fast = s.phase === 'LIVE' || s.phase === 'AI_REQUESTED' || (s.phase === 'BOWLING' && role(s).batting);
       await sleep(fast ? 60 : 220);
     }
+  }
+
+  // Table states reach handle() one at a time and in rollup order: from the poll loop and from the quick reads that
+  // follow your own shot (kick). A read that comes back late with an older state is skipped.
+  function take(session, s) {
+    const step = async () => {
+      if (M !== session) return false;
+      if (s.readSlot != null && session.readSlot != null && s.readSlot < session.readSlot) return true;
+      if (s.readSlot != null) session.readSlot = s.readSlot;
+      if (s.matchId !== session.matchId) { toast('This table was reused for a new match.', 'bad'); leaveMatch(); if (N.player && !N.player.guest) openLobby(); else show('home'); return false; }
+      if (session.expectedPair && (s.a !== session.expectedPair.a || (s.phase !== 'WAITING' && s.b !== session.expectedPair.b))) { toast('Someone else joined this table. Return to the lobby and share a fresh code.', 'bad'); leaveMatch(); openLobby(); return false; }
+      await handle(session, s);
+      session.prev = s;
+      return true;
+    };
+    const run = (session.taking || Promise.resolve()).then(step);
+    session.taking = run.catch(() => {});
+    return run;
+  }
+  // Right after your shot or leave is sent, read the table a few times on its heels. The verdict then shows about one
+  // round trip after the shot, instead of waiting for the next regular read (which can be up to a round trip later).
+  const KICK_MS = [40, 90, 150];
+  function kick(session) {
+    for (const ms of KICK_MS) setTimeout(() => {
+      if (M !== session || session.ended) return;
+      N.readTable(session.idx).then(s => take(session, s)).catch(() => {});
+    }, ms);
   }
 
   async function handle(session, s) {
@@ -3932,6 +3962,7 @@ globalThis.SOCompetition = (() => {
       l.played = true; l.shot = 5; l.auto = true;
       dbg('autoleave', { seq: s.seq, vsArrive: performance.now() - arriveAt });
       N.sendPreparedShot(session.idx, s.seq, 5).catch(e => dbg('autoleavefail', e.message)); // the deadline settle is the fallback
+      kick(session);
     }, Math.max(0, arriveAt + LAST_CHANCE_MS - performance.now()));
     const desc = `${PACES[s.pace]} · ${LENGTHS[s.length].toLowerCase()} · ${LINES[s.line].toLowerCase()}`;
     status(r.batting ? `${desc}. Play your shot as the ball reaches the bat.` : desc);
@@ -3951,6 +3982,7 @@ globalThis.SOCompetition = (() => {
     const t0 = performance.now();
     dbg('tap', { seq: session.live.seq, slotNow: N.slotNow(), vsArrive: t0 - session.live.arriveAt });
     N.sendPreparedShot(session.idx, session.live.seq, shot).then(() => dbg('sent', { ms: performance.now() - t0 })).catch(e => { dbg('sendfail', e.message); toast(e.message, 'bad'); });
+    kick(session);
   }
   for (const b of document.querySelectorAll('#batPad button')) b.onpointerdown = ev => { ev.preventDefault(); playShot(Number(b.dataset.shot)); };
   addEventListener('keydown', ev => {
