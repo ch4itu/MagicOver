@@ -320,6 +320,10 @@ const SabhaSol = (() => {
   const DEFAULT_ER = 'https://devnet-as.magicblock.app';
   const DEFAULT_BASE = 'https://api.devnet.solana.com';
   const NSHARDS = 4, HEADER = 64, ENTRY = 288, SLOTS = 35, SHARD_SIZE = HEADER + SLOTS * ENTRY, ENVELOPE = 212, POW_BITS = 16;
+  // Capacity grows in steps and names never move: step 0 is the 4 shards above, step g has 4 << g shards.
+  // A name goes to the first step whose shard for it has room, so lookups walk the steps in order.
+  const MAX_GEN = 5;
+  const SHARD_SEED = C.te.encode('sabha-reg');
   const POW_DOMAIN = C.te.encode('SABHA-SOL-POW-V1');
   const MAGIC = 'SABREG01';
   const ERRORS = {
@@ -330,12 +334,15 @@ const SabhaSol = (() => {
     5: 'The name was routed to the wrong registry shard.',
     6: 'The anti-bot proof was too weak.',
     7: 'That player name already exists. Use Sign in instead.',
-    8: 'This registry shard is full. The devnet demo holds 35 players per shard.',
+    8: 'Sign-ups are full for this name right now. The registry needs its next capacity step.',
     9: 'That player name is not in the registry.',
     10: 'That player name belongs to a different key.',
     11: 'Registry address mismatch.',
     12: 'The MagicBlock commit call failed.',
-    13: 'Unknown registry instruction.'
+    13: 'Unknown registry instruction.',
+    14: 'The registry changed while signing up. Please try again.',
+    15: 'Only the registry admin can do that.',
+    16: 'Registry shards can only be delegated to the registry\'s MagicBlock validator.'
   };
 
   // ------------------------------------------------------------ base58
@@ -383,7 +390,6 @@ const SabhaSol = (() => {
     return b;
   }
   const PROGRAM_PK = pubkey(PROGRAM_ID), MAGIC_PROGRAM_PK = pubkey(MAGIC_PROGRAM), MAGIC_CONTEXT_PK = pubkey(MAGIC_CONTEXT);
-  const SHARD_PKS = SHARDS.map(pubkey);
   const GENESIS_BYTES = pubkey(DEVNET_GENESIS);
 
   // ------------------------------------------------------------ small helpers
@@ -453,59 +459,109 @@ const SabhaSol = (() => {
   }
 
   // ------------------------------------------------------------ registry reads
-  async function readShard(url, index) {
-    const result = await rpc(url, 'getAccountInfo', [SHARDS[index], { encoding: 'base64', commitment: 'confirmed' }]);
-    const value = result?.value;
-    if (!value) return null;
-    return { owner: value.owner, data: C.base64ToBytes(value.data[0]) };
+  const stepSize = gen => NSHARDS << gen;
+  const stepIndex = (nameHash, gen) => gen === 0 ? nameHash[0] % NSHARDS : nameHash[2 + gen] % stepSize(gen);
+  const groupCache = new Map();
+  function groupAddress(gen, index) {
+    if (gen === 0) return SHARDS[index];
+    const key = gen + ':' + index;
+    if (!groupCache.has(key)) {
+      const [pda] = A.PublicKey.findProgramAddressSync([SHARD_SEED, Uint8Array.of(gen), Uint8Array.of(index)], new A.PublicKey(PROGRAM_ID));
+      groupCache.set(key, pda.toBase58());
+    }
+    return groupCache.get(key);
   }
-  function checkShard(account, index, owners) {
-    if (!account) throw new Error('Registry shard not found.');
+  const namePath = nameHash => Array.from({ length: MAX_GEN + 1 }, (_, gen) => {
+    const index = stepIndex(nameHash, gen);
+    return { gen, index, address: groupAddress(gen, index) };
+  });
+  const groupOf = shard => typeof shard === 'number' ? SHARDS[shard] : shard;
+  async function readGroups(url, addresses) {
+    const result = await rpc(url, 'getMultipleAccounts', [addresses, { encoding: 'base64', commitment: 'confirmed' }]);
+    return result.value.map(v => v ? { owner: v.owner, data: C.base64ToBytes(v.data[0]) } : null);
+  }
+  function checkGroup(account, step, owners) {
     if (!owners.includes(account.owner)) throw new Error(`Registry shard has an unexpected owner (${account.owner}).`);
     const d = account.data;
-    if (d.length !== SHARD_SIZE || C.td.decode(d.subarray(0, 8)) !== MAGIC || d[8] !== index) throw new Error('Registry shard header mismatch.');
+    if (d.length !== SHARD_SIZE || C.td.decode(d.subarray(0, 8)) !== MAGIC || d[8] !== step.index || d[15] !== step.gen) throw new Error('Registry shard header mismatch.');
     return d;
   }
-  function findEntry(d, nameHash) {
+  // The name's entry, a free slot for it, or a full shard. Entries are never deleted.
+  function probeGroup(d, nameHash) {
     const start = (nameHash[1] | (nameHash[2] << 8)) % SLOTS;
     for (let k = 0; k < SLOTS; k++) {
       const slot = (start + k) % SLOTS, e = HEADER + slot * ENTRY;
-      if (d[e] === 0) return null;
+      if (d[e] === 0) return { free: true };
       if (C.equalBytes(d.subarray(e + 8, e + 40), nameHash)) {
-        return { slot, counter: u32(d, e + 4), owner: d.slice(e + 40, e + 72), envelope: d.slice(e + 72, e + 72 + ENVELOPE) };
+        return { entry: { slot, counter: u32(d, e + 4), owner: d.slice(e + 40, e + 72), envelope: d.slice(e + 72, e + 72 + ENVELOPE) } };
       }
     }
-    return null;
+    return { full: true };
+  }
+  const findEntry = (d, nameHash) => probeGroup(d, nameHash).entry || null;
+  // Walk the steps: stop at the shard that holds the name or still has room for it.
+  // A step whose shard does not exist yet has not been opened, so the name has no room.
+  function walk(groups, path, nameHash, owners) {
+    for (let gen = 0; gen < path.length; gen++) {
+      if (!groups[gen]) break;
+      const found = probeGroup(checkGroup(groups[gen], path[gen], owners), nameHash);
+      if (found.entry) return { entry: found.entry, step: path[gen] };
+      if (found.free) return { entry: null, step: path[gen] };
+    }
+    return { entry: null, step: null };
   }
   async function lookup(name, { erUrl, baseUrl, requireEr = false }) {
     const normalized = C.normalizeName(name);
     const nameHash = await C.nameHash(normalized);
-    const shard = nameHash[0] % NSHARDS;
+    const path = namePath(nameHash), addresses = path.map(step => step.address);
+    const result = (found, source, erError) => ({
+      normalized, nameHash, source, entry: found.entry, erError,
+      full: !found.entry && !found.step,
+      gen: found.step ? found.step.gen : null,
+      shard: found.step ? found.step.address : null,
+      path: found.step ? addresses.slice(0, found.step.gen + 1) : []
+    });
     try {
-      const d = checkShard(await readShard(erUrl, shard), shard, [PROGRAM_ID]);
-      return { normalized, nameHash, shard, source: 'MagicBlock ER', entry: findEntry(d, nameHash) };
+      const groups = await readGroups(erUrl, addresses);
+      if (!groups[0]) throw new Error('Registry shard not found.');
+      return result(walk(groups, path, nameHash, [PROGRAM_ID]), 'MagicBlock ER');
     } catch (erError) {
       if (requireEr) throw new Error('Could not read the registry on the MagicBlock ER: ' + (erError?.message || erError));
       await assertDevnet(baseUrl);
-      const d = checkShard(await readShard(baseUrl, shard), shard, [PROGRAM_ID, DELEGATION_PROGRAM]);
-      return { normalized, nameHash, shard, source: 'Solana devnet (last commit)', entry: findEntry(d, nameHash), erError };
+      const groups = await readGroups(baseUrl, addresses);
+      if (!groups[0]) throw new Error('Registry shard not found.');
+      return result(walk(groups, path, nameHash, [PROGRAM_ID, DELEGATION_PROGRAM]), 'Solana devnet (last commit)', erError);
     }
   }
+  // Totals across the open steps: a step is open once its shards exist on Solana.
   async function registryStatus({ erUrl, baseUrl }) {
     const slice = { encoding: 'base64', dataSlice: { offset: 0, length: 20 } };
-    const [base, er] = await Promise.allSettled([
-      rpc(baseUrl, 'getMultipleAccounts', [SHARDS, { ...slice, commitment: 'confirmed' }]),
-      rpc(erUrl, 'getMultipleAccounts', [SHARDS, slice])
-    ]);
-    const status = { delegated: null, players: null, erOk: er.status === 'fulfilled', baseOk: base.status === 'fulfilled' };
-    if (base.status === 'fulfilled') status.delegated = base.value.value.filter(v => v?.owner === DELEGATION_PROGRAM).length;
-    if (er.status === 'fulfilled') {
-      status.players = er.value.value.reduce((sum, v) => {
-        if (!v || v.owner !== PROGRAM_ID) return sum;
-        const d = C.base64ToBytes(v.data[0]);
-        return sum + (d.length >= 20 ? u32(d, 16) : 0);
-      }, 0);
+    const status = { delegated: 0, players: null, capacity: 0, steps: 0, erOk: true, baseOk: true };
+    let players = 0;
+    for (let gen = 0; gen <= MAX_GEN; gen++) {
+      const addresses = Array.from({ length: stepSize(gen) }, (_, i) => groupAddress(gen, i));
+      const read = async (url, extra) => {
+        const out = [];
+        for (let i = 0; i < addresses.length; i += 100) out.push(...(await rpc(url, 'getMultipleAccounts', [addresses.slice(i, i + 100), { ...slice, ...extra }])).value);
+        return out;
+      };
+      let base;
+      try { base = await read(baseUrl, { commitment: 'confirmed' }); } catch { status.baseOk = false; break; }
+      const open = base.filter(v => v && (v.owner === DELEGATION_PROGRAM || v.owner === PROGRAM_ID)).length;
+      if (!open) break;
+      status.steps = gen + 1;
+      status.capacity += open * SLOTS;
+      status.delegated += base.filter(v => v?.owner === DELEGATION_PROGRAM).length;
+      if (!status.erOk) continue;
+      try {
+        players += (await read(erUrl, {})).reduce((sum, v) => {
+          if (!v || v.owner !== PROGRAM_ID) return sum;
+          const d = C.base64ToBytes(v.data[0]);
+          return sum + (d.length >= 20 ? u32(d, 16) : 0);
+        }, 0);
+      } catch { status.erOk = false; }
     }
+    if (status.erOk) status.players = players;
     return status;
   }
 
@@ -605,13 +661,13 @@ const SabhaSol = (() => {
       } catch (error) {
         const why = explainRpcError(error);
         if (attempt === 0 && /blockhash/i.test(why)) continue;
-        throw new Error(`${label} was rejected: ${why}`);
+        throw Object.assign(new Error(`${label} was rejected: ${why}`), { code: customCode(error?.rpc?.data?.err) });
       }
       const deadline = Date.now() + 30000;
       while (Date.now() < deadline) {
         const status = (await rpc(erUrl, 'getSignatureStatuses', [[sig], { searchTransactionHistory: true }])).value[0];
         if (status) {
-          if (status.err) throw new Error(`${label} failed on the MagicBlock ER: ${explainTxError(status.err)}`);
+          if (status.err) throw Object.assign(new Error(`${label} failed on the MagicBlock ER: ${explainTxError(status.err)}`), { code: customCode(status.err) });
           if (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized') return sig;
         }
         await sleep(400);
@@ -620,21 +676,23 @@ const SabhaSol = (() => {
     }
     throw new Error(`${label} could not get a fresh blockhash from the MagicBlock ER.`);
   }
-  const registerIx = (owner, nameHash, nonce, envelope) => ({
+  // path: the name's shard in step 0, 1, ... up to the step that has room (only that one is written)
+  const registerIx = (owner, nameHash, nonce, envelope, path) => ({
     programId: PROGRAM_PK,
-    keys: [{ pk: owner, signer: true, writable: false }, { pk: SHARD_PKS[nameHash[0] % NSHARDS], signer: false, writable: true }],
+    keys: [{ pk: owner, signer: true, writable: false },
+      ...path.map((address, i) => ({ pk: pubkey(address), signer: false, writable: i === path.length - 1 }))],
     data: C.concat(Uint8Array.of(1), nameHash, nonce, envelope)
   });
-  const touchIx = (owner, nameHash) => ({
+  const touchIx = (owner, nameHash, shard) => ({
     programId: PROGRAM_PK,
-    keys: [{ pk: owner, signer: true, writable: false }, { pk: SHARD_PKS[nameHash[0] % NSHARDS], signer: false, writable: true }],
+    keys: [{ pk: owner, signer: true, writable: false }, { pk: pubkey(groupOf(shard)), signer: false, writable: true }],
     data: C.concat(Uint8Array.of(2), nameHash)
   });
   const commitIx = (payer, shard) => ({
     programId: PROGRAM_PK,
     keys: [
       { pk: payer, signer: true, writable: true },
-      { pk: SHARD_PKS[shard], signer: false, writable: true },
+      { pk: pubkey(groupOf(shard)), signer: false, writable: true },
       { pk: MAGIC_PROGRAM_PK, signer: false, writable: false },
       { pk: MAGIC_CONTEXT_PK, signer: false, writable: true }
     ],
@@ -647,8 +705,9 @@ const SabhaSol = (() => {
     const check = C.validatePassword(password, normalized);
     if (!check.ok) throw new Error(check.errors.join('; '));
     await assertEr(erUrl);
-    const found = await lookup(normalized, { erUrl, baseUrl, requireEr: true });
+    let found = await lookup(normalized, { erUrl, baseUrl, requireEr: true });
     if (found.entry) throw new Error('That player name already exists. Use Sign in instead.');
+    if (found.full) throw new Error(ERRORS[8]);
     const human = C.generateAccount();
     let keep = false;
     try {
@@ -659,9 +718,21 @@ const SabhaSol = (() => {
       onProgress({ phase: 'proof', attempts: 0 });
       const proof = await solveProof(found.nameHash, owner, p => onProgress({ phase: 'proof', ...p }));
       onProgress({ phase: 'send' });
-      const signature = await sendToEr(erUrl, human, [registerIx(owner, found.nameHash, proof.nonce, envelope)], 'Registration');
+      let signature;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          signature = await sendToEr(erUrl, human, [registerIx(owner, found.nameHash, proof.nonce, envelope, found.path)], 'Registration');
+          break;
+        } catch (error) {
+          // another sign-up took the last free slot first: look again, the name moves on to the next step
+          if (attempt >= 2 || ![8, 14].includes(error.code)) throw error;
+          found = await lookup(normalized, { erUrl, baseUrl, requireEr: true });
+          if (found.entry) throw new Error('That player name already exists. Use Sign in instead.');
+          if (found.full) throw new Error(ERRORS[8]);
+        }
+      }
       keep = true;
-      return { account: human, name: normalized, nameHash: found.nameHash, shard: found.shard, signature, proofAttempts: proof.attempts, proofElapsedMs: proof.elapsedMs };
+      return { account: human, name: normalized, nameHash: found.nameHash, shard: found.shard, gen: found.gen, signature, proofAttempts: proof.attempts, proofElapsedMs: proof.elapsedMs };
     } finally {
       if (!keep) C.wipeAccount(human);
     }
@@ -670,10 +741,11 @@ const SabhaSol = (() => {
     const found = await lookup(name, { erUrl, baseUrl });
     if (!found.entry) throw new Error(`No player named "${found.normalized}" was found on the ${found.source}.`);
     const restored = await C.decryptSeed({ name: found.normalized, password, ownerAddress: new A.PublicKey(found.entry.owner).toBase58(), envelope: found.entry.envelope, expectedNetworkHash: GENESIS_BYTES });
-    return { account: restored.account, name: found.normalized, nameHash: found.nameHash, shard: found.shard, slot: found.entry.slot, counter: found.entry.counter, source: found.source };
+    return { account: restored.account, name: found.normalized, nameHash: found.nameHash, shard: found.shard, gen: found.gen, slot: found.entry.slot, counter: found.entry.counter, source: found.source };
   }
-  function proveSigning({ account, nameHash, erUrl }) {
-    return sendToEr(erUrl, account, [touchIx(playerKey(account), nameHash)], 'Sign-in proof');
+  // shard: the address restorePlayer or createPlayer returned (a number means a step-0 shard)
+  function proveSigning({ account, nameHash, shard = nameHash[0] % NSHARDS, erUrl }) {
+    return sendToEr(erUrl, account, [touchIx(playerKey(account), nameHash, shard)], 'Sign-in proof');
   }
   function commitShard({ account, shard, erUrl }) {
     return sendToEr(erUrl, account, [commitIx(playerKey(account), shard)], 'Commit to Solana');
@@ -683,8 +755,9 @@ const SabhaSol = (() => {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       try {
-        const d = checkShard(await readShard(baseUrl, shard), shard, [PROGRAM_ID, DELEGATION_PROGRAM]);
-        if (findEntry(d, nameHash)) return true;
+        const [account] = await readGroups(baseUrl, [groupOf(shard)]);
+        const ok = account && [PROGRAM_ID, DELEGATION_PROGRAM].includes(account.owner) && account.data.length === SHARD_SIZE;
+        if (ok && findEntry(account.data, nameHash)) return true;
       } catch {}
       await sleep(2500);
     }
@@ -694,7 +767,8 @@ const SabhaSol = (() => {
   const devnetAddressUrl = address => `https://explorer.solana.com/address/${address}?cluster=devnet`;
 
   const api = Object.freeze({
-    PROGRAM_ID, DEVNET_GENESIS, ER_VALIDATOR, DELEGATION_PROGRAM, SHARDS, DEFAULT_ER, DEFAULT_BASE, NSHARDS, SLOTS, POW_BITS,
+    PROGRAM_ID, DEVNET_GENESIS, ER_VALIDATOR, DELEGATION_PROGRAM, SHARDS, DEFAULT_ER, DEFAULT_BASE, NSHARDS, SLOTS, POW_BITS, MAX_GEN,
+    stepSize, stepIndex, groupAddress,
     b58encode, b58decode, rpc, assertDevnet, assertEr, lookup, registryStatus, solveProof, compileMessage,
     createPlayer, restorePlayer, proveSigning, commitShard, waitForSolana, solanaAddress, erTxUrl, devnetAddressUrl
   });

@@ -2,6 +2,8 @@
 
 Magic Over shows that a Web2 player can start using a Solana app with just a player name and a passphrase. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same name and passphrase bring the same player back.
 
+The sign-up is called **Smaran**, Sanskrit for remembering: all a player needs is to remember a name and a passphrase.
+
 To show this working in a real-time app, it comes with a 3D cricket game on MagicBlock's Ephemeral Rollups, running on Solana Devnet.
 
 [Play it](https://ch4itu.github.io/MagicOver/) · [Onboarding demo, 37 s](https://ch4itu.github.io/MagicOver/media/onboarding.mp4) · [Pitch and gameplay](https://cdn.jsdelivr.net/gh/ch4itu/MagicOver@main/media/pitch.mp4)
@@ -77,7 +79,8 @@ No package installation or login server is needed. The game talks directly to So
 
 This is a Devnet prototype.
 
-- **Registry size:** the player registry holds 140 names, in 4 groups of 35. A program can create an account of at most 10,240 bytes in one instruction, and 35 entries fit in that. The number of groups was a demo-sized choice, and adding groups needs a program upgrade.
+- **Registry size:** the player registry grows in capacity steps. Each group holds 35 names, because a program can create an account of at most 10,240 bytes in one instruction. Step 0 has 4 groups (140 names), and each later step doubles the groups: 8, 16, 32, 64 and 128, up to 8,820 names across six steps. A name goes into the first step that has room for it and never moves, so opening a step needs no program upgrade and no migration. The sponsor opens a step by creating its groups, at about 0.055 SOL per group. Steps 0 and 1 are open now, for 420 names.
+- **Sign-up bots:** a small proof of work slows scripted sign-ups (about 1 second in a desktop browser, a few seconds on a phone), but it cannot stop a determined bot. Because capacity opens one paid step at a time, a flood can only fill the step that is open. Registry groups can only be delegated to the registry's MagicBlock validator, and only the registry admin can take a group off the rollup.
 - **Leaderboard size:** the leaderboard holds 140 players, for the same account-size reason.
 - **Match results:** there are eight match tables, reused between matches. Only recorded results persist, and a custom client can skip recording.
 - **Saves:** leaderboard saves draw on a bounded sponsor reserve.

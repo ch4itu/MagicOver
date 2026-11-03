@@ -6,14 +6,23 @@
 //! delegated to a MagicBlock ER, so players register and act with zero-fee ER
 //! transactions signed by their own key. No wallet, no SOL.
 //!
+//! Capacity grows in steps ("generations") and names never move:
+//!   step 0 = 4 shards (PDA ["sabha-reg", idx]), step g >= 1 = 4 << g shards (PDA ["sabha-reg", g, idx]).
+//!   A name's shard in step 0 is name_hash[0] % 4, in step g it is name_hash[2 + g] % (4 << g).
+//!   A name is stored in the first step whose shard for it has a free slot. Entries are never
+//!   deleted, so a full shard stays full: lookups walk the steps and stop at the first shard that
+//!   holds the name or still has room. The sponsor opens a step by creating and delegating its shards.
+//!
 //! Instructions (first data byte):
-//!   0 InitShard        [payer s w, shard w, system]                     data: shard u8, lamports u64
-//!   1 Register         [owner s, shard w]                               data: name_hash 32, pow_nonce u64, envelope 212
+//!   0 InitShard        [payer s w, shard w, system]                     data: shard u8, lamports u64 [, step u8]
+//!   1 Register         [owner s, step-0 shard, ..., target shard w]     data: name_hash 32, pow_nonce u64, envelope 212
+//!                      (the name's shard in every step up to the target; all but the target must be full)
 //!   2 Touch            [owner s, shard w]                               data: name_hash 32
 //!   3 Delegate         [payer s w, shard w, this program, buffer w, delegation_record w,
-//!                       delegation_metadata w, delegation program, system]  data: shard u8, has_validator u8, validator 32
+//!                       delegation_metadata w, delegation program, system]  data: shard u8, 1, ER validator 32, frequency u32
+//!                      (only to the registry's MagicBlock ER validator)
 //!   4 Commit           [payer s, shard w, magic program, magic context w]
-//!   5 CommitUndelegate [payer s, shard w, magic program, magic context w]
+//!   5 CommitUndelegate [admin s, shard w, magic program, magic context w]   (registry admin only)
 //!   196.. (8-byte MagicBlock undelegation callback) [shard w, buffer s, payer s w, system]
 #![cfg_attr(target_arch = "bpf", no_std)]
 use solana_compiler_builtins as _;
@@ -107,9 +116,20 @@ const MAGIC_CONTEXT: [u8; 32] = [
     220, 151, 247, 63, 139, 148, 84, 128, 0, 0, 0,
 ];
 const EXTERNAL_UNDELEGATE: [u8; 8] = [196, 28, 41, 206, 48, 37, 51, 167];
+// MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57: the MagicBlock ER validator that holds the registry
+const ER_VALIDATOR: [u8; 32] = [
+    5, 42, 71, 171, 131, 122, 182, 12, 61, 216, 159, 196, 200, 74, 97, 158, 42, 140, 82, 47, 63,
+    129, 136, 254, 226, 67, 138, 88, 169, 118, 23, 178,
+];
+// HDbeKypeJHXMM5Xs2RHKj8XGQgJeP4jnQ1Jiugf8mXPn: registry admin (Devnet), the only key that may undelegate
+const ADMIN: [u8; 32] = [
+    240, 245, 33, 212, 39, 39, 71, 159, 130, 37, 245, 248, 117, 196, 199, 238, 238, 219, 127, 236,
+    6, 3, 251, 190, 108, 86, 112, 232, 229, 213, 0, 49,
+];
 
 const SHARD_SEED: &[u8] = b"sabha-reg";
 const NSHARDS: u8 = 4;
+const MAX_GEN: u8 = 5; // steps 0..=5: 4 + 8 + 16 + 32 + 64 + 128 shards = 8,820 names
 const HEADER: usize = 64;
 const ENTRY: usize = 288;
 const SLOTS: usize = 35;
@@ -139,6 +159,9 @@ const ERR_NOT_OWNER: u32 = 10;
 const ERR_PDA: u32 = 11;
 const ERR_CPI: u32 = 12;
 const ERR_TAG: u32 = 13;
+const ERR_PATH: u32 = 14;
+const ERR_ADMIN: u32 = 15;
+const ERR_VALIDATOR: u32 = 16;
 
 // ---------------------------------------------------------------- input parsing
 #[derive(Clone, Copy)]
@@ -421,14 +444,43 @@ fn shard_ok(shard: &Acc, program_id: &[u8; 32]) -> Result<(), u32> {
     if !shard.is_writable {
         return Err(ERR_ACCOUNTS);
     }
+    group_ok(shard, program_id)
+}
+
+/// A registry shard of any step: owned by this program, with the right size and header.
+fn group_ok(shard: &Acc, program_id: &[u8; 32]) -> Result<(), u32> {
     if !eq32(shard.owner(), program_id) {
         return Err(ERR_OWNER);
     }
     let d = shard.data();
-    if d.len() != SHARD_SIZE || &d[0..8] != MAGIC {
+    if d.len() != SHARD_SIZE || &d[0..8] != MAGIC || d[15] > MAX_GEN {
         return Err(ERR_SHARD);
     }
     Ok(())
+}
+
+/// Number of shards in a capacity step.
+fn step_size(gen: u8) -> usize {
+    (NSHARDS as usize) << gen
+}
+
+/// The name's shard within a capacity step. Step 0 keeps the original rule.
+fn step_index(name_hash: &[u8], gen: u8) -> u8 {
+    if gen == 0 {
+        name_hash[0] % NSHARDS
+    } else {
+        (name_hash[2 + gen as usize] as usize % step_size(gen)) as u8
+    }
+}
+
+/// Shard address for (step, index). Step 0 keeps the original two-seed form.
+fn shard_pda(gen: u8, idx: u8, program_id: &[u8; 32]) -> ([u8; 32], u8) {
+    let (g, i) = ([gen], [idx]);
+    if gen == 0 {
+        find_pda(&[SHARD_SEED, &i], program_id)
+    } else {
+        find_pda(&[SHARD_SEED, &g, &i], program_id)
+    }
 }
 
 /// Linear probe from the name's home slot. Returns FOUND|slot, FREE|slot, or 0 when the shard is full.
@@ -453,7 +505,7 @@ fn probe(d: &[u8], name_hash: &[u8]) -> u32 {
 #[inline(never)]
 fn ix_init_shard(c: &Ctx) -> Result<(), u32> {
     let (accs, n, ix, program_id) = (c.accs, c.n, c.ix, c.program_id);
-    if n < 3 || ix.len() != 10 {
+    if n < 3 || (ix.len() != 10 && ix.len() != 11) {
         return Err(ERR_ACCOUNTS);
     }
     let (payer, shard) = (&accs[0], &accs[1]);
@@ -461,16 +513,19 @@ fn ix_init_shard(c: &Ctx) -> Result<(), u32> {
         return Err(ERR_SIGNER);
     }
     let idx = ix[1];
-    if idx >= NSHARDS {
+    let gen = if ix.len() == 11 { ix[10] } else { 0 };
+    if gen > MAX_GEN || idx as usize >= step_size(gen) {
         return Err(ERR_DATA);
     }
     let lamports = u64::from_le_bytes([ix[2], ix[3], ix[4], ix[5], ix[6], ix[7], ix[8], ix[9]]);
-    let idx_b = [idx];
-    let (pda, bump) = find_pda(&[SHARD_SEED, &idx_b], program_id);
+    let (pda, bump) = shard_pda(gen, idx, program_id);
     if !eq32(&pda, shard.key()) {
         return Err(ERR_PDA);
     }
-    let bump_b = [bump];
+    let (gen_b, idx_b, bump_b) = ([gen], [idx], [bump]);
+    let seeds0: [&[u8]; 3] = [SHARD_SEED, &idx_b, &bump_b];
+    let seeds1: [&[u8]; 4] = [SHARD_SEED, &gen_b, &idx_b, &bump_b];
+    let seeds: &[&[u8]] = if gen == 0 { &seeds0 } else { &seeds1 };
     // system CreateAccount: u32 tag 0, lamports u64, space u64, owner [32]
     let mut data = [0u8; 52];
     data[4..12].copy_from_slice(&lamports.to_le_bytes());
@@ -482,7 +537,7 @@ fn ix_init_shard(c: &Ctx) -> Result<(), u32> {
             program: &SYSTEM_PROGRAM,
             metas: &[(0, true, true), (1, true, true)],
             data: &data,
-            seeds: &[&[SHARD_SEED, &idx_b, &bump_b]],
+            seeds: &[seeds],
         },
     )?;
     // accs[1] memory now reflects the new size (runtime updates serialized input)
@@ -492,10 +547,11 @@ fn ix_init_shard(c: &Ctx) -> Result<(), u32> {
     }
     d[0..8].copy_from_slice(MAGIC);
     d[8] = idx;
-    d[9] = NSHARDS;
+    d[9] = step_size(gen) as u8;
     d[10..12].copy_from_slice(&(SLOTS as u16).to_le_bytes());
     d[12..14].copy_from_slice(&(ENTRY as u16).to_le_bytes());
     d[14] = POW_BITS as u8;
+    d[15] = gen;
     log("sabha: shard ready");
     Ok(())
 }
@@ -503,31 +559,45 @@ fn ix_init_shard(c: &Ctx) -> Result<(), u32> {
 #[inline(never)]
 fn ix_register(c: &Ctx) -> Result<(), u32> {
     let (accs, n, ix, program_id) = (c.accs, c.n, c.ix, c.program_id);
-    if n < 2 || ix.len() != 1 + 32 + 8 + ENVELOPE {
+    // accounts: [owner, the name's shard in step 0, step 1, ..., target step]
+    if n < 2 || n > MAX_GEN as usize + 2 || ix.len() != 1 + 32 + 8 + ENVELOPE {
         return Err(ERR_DATA);
     }
-    let (owner, shard) = (&accs[0], &accs[1]);
+    let owner = &accs[0];
     if !owner.is_signer {
         return Err(ERR_SIGNER);
     }
-    shard_ok(shard, program_id)?;
     let name_hash = &ix[1..33];
     let nonce = &ix[33..41];
     let envelope = &ix[41..41 + ENVELOPE];
-    let d = shard.data();
-    if name_hash[0] % NSHARDS != d[8] {
-        return Err(ERR_SHARD);
-    }
     // proof of work binds program, name and owner key
     let mut h = [0u8; 32];
     sha256(&[POW_DOMAIN, program_id, name_hash, owner.key(), nonce], &mut h);
     if leading_zero_bits(&h) < POW_BITS {
         return Err(ERR_POW);
     }
-    let pr = probe(d, name_hash);
-    if pr & FOUND != 0 {
-        return Err(ERR_EXISTS);
+    let target = n - 2;
+    let shard = &accs[1 + target];
+    shard_ok(shard, program_id)?;
+    // each listed shard must be the name's shard in its step, and must not hold the name;
+    // every step before the target must be full for this name (names go to the first step with room)
+    for gen in 0..=target {
+        let g = &accs[1 + gen];
+        group_ok(g, program_id)?;
+        let d = g.data();
+        if d[15] as usize != gen || d[8] != step_index(name_hash, gen as u8) {
+            return Err(ERR_SHARD);
+        }
+        let pr = probe(d, name_hash);
+        if pr & FOUND != 0 {
+            return Err(ERR_EXISTS);
+        }
+        if gen < target && pr != 0 {
+            return Err(ERR_PATH);
+        }
     }
+    let d = shard.data();
+    let pr = probe(d, name_hash);
     if pr & FREE == 0 {
         return Err(ERR_FULL);
     }
@@ -542,7 +612,7 @@ fn ix_register(c: &Ctx) -> Result<(), u32> {
     let count = u32::from_le_bytes([d[16], d[17], d[18], d[19]]) + 1;
     d[16..20].copy_from_slice(&count.to_le_bytes());
     log("sabha: registered");
-    unsafe { sol_log_64_(d[8] as u64, s as u64, count as u64, 0, 0) };
+    unsafe { sol_log_64_(d[8] as u64, s as u64, count as u64, target as u64, 0) };
     Ok(())
 }
 
@@ -590,13 +660,23 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
         return Err(ERR_ACCOUNTS);
     }
     shard_ok(shard, program_id)?;
-    let idx = ix[1];
-    let idx_b = [idx];
-    let (pda, bump) = find_pda(&[SHARD_SEED, &idx_b], program_id);
+    let (idx, gen) = (shard.data()[8], shard.data()[15]);
+    if ix[1] != idx {
+        return Err(ERR_DATA);
+    }
+    // registry shards may only be delegated to the registry's own MagicBlock ER validator,
+    // so nobody can park a new step's shard on a rollup the sign-up page does not use
+    if ix[2] != 1 || !eq32(&ix[3..35], &ER_VALIDATOR) {
+        return Err(ERR_VALIDATOR);
+    }
+    let (pda, bump) = shard_pda(gen, idx, program_id);
     if !eq32(&pda, shard.key()) {
         return Err(ERR_PDA);
     }
-    let bump_b = [bump];
+    let (gen_b, idx_b, bump_b) = ([gen], [idx], [bump]);
+    let seeds0: [&[u8]; 3] = [SHARD_SEED, &idx_b, &bump_b];
+    let seeds1: [&[u8]; 4] = [SHARD_SEED, &gen_b, &idx_b, &bump_b];
+    let seeds: &[&[u8]] = if gen == 0 { &seeds0 } else { &seeds1 };
     let (buf_pda, buf_bump) = find_pda(&[b"buffer", shard.key()], program_id);
     if !eq32(&buf_pda, buffer.key()) {
         return Err(ERR_PDA);
@@ -639,33 +719,35 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
             program: &SYSTEM_PROGRAM,
             metas: &[(1, true, true)],
             data: &assign,
-            seeds: &[&[SHARD_SEED, &idx_b, &bump_b]],
+            seeds: &[seeds],
         },
     )?;
     // 4. CPI delegation program: Delegate (discriminator 0u64), args
-    let mut args = [0u8; 8 + 4 + 4 + (4 + 9) + (4 + 1) + 1 + 32];
+    let mut args = [0u8; 8 + 4 + 4 + (4 + 9) + (4 + 1) + (4 + 1) + 1 + 32];
     let mut o = 8; // discriminator 0
     args[o..o + 4].copy_from_slice(&ix[35..39]); // commit_frequency_ms
     o += 4;
-    args[o..o + 4].copy_from_slice(&2u32.to_le_bytes()); // seeds count
+    let nseeds: u32 = if gen == 0 { 2 } else { 3 };
+    args[o..o + 4].copy_from_slice(&nseeds.to_le_bytes()); // seeds count
     o += 4;
     args[o..o + 4].copy_from_slice(&(SHARD_SEED.len() as u32).to_le_bytes());
     o += 4;
     args[o..o + SHARD_SEED.len()].copy_from_slice(SHARD_SEED);
     o += SHARD_SEED.len();
+    if gen != 0 {
+        args[o..o + 4].copy_from_slice(&1u32.to_le_bytes());
+        o += 4;
+        args[o] = gen;
+        o += 1;
+    }
     args[o..o + 4].copy_from_slice(&1u32.to_le_bytes());
     o += 4;
     args[o] = idx;
     o += 1;
-    if ix[2] == 1 {
-        args[o] = 1;
-        o += 1;
-        args[o..o + 32].copy_from_slice(&ix[3..35]);
-        o += 32;
-    } else {
-        args[o] = 0;
-        o += 1;
-    }
+    args[o] = 1; // Some(validator)
+    o += 1;
+    args[o..o + 32].copy_from_slice(&ix[3..35]);
+    o += 32;
     invoke(
         accs,
         &Cpi {
@@ -680,7 +762,7 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
             (7, false, false),
         ],
             data: &args[..o],
-            seeds: &[&[SHARD_SEED, &idx_b, &bump_b]],
+            seeds: &[seeds],
         },
     )?;
     // 5. close buffer back to payer
@@ -703,6 +785,10 @@ fn ix_commit(c: &Ctx, undelegate: bool) -> Result<(), u32> {
     }
     if !accs[0].is_signer {
         return Err(ERR_SIGNER);
+    }
+    // anyone may save a shard to Solana; only the admin may take it off the rollup
+    if undelegate && !eq32(accs[0].key(), &ADMIN) {
+        return Err(ERR_ADMIN);
     }
     if !eq32(accs[2].key(), &MAGIC_PROGRAM) || !eq32(accs[3].key(), &MAGIC_CONTEXT) {
         return Err(ERR_ACCOUNTS);
@@ -739,21 +825,38 @@ fn ix_undelegate_callback(c: &Ctx) -> Result<(), u32> {
     if !eq32(&ub, buffer.key()) {
         return Err(ERR_PDA);
     }
-    // args: borsh Vec<Vec<u8>>, we expect exactly [SHARD_SEED, [idx]]
+    // args: borsh Vec<Vec<u8>>: [SHARD_SEED, [idx]] for step 0, [SHARD_SEED, [step], [idx]] after
     let a = &ix[8..];
-    if a.len() != 4 + 4 + SHARD_SEED.len() + 4 + 1 {
+    let l = SHARD_SEED.len();
+    let two = 4 + (4 + l) + (4 + 1);
+    if a.len() != two && a.len() != two + 5 {
         return Err(ERR_DATA);
     }
-    if a[0..4] != 2u32.to_le_bytes() || &a[8..8 + SHARD_SEED.len()] != SHARD_SEED {
+    let nseeds: u32 = if a.len() == two { 2 } else { 3 };
+    if a[0..4] != nseeds.to_le_bytes() || a[4..8] != (l as u32).to_le_bytes() || &a[8..8 + l] != SHARD_SEED {
         return Err(ERR_DATA);
     }
-    let idx = a[a.len() - 1];
-    let idx_b = [idx];
-    let (pda, bump) = find_pda(&[SHARD_SEED, &idx_b], program_id);
+    let mut o = 8 + l;
+    let mut gen = 0u8;
+    if nseeds == 3 {
+        if a[o..o + 4] != 1u32.to_le_bytes() || a[o + 4] == 0 {
+            return Err(ERR_DATA);
+        }
+        gen = a[o + 4];
+        o += 5;
+    }
+    if a[o..o + 4] != 1u32.to_le_bytes() {
+        return Err(ERR_DATA);
+    }
+    let idx = a[o + 4];
+    let (pda, bump) = shard_pda(gen, idx, program_id);
     if !eq32(&pda, shard.key()) {
         return Err(ERR_PDA);
     }
-    let bump_b = [bump];
+    let (gen_b, idx_b, bump_b) = ([gen], [idx], [bump]);
+    let seeds0: [&[u8]; 3] = [SHARD_SEED, &idx_b, &bump_b];
+    let seeds1: [&[u8]; 4] = [SHARD_SEED, &gen_b, &idx_b, &bump_b];
+    let seeds: &[&[u8]] = if gen == 0 { &seeds0 } else { &seeds1 };
     let space = buffer.len();
     let lamports = rent_minimum(space);
     let mut data = [0u8; 52];
@@ -766,7 +869,7 @@ fn ix_undelegate_callback(c: &Ctx) -> Result<(), u32> {
             program: &SYSTEM_PROGRAM,
             metas: &[(2, true, true), (0, true, true)],
             data: &data,
-            seeds: &[&[SHARD_SEED, &idx_b, &bump_b]],
+            seeds: &[seeds],
         },
     )?;
     shard.data().copy_from_slice(buffer.data());
