@@ -155,7 +155,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
         <li>The ball shows its pace, line and length. Swing, cut and slower balls stay hidden until you play.</li>
         <li>Tap a shot as the ball reaches the bat: Defend, Drive, Cut, Pull, Loft, or Leave. Keys: ↓ defend, Space drive, ← cut, → pull, ↑ loft, L leave.</li>
         <li>Timing is judged on-chain: within 60 ms is perfect, 130 ms good, 240 ms an edge, beyond that you miss.</li>
-        <li>Each side bats one over with two wickets. A tie goes to another Magic Over.</li>
+        <li>Each side bats one over with two wickets. A tie goes to another Super Over.</li>
       </ul>
     </details>
     <span class="badge" id="netBadge">Checking the private rollup…</span>
@@ -3666,7 +3666,7 @@ globalThis.SOCompetition = (() => {
     if (!order.length) throw new Error('All tables are busy. Try again in a minute.');
     let lastError = null;
     for (const { i, t } of order) {
-      if(N.eligibleResult(t)){try{await N.recordResult(t);}catch(e){lastError=e;continue;}}
+      if(N.eligibleResult(t))await N.recordResult(t).catch(()=>{});
       try {
         await N.send([N.I.create(i, mode, N.player.guest ? '' : N.player.name)], { label: 'Create match' });
       } catch (e) { lastError = e; continue; }
@@ -3731,7 +3731,7 @@ globalThis.SOCompetition = (() => {
     if (scoreKeyOf(s) !== session.scoreKey && !resolving && !session.revealing) { session.scoreKey = scoreKeyOf(s); renderScore(s); }
     const note = msg => { if (resolving || session.revealing) (session.notes = session.notes || []).push(msg); else toast(msg); };
     if (session.prev && session.prev.inn === 0 && s.inn === 1) note(`Innings break. ${nameOf(s, N.battingSide(s))} needs ${s.target} to win.`);
-    if (session.prev && s.superOver > session.prev.superOver) note('Scores level! Another Magic Over.');
+    if (session.prev && s.superOver > session.prev.superOver) note('Scores level! Another Super Over.');
     // a ball was resolved
     if (resolving) {
       session.knownSeq = s.seq;
@@ -3811,7 +3811,7 @@ globalThis.SOCompetition = (() => {
     } else {
       $('target').textContent = s.mode === 'AI' ? 'Chase set by the AI' : inn === 0 ? '1st innings' : '';
     }
-    $('soNum').textContent = s.superOver ? `Magic Over ${s.superOver + 1}` : 'Magic Over';
+    $('soNum').textContent = s.superOver ? `Super Over ${s.superOver + 1}` : 'Magic Over';
     const strip = $('strip');
     strip.replaceChildren();
     for (let n = 0; n < 6; n++) {
@@ -4001,7 +4001,7 @@ globalThis.SOCompetition = (() => {
       else {
         const first = s.batFirst, second = first ^ 1;
         lines.push(`${nameOf(s, first)}: ${s.runs[0]}/${s.wkts[0]}`, `${nameOf(s, second)}: ${s.runs[1]}/${s.wkts[1]}`);
-        if (s.superOver) lines.push(`Decided in Magic Over ${s.superOver + 1}.`);
+        if (s.superOver) lines.push(`Decided in Super Over ${s.superOver + 1}.`);
       }
       lines.push('Every ball was a 0 SOL transaction signed by the player, judged on the MagicBlock private rollup.');
       $('finishLines').replaceChildren(...lines.map(t => { const p = document.createElement('p'); p.textContent = t; return p; }));

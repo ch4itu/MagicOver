@@ -1,6 +1,6 @@
 # Magic Over :: Cricket on MagicBlock ER · PER · VRF
 
-**Six balls. Two wickets. Open the game and play — no wallet app, seed phrase or SOL required.**
+**Six balls. Two wickets. Open the game and play. No wallet app, seed phrase or SOL required.**
 
 [Play Magic Over](https://ch4itu.github.io/MagicOver/) · [Watch the pitch and demo](https://cdn.jsdelivr.net/gh/ch4itu/MagicOver@main/media/pitch.mp4)
 
@@ -37,7 +37,7 @@ Create a match and share its code, or select an open match from the lobby list. 
 
 The **shared leaderboard** stores recorded totals by player key in a separate result register. Reusing a match table does not erase those totals. Wins give 3 points; draws give 1. AI practice is separate. Completed forfeits count, and duplicate records do not count twice.
 
-The leaderboard refreshes automatically every **five seconds while open** and catches up when the player returns to the tab. It shows Solana saving status and keeps the last displayed results during temporary read failures. Recorded results are saved before the updated client reuses a finished table.
+The leaderboard refreshes automatically every **five seconds while open** and catches up when the player returns to the tab. It shows Solana saving status and keeps the last displayed results during temporary read failures. The page tries to save a finished friend result before reusing its table.
 
 ## Programs and integration proof
 
@@ -49,10 +49,10 @@ The leaderboard refreshes automatically every **five seconds while open** and ca
 
 ## Source and running
 
-- `index.html` — self-contained browser game; open it in a modern browser with internet access, or serve it from a static host.
-- `programs/` — game, player registry and result-register source, with shared pinned build configuration.
-- `media/pitch.mp4` — narrated, captioned pitch with the supplied desktop and mobile gameplay excerpts.
-- `LICENSE` and `THIRD_PARTY_NOTICES.md` — project and bundled dependency licences.
+- `index.html`: self-contained browser game; open it in a modern browser with internet access, or serve it from a static host.
+- `programs/`: game, player registry and result-register source, with shared pinned build configuration.
+- `media/pitch.mp4`: narrated, captioned pitch with the supplied desktop and mobile gameplay excerpts.
+- `LICENSE` and `THIRD_PARTY_NOTICES.md`: project and bundled dependency licences.
 
 No browser package installation or application login backend is needed. The game connects to Solana and MagicBlock services. To build the Rust programs, use the pinned toolchain and `sbpf-linker 0.2.5`, then run `cargo build-bpf` from `programs/`.
 
