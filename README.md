@@ -2,7 +2,7 @@
 
 **Six balls. Two wickets. Open the game and play. No wallet app, seed phrase or SOL required.**
 
-[Play Magic Over](https://ch4itu.github.io/MagicOver/) · [Watch the pitch and demo](https://cdn.jsdelivr.net/gh/ch4itu/MagicOver@main/media/pitch.mp4)
+[Play Magic Over](https://ch4itu.github.io/MagicOver/) · [Watch the pitch and demo](https://cdn.jsdelivr.net/gh/ch4itu/MagicOver@main/media/pitch.mp4) · [Watch the onboarding demo (37 s)](https://ch4itu.github.io/MagicOver/media/onboarding.mp4)
 
 Magic Over is a browser cricket game on **Solana Devnet**. Try **Bat vs AI** immediately, or play a friend using a username and strong passphrase. Bowl a hidden variation, time your shot, swap roles for the chase, and choose a rematch with the same friend. Recorded friend results feed a shared persistent leaderboard.
 
@@ -52,6 +52,7 @@ The leaderboard refreshes automatically every **five seconds while open** and ca
 - `index.html`: self-contained browser game; open it in a modern browser with internet access, or serve it from a static host.
 - `programs/`: game, player registry and result-register source, with shared pinned build configuration.
 - `media/pitch.mp4`: narrated, captioned pitch with the supplied desktop and mobile gameplay excerpts.
+- `media/onboarding.mp4`: 37-second recording on the live site of a player created in one browser and recovered in a second browser with nothing saved.
 - `LICENSE` and `THIRD_PARTY_NOTICES.md`: project and bundled dependency licences.
 
 No browser package installation or application login backend is needed. The game connects to Solana and MagicBlock services. To build the Rust programs, use the pinned toolchain and `sbpf-linker 0.2.5`, then run `cargo build-bpf` from `programs/`.
