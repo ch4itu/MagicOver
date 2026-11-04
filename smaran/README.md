@@ -10,9 +10,9 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged as one file, `s
 
 ## What Smaran is, and what it is not
 
-**It is an app identity.** A player in a game, a member of a community, a loyalty card, a voter in a poll: something a person should be able to start using in seconds and carry from app to app. The app's sponsor pays the small storage cost; the player pays nothing.
+**It is a login.** A player in a game, a member of a community, a voter in a poll: something a person should be able to start using in seconds and carry from app to app. The player never sees a wallet, a key, SOL or a fee. The app pays the chain costs, the way it pays for its servers.
 
-**It is not a savings wallet.** Do not keep valuable tokens or NFTs on a Smaran key. The locked copy of the key is public (that is what makes it free and serverless), so its safety depends on the passphrase. For low-value, everyday use that is a fair trade. For savings it is not. A player who later wants a real wallet can move anything of value there.
+**It is not a wallet.** A Smaran account holds no money. The locked copy of the key is public (that is what makes it free and serverless), so its safety depends on the passphrase: fine for a login, not for money. Anything of value belongs in a real wallet, and apps that take payments should do it through a normal payment provider or a licensed partner, never through the Smaran key.
 
 **It can be disposable.** If a player forgets the passphrase, they lose that player and start a new one. Apps should treat the player key like a username they recognise, not like a bank account.
 
@@ -126,7 +126,7 @@ The full numbers, who controls what, and how apps and the operator can earn: [Sm
 These are known gaps, not promises.
 
 - **Limiting guesses.** Today the locked copy is public, like a locked suitcase anyone can carry home and try combinations on forever. A card PIN is safer because after a few wrong tries the bank blocks it. Phantom gets that with Juicebox servers that count PIN tries. MagicBlock's private rollup runs in secure hardware and can keep data out of public view, so in principle it could hold the locked copies and count wrong tries. But MagicBlock documents its privacy as an access gate inside the rollup, and describes no encryption for data saved back to Solana, where account data is readable by anyone. Keeping the copies only inside the private rollup would mean players depend on that rollup never losing them. This needs MagicBlock to confirm durable private storage first.
-- **Apps seeing the key.** Wallet companies avoid this by doing the signing in their own separate window, so the app never sees the key. Smaran would need the same to be safe for anything of value.
+- **Apps seeing the key.** Wallet companies avoid this by doing the signing in their own separate window, so the app never sees the key. Smaran needs the same before apps run by different people share one registry.
 - **Mainnet.** Its own registry deployment, a fresh admin key, and the fixed values moved into one setting.
 
 ## Files

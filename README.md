@@ -85,7 +85,7 @@ This is a Devnet prototype.
 - **Leaderboard size:** the leaderboard holds 140 players, for the same account-size reason.
 - **Match results:** there are eight match tables, reused between matches. Only recorded results persist, and a custom client can skip recording.
 - **Saves:** MagicBlock refuses an account's 11th save to Solana in a delegation unless the account pays for its own saves. The registry groups and the leaderboard each pay from a small sponsor reserve: from the 26th save in a delegation, 0.0001 SOL per save. MagicBlock's session and save charges come out of the delegation deposit, never more than the deposit. A save needs a change to save, so empty saves cannot drain a reserve.
-- **Passphrase:** there is no passphrase reset. The locked copy is public, so a weak passphrase can be guessed offline: this is an app identity, not a savings wallet. The [Smaran guide](smaran/README.md) has the numbers and all the pros and cons.
+- **Passphrase:** there is no passphrase reset. The locked copy is public, so a weak passphrase can be guessed offline: Smaran is a login, not a wallet, and its accounts hold no money. The [Smaran guide](smaran/README.md) has the numbers and all the pros and cons.
 - **Devnet:** Devnet itself may reset and erase test data.
 
 Next: better cricket motion from real shot references, teams and player skins, clearer cameras, useful replays, stadium atmosphere and smooth mobile play. **No wagers, stakes, entry fees, tokens or prize payouts are included in the game.**
