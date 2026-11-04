@@ -1,8 +1,6 @@
 # Smaran for founders
 
-Players pay nothing for Smaran. The founder who runs the registry pays for their places, once. This page covers that cost, MagicBlock's charges included, and how a founder can earn from it.
-
-Measured on the live Devnet registry on 4 November 2026. Solana rent and MagicBlock's rollup release (v1.1.1) are the same on mainnet.
+Players pay nothing for Smaran. Whoever runs the registry (the operator) pays for their places, once. Below: that cost with MagicBlock's charges, who controls what, and how apps and the operator each earn. Measured on the live Devnet registry on 4 November 2026; Solana rent and MagicBlock's rollup release (v1.1.1) are the same on mainnet.
 
 ## What it costs
 
@@ -16,27 +14,38 @@ Measured on the live Devnet registry on 4 November 2026. Solana rent and MagicBl
 
 MagicBlock's charges, from its [fees page](https://docs.magicblock.gg/pages/ephemeral-rollups-ers/introduction/fees-and-commit-economics):
 
-- Rollup transactions cost 0 SOL in the current release.
-- A session charge of 0.003 SOL per delegation, plus 0.001 SOL per save to Solana after the first. Both come out of the delegation deposit when the group leaves the rollup, so together they never cost more than the deposit.
-- From the 26th save in a delegation, 0.0001 SOL per save, taken at once from the group's reserve. This works because each group pays for its own saves; otherwise MagicBlock refuses the 11th save. Measured: the 11th save was refused when the group did not pay, and when it paid, saves 26 and 27 cost 100,000 lamports each.
-- Smaran uses only MagicBlock's public rollup. The private rollup, which Magic Over's matches use, has no published price.
+- Rollup transactions: 0 SOL in the current release.
+- 0.003 SOL per delegation, plus 0.001 SOL per save to Solana after the first. Both are taken from the delegation deposit when a group leaves the rollup, and never more than the deposit.
+- From a group's 26th save in a delegation, 0.0001 SOL per save from its reserve. A group that did not pay for its own saves would be refused its 11th. Both measured.
+- Smaran uses only the public rollup. The private rollup, which Magic Over's matches use, has no published price.
 
-Running your own registry adds about 0.15 SOL once for the program. Room opens in steps: 140 places for 0.23 SOL, 420 for 0.70 SOL, 2,100 for 3.49 SOL, up to 8,820 for 14.66 SOL. A bot flood can only fill the step that is open.
+A registry program costs about 0.15 SOL once. Room opens in steps: 140 places for 0.23 SOL, 420 for 0.70 SOL, 2,100 for 3.49 SOL, up to 8,820 for 14.66 SOL. A bot flood can only fill the step that is open.
 
-## How a founder earns from it
+## Who controls what
 
-Smaran's cost is per player and one time. Hosted logins such as Privy charge by monthly active users: Privy is $299 a month for 500 to 2,499 monthly active users ([privy.io/pricing](https://privy.io/pricing), 4 November 2026). That gap is the room to earn.
+Names belong to the players who registered them: nobody, the admin included, can take, move or delete one. Anyone can open the next step by paying for it. The admin key can only take a group off the rollup (to refill its reserve) and force a save. The real control is the program's upgrade key, which can change the rules.
 
-1. **Charge apps per new player.** Other apps use your registry and pay you once for each player they sign up, for example $0.30 against your cost of about $0.15. An app with 2,000 players would pay $600 once instead of $299 a month. Needs a program change first: today any app can add players to an open step for free, so the registry would have to record which app created each player.
-2. **Run registries for other apps.** Deploy and run a separate registry for an app, for a setup fee plus the cost of its steps. The program needs no change; the kit just needs the registry address as a setting instead of fixed.
-3. **Sell short names.** A name works in every app on the registry, so a short one is worth something, like a short web address. Ordinary names stay free. Needs a program change.
-4. **Grants and prizes** for bringing new users to Solana, such as MagicBlock Forge's prizes.
+## How apps that use Smaran earn
 
-Two habits keep the cost down: create a Smaran player only when someone needs one (Magic Over lets guests play the AI with a temporary key), and open steps only as they fill.
+Smaran is not something an app sells. It cuts costs and brings players.
+
+1. **Lower costs on its own income.** No wallet, seed phrase or SOL at sign-up, and no monthly login bill. Hosted logins such as Privy charge by monthly active users: $299 a month for 500 to 2,499 ([privy.io/pricing](https://privy.io/pricing), 4 November 2026).
+2. **Players it did not pay for.** Players that other apps brought to the same registry sign in to it at no cost. An app pays only for the players it adds, so every app on a shared registry gains from the others.
+3. **Reselling short names,** if the registry sells them at a fixed price on-chain that any app can pay for a player. The app sets its own price and keeps the difference, like a web-address reseller. Needs the short-names change.
+4. **Grants and prizes,** open to any builder, operators included, such as MagicBlock Forge's.
+5. **Its own registry.** The code is MIT, so an app can run its own and earn as an operator. But its players then do not carry over to apps on other registries, unless the kit learns to read more than one registry. Not built.
+
+## How the operator earns
+
+1. **Charge apps per new player,** say $0.30 against a cost of about $0.15: an app with 2,000 players pays $600 once instead of $299 a month. Needs a program change, because today any app adds players free.
+2. **Run registries for other apps,** for a setup fee plus the cost of their steps. Needs the registry address as a kit setting instead of fixed.
+3. **Sell short names** at a fixed price, while ordinary names stay free. Needs a program change.
+
+Other apps trust a shared registry more when its operator holds less control: prices fixed on-chain, steps anyone can open (already true), and later the upgrade key shared with partner apps or given up. Not built.
 
 ## Plan
 
 1. **Now:** Devnet, free, 420 places, real players during Forge.
-2. **Smaran on mainnet:** about 0.39 SOL for the registry program and the first 140 places, with Magic Over as the first app.
-3. **First outside app:** a registry run for it (way 2), which needs no program change.
-4. **Per-player billing (way 1),** once apps ask for it.
+2. **Smaran on mainnet:** about 0.39 SOL for the registry program and the first 140 places. Magic Over is the first app.
+3. **First outside app:** run a registry for it (operator's way 2).
+4. **Per-player billing (operator's way 1),** once apps ask for it.

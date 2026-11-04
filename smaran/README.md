@@ -119,7 +119,7 @@ Close earlier attempts at the same idea: Ejara's 2020 Tezos demo stored password
 - **Sponsor (the app):** about 0.0017 SOL per player, once. A group of 35 names needs 0.0522 SOL of storage, about 0.003 SOL of MagicBlock delegation deposit and a small save reserve (0.003 SOL suggested). Storage and deposit are held in accounts, not burned, but the registry has no way to close a group today, so plan as if they are spent.
 - **MagicBlock's charges:** rollup transactions cost 0 SOL in its current release, which Devnet and mainnet both run. Its session charge (0.003 SOL) and save charge (0.001 SOL per save after the first) come out of the delegation deposit when a group leaves the rollup, never more than the deposit. MagicBlock refuses an account's 11th save in a delegation unless the account pays for its own saves, so each group does: from its 26th save in a delegation, 0.0001 SOL per save from its reserve.
 
-The full numbers and how a founder can earn from Smaran: [Smaran for founders](FOUNDERS.md).
+The full numbers, who controls what, and how apps and the operator can earn: [Smaran for founders](FOUNDERS.md).
 
 ## Open problems
 
@@ -133,7 +133,7 @@ These are known gaps, not promises.
 
 - `smaran.js`: the file to load. It is built, not hand-written: `python3 smaran/build.py` copies the Solana web3.js, crypto, TweetNaCl and registry code unchanged from Magic Over's `index.html` and adds `api.js`. So the kit runs exactly the code the game runs.
 - `api.js`: the small `Smaran` interface above.
-- `FOUNDERS.md`: costs, and how a founder can earn from Smaran.
+- `FOUNDERS.md`: costs, who controls what, and how apps and the operator can earn.
 - `index.html`: the demo page.
 - The registry program is in [`programs/registry`](../programs/registry).
 
