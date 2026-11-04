@@ -20,7 +20,7 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged as one file, `s
 
 1. **Sign up.** The browser makes a random signing key. It does not come from the passphrase.
 2. **Lock.** Argon2id (64 MiB of memory, three passes) turns the passphrase into a key that locks a copy of the signing key with XChaCha20-Poly1305. Each player gets a random salt, and the locked copy is tied to the player's name, public key and network, so it cannot be moved to another name or network. The passphrase never leaves the page.
-3. **Register.** After a small proof of work, the page stores three things in the player registry on MagicBlock's rollup: a hash of the name, the public key and the locked copy. The player's own new key signs this, with 0 SOL. The rollup then saves the registry to Solana.
+3. **Register.** After a small proof of work, the page stores three things in the player registry on MagicBlock's rollup: a hash of the name, the public key and the locked copy. The player's own new key signs this, with 0 SOL. The rollup then saves the player's registry group to Solana; each group pays for its own saves from a small reserve the sponsor put in it.
 4. **Sign in anywhere.** Another device or app reads the locked copy by the name, unlocks it in the browser with the passphrase, and checks the key matches the registered public key.
 5. **Change the passphrase.** A player who still knows the passphrase can lock the same key with a new one. Only that player's key can replace its locked copy, and the player key never changes.
 
@@ -65,7 +65,7 @@ The player has 0 SOL. It can sign zero-fee transactions on MagicBlock's Ephemera
 - **One player across apps.** Every app on the same registry gets the same player. A player made on the Smaran page signs in to Magic Over with the same key, and the other way round.
 - **No company in the middle.** The registry is an open Solana program that anyone can read. There is no login server to run, trust, pay for or shut down.
 - **Free for players.** Sign-up is a zero-fee rollup transaction signed by the player's own new key, so no fee-paying relay service is needed.
-- **Cheap for the sponsor.** About 0.0016 SOL of storage per name, paid once.
+- **Cheap for the sponsor.** About 0.0017 SOL per player, paid once (storage, MagicBlock's deposit and a small save reserve). No monthly fee.
 - **Grows without moving anyone.** Capacity opens in steps (140, then 280, 560 and so on, up to 8,820 names) and a name never moves once stored.
 - **Passphrase can change.** Because the key is random rather than made from the passphrase, a player can change the passphrase and stay the same player.
 - **Standard, careful crypto.** Argon2id with 64 MiB per guess, XChaCha20-Poly1305, a random salt per player, and the locked copy tied to name, key and network.
@@ -75,9 +75,11 @@ The player has 0 SOL. It can sign zero-fee transactions on MagicBlock's Ephemera
 
 - **The locked copy is public, so passphrases can be guessed offline.** Anyone can download a player's locked copy and try passphrases on their own computers, as fast as they can, with no limit on tries. A strong passphrase makes this hopeless. A weak one can fall. See the numbers below. This is the main weakness.
 - **No reset.** A forgotten passphrase means a lost player. Nobody, including us, can recover it.
+- **Changing a passphrase does not undo a leak.** Old locked copies stay readable in the chain's history, so someone who already has an old copy and its passphrase can still unlock the key. If a passphrase leaked, make a new player.
 - **Every app sees the key.** The app a player signs in to unlocks the key inside its own page. A bad app could keep it. Players should only sign in to apps they trust.
 - **Names are first come, first served.** Anyone can take a name before you, and names are shared by every app on the registry.
 - **Bots can fill an open step.** The proof of work slows them down but cannot stop a determined bot. Because capacity opens one paid step at a time, a flood can only fill the step that is open.
+- **A player can spend their group's save reserve.** Each passphrase change is a real change, so someone who changes theirs over and over makes their group pay for saves after the 25th. The loss is capped at the group's reserve, the copy on the rollup is not affected, and the sponsor refills the reserve when it runs out.
 - **Sign-ups need MagicBlock's rollup.** If it is down, new sign-ups and passphrase changes wait. Signing in still works from the copy saved on Solana.
 - **Devnet only today.** The registry address, the rollup and the network are fixed in `smaran.js`, and Devnet itself can be reset.
 - **Size and speed.** The file is about 560 KB, because the standard Solana web3.js library is inside. Sign-up takes a few seconds, and longer on older phones, because Argon2id is meant to be slow.
@@ -114,10 +116,11 @@ Close earlier attempts at the same idea: Ejara's 2020 Tezos demo stored password
 ## Costs and who pays
 
 - **Players:** nothing.
-- **Sponsor (the app):** the registry's storage, about 0.055 SOL per group of 35 names, roughly 0.0016 SOL per name at today's rent. On Solana this is a storage deposit held in the registry's accounts, not a fee that is burned. The registry has no way to close groups today, so it stays locked there.
-- **Rollup transactions:** free on MagicBlock's Devnet rollup today. MagicBlock's mainnet pricing is not covered here.
+- **Sponsor (the app):** about 0.0017 SOL per player, once. A group of 35 names needs 0.0522 SOL of storage, about 0.0029 SOL of MagicBlock delegation deposit and a small save reserve (0.003 SOL suggested). Storage and deposit are held in accounts, not burned, but the registry has no way to close a group today, so plan as if they are spent.
+- **Rollup transactions:** 0 SOL in MagicBlock's current release, on Devnet and mainnet.
+- **Saves to Solana:** MagicBlock covers the first 10 saves of an account per delegation and refuses the 11th unless the account pays for itself. Each registry group pays from its reserve: saves 1 to 25 of a delegation cost nothing, later ones 0.0001 SOL each. Measured on Devnet, which runs the same MagicBlock release as mainnet.
 
-Ways a sponsor can cover the cost (options, not tested business models): the app's own income (ads, cosmetic items, premium features or subscriptions, within local rules on gaming and payments); charging other apps for a hosted registry or per sign-up above a free tier; selling short premium names while ordinary names stay free; and ecosystem grants or programmes for apps that bring in new users.
+The full numbers, a comparison with a hosted login service, and ways for an app to earn the cost back: [Smaran for founders](FOUNDERS.md).
 
 ## Open problems
 
@@ -131,6 +134,7 @@ These are known gaps, not promises.
 
 - `smaran.js`: the file to load. It is built, not hand-written: `python3 smaran/build.py` copies the Solana web3.js, crypto, TweetNaCl and registry code unchanged from Magic Over's `index.html` and adds `api.js`. So the kit runs exactly the code the game runs.
 - `api.js`: the small `Smaran` interface above.
+- `FOUNDERS.md`: costs, and how an app can earn them back.
 - `index.html`: the demo page.
 - The registry program is in [`programs/registry`](../programs/registry).
 

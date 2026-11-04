@@ -68,7 +68,7 @@ globalThis.Smaran = (() => {
   }
 
   return Object.freeze({
-    version: '1.1.0',
+    version: '1.1.1',
     network: 'devnet',
     registry: S.PROGRAM_ID,
     rollup: where.erUrl,

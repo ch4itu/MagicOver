@@ -1,4 +1,4 @@
-/*! Smaran 1.1.0: sign up for a Solana app with a player name and a passphrase.
+/*! Smaran 1.1.1: sign up for a Solana app with a player name and a passphrase.
  * Built by smaran/build.py from Magic Over (https://github.com/ch4itu/MagicOver). Project code: MIT.
  * Bundled: Solana web3.js 1.98.4, hash-wasm, noble-ciphers and TweetNaCl, under their own licenses
  * (see THIRD_PARTY_NOTICES.md in the repository). Load this file once; it defines the globals
@@ -51,6 +51,9 @@ const SabhaSol = (() => {
   const DELEGATION_PROGRAM = 'DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh';
   const MAGIC_PROGRAM = 'Magic11111111111111111111111111111111111111';
   const MAGIC_CONTEXT = 'MagicContext1111111111111111111111111111111';
+  // MagicBlock's fee vault for ER_VALIDATOR (PDA ["magic-fee-vault", validator] of the delegation program). With it, a
+  // registry group pays for its own saves to Solana from its reserve, past MagicBlock's limit of 10 sponsored saves.
+  const ER_FEE_VAULT = '5SRuhQybZ3FqmymaxoipqnieGZ5bNnrQqYwUZSRoCCZQ';
   const SHARDS = Object.freeze([
     'E7ZTDoGatCTS3PvhAYKAMPa8NmRgUpB2yRinsBN6zJ2f',
     '55HJ8f2TcFp786QpSGP9C8fTwGEXv54384tPr8iqFQX1',
@@ -442,7 +445,8 @@ const SabhaSol = (() => {
       { pk: payer, signer: true, writable: true },
       { pk: pubkey(groupOf(shard)), signer: false, writable: true },
       { pk: MAGIC_PROGRAM_PK, signer: false, writable: false },
-      { pk: MAGIC_CONTEXT_PK, signer: false, writable: true }
+      { pk: MAGIC_CONTEXT_PK, signer: false, writable: true },
+      { pk: pubkey(ER_FEE_VAULT), signer: false, writable: true }
     ],
     data: Uint8Array.of(4)
   });
@@ -520,8 +524,15 @@ const SabhaSol = (() => {
   function proveSigning({ account, nameHash, shard = nameHash[0] % NSHARDS, erUrl }) {
     return sendToEr(erUrl, account, [touchIx(playerKey(account), nameHash, shard)], 'Sign-in proof');
   }
-  function commitShard({ account, shard, erUrl }) {
-    return sendToEr(erUrl, account, [commitIx(playerKey(account), shard)], 'Commit to Solana');
+  // Anyone may ask for a group's new changes to be saved to Solana, so a throwaway key signs the request, not the
+  // player's key: the app may already have signed the player out with forget() by the time it is sent.
+  async function commitShard({ shard, erUrl }) {
+    const signer = C.generateAccount();
+    try {
+      return await sendToEr(erUrl, signer, [commitIx(playerKey(signer), shard)], 'Commit to Solana');
+    } finally {
+      C.wipeAccount(signer);
+    }
   }
   async function waitForSolana({ baseUrl, shard, nameHash, timeoutMs = 40000 }) {
     await assertDevnet(baseUrl);
@@ -619,7 +630,7 @@ globalThis.Smaran = (() => {
   }
 
   return Object.freeze({
-    version: '1.1.0',
+    version: '1.1.1',
     network: 'devnet',
     registry: S.PROGRAM_ID,
     rollup: where.erUrl,

@@ -80,11 +80,11 @@ No package installation or login server is needed. The game talks directly to So
 
 This is a Devnet prototype.
 
-- **Registry size:** the player registry grows in capacity steps. Each group holds 35 names, because a program can create an account of at most 10,240 bytes in one instruction. Step 0 has 4 groups (140 names), and each later step doubles the groups: 8, 16, 32, 64 and 128, up to 8,820 names across six steps. A name goes into the first step that has room for it and never moves, so opening a step needs no program upgrade and no migration. The sponsor opens a step by creating its groups, at about 0.055 SOL per group. Steps 0 and 1 are open now, for 420 names.
+- **Registry size:** the player registry grows in capacity steps. Each group holds 35 names, because a program can create an account of at most 10,240 bytes in one instruction. Step 0 has 4 groups (140 names), and each later step doubles the groups: 8, 16, 32, 64 and 128, up to 8,820 names across six steps. A name goes into the first step that has room for it and never moves, so opening a step needs no program upgrade and no migration. The sponsor opens a step by creating its groups, at about 0.058 SOL per group including MagicBlock's deposit and a small save reserve. Steps 0 and 1 are open now, for 420 names.
 - **Sign-up bots:** a small proof of work slows scripted sign-ups (about 1 second in a desktop browser, a few seconds on a phone), but it cannot stop a determined bot. Because capacity opens one paid step at a time, a flood can only fill the step that is open. Registry groups can only be delegated to the registry's MagicBlock validator, and only the registry admin can take a group off the rollup.
 - **Leaderboard size:** the leaderboard holds 140 players, for the same account-size reason.
 - **Match results:** there are eight match tables, reused between matches. Only recorded results persist, and a custom client can skip recording.
-- **Saves:** leaderboard saves draw on a bounded sponsor reserve.
+- **Saves:** MagicBlock covers the first 10 saves to Solana of an account per delegation and refuses the 11th unless the account pays for itself. The registry groups and the leaderboard each pay from a small sponsor reserve: saves 1 to 25 of a delegation cost nothing, later ones 0.0001 SOL each. A save needs a change to save, so nobody can drain a reserve with empty saves.
 - **Passphrase:** there is no passphrase reset. The locked copy is public, so a weak passphrase can be guessed offline: this is an app identity, not a savings wallet. The [Smaran guide](smaran/README.md) has the numbers and all the pros and cons.
 - **Devnet:** Devnet itself may reset and erase test data.
 

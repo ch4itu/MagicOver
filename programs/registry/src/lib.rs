@@ -21,7 +21,11 @@
 //!   3 Delegate         [payer s w, shard w, this program, buffer w, delegation_record w,
 //!                       delegation_metadata w, delegation program, system]  data: shard u8, 1, ER validator 32, frequency u32
 //!                      (only to the registry's MagicBlock ER validator)
-//!   4 Commit           [payer s, shard w, magic program, magic context w]
+//!   4 Commit           [caller s, shard w, magic program, magic context w (, ER fee vault w)]
+//!                      (saves the shard to Solana, only if it changed since the last save; the admin may always.
+//!                      With the ER validator's fee vault and at least 100,000 lamports above rent, the shard pays as
+//!                      MagicBlock's delegated fee payer, which lifts MagicBlock's limit of 10 sponsored commits per
+//!                      delegation; otherwise the caller signs a sponsored commit)
 //!   5 CommitUndelegate [admin s, shard w, magic program, magic context w]   (registry admin only)
 //!   6 UpdateEnvelope   [owner s, shard w]                               data: name_hash 32, envelope 212
 //!                      (passphrase change: the entry's own key replaces its locked copy; the key itself stays)
@@ -139,6 +143,8 @@ const SHARD_SIZE: usize = HEADER + SLOTS * ENTRY; // 10,144 bytes
 const ENVELOPE: usize = 212;
 const POW_BITS: u32 = 16;
 const MAGIC: &[u8; 8] = b"SABREG01";
+const UNSAVED: usize = 20; // header byte: 1 while the shard has changes that no save has been scheduled for
+const LIVE_COMMIT_FEE: u64 = 100_000; // MagicBlock's charge per committed account to a delegated fee payer
 const POW_DOMAIN: &[u8] = b"SABHA-SOL-POW-V1";
 
 const MAX_PERMITTED_DATA_INCREASE: usize = 10_240;
@@ -164,6 +170,7 @@ const ERR_TAG: u32 = 13;
 const ERR_PATH: u32 = 14;
 const ERR_ADMIN: u32 = 15;
 const ERR_VALIDATOR: u32 = 16;
+const ERR_UNCHANGED: u32 = 17;
 
 // ---------------------------------------------------------------- input parsing
 #[derive(Clone, Copy)]
@@ -613,6 +620,7 @@ fn ix_register(c: &Ctx) -> Result<(), u32> {
     d[e + 72..e + 72 + ENVELOPE].copy_from_slice(envelope);
     let count = u32::from_le_bytes([d[16], d[17], d[18], d[19]]) + 1;
     d[16..20].copy_from_slice(&count.to_le_bytes());
+    d[UNSAVED] = 1;
     log("sabha: registered");
     unsafe { sol_log_64_(d[8] as u64, s as u64, count as u64, target as u64, 0) };
     Ok(())
@@ -647,6 +655,7 @@ fn ix_update_envelope(c: &Ctx) -> Result<(), u32> {
         return Err(ERR_NOT_OWNER);
     }
     d[e + 72..e + 72 + ENVELOPE].copy_from_slice(envelope);
+    d[UNSAVED] = 1;
     log("sabha: locked copy replaced by its owner");
     unsafe { sol_log_64_(d[8] as u64, s as u64, 0, 0, 0) };
     Ok(())
@@ -814,21 +823,56 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
 
 #[inline(never)]
 fn ix_commit(c: &Ctx, undelegate: bool) -> Result<(), u32> {
-    let (accs, n) = (c.accs, c.n);
-    // [payer s, shard w, magic program, magic context w]
+    let (accs, n, program_id) = (c.accs, c.n, c.program_id);
+    // [caller s, shard w, magic program, magic context w (, ER fee vault w)]
     if n < 4 {
         return Err(ERR_ACCOUNTS);
     }
     if !accs[0].is_signer {
         return Err(ERR_SIGNER);
     }
-    // anyone may save a shard to Solana; only the admin may take it off the rollup
-    if undelegate && !eq32(accs[0].key(), &ADMIN) {
+    // anyone may save a shard's new changes to Solana; only the admin may take it off the rollup
+    let admin = eq32(accs[0].key(), &ADMIN);
+    if undelegate && !admin {
         return Err(ERR_ADMIN);
     }
     if !eq32(accs[2].key(), &MAGIC_PROGRAM) || !eq32(accs[3].key(), &MAGIC_CONTEXT) {
         return Err(ERR_ACCOUNTS);
     }
+    let shard = &accs[1];
+    shard_ok(shard, program_id)?;
+    let d = shard.data();
+    // saves are limited and can cost the shard lamports, so a save needs a change to save
+    if d[UNSAVED] == 0 && !admin {
+        return Err(ERR_UNCHANGED);
+    }
+    let (gen, idx) = (d[15], d[8]);
+    let (pda, bump) = shard_pda(gen, idx, program_id);
+    if !eq32(&pda, shard.key()) {
+        return Err(ERR_PDA);
+    }
+    d[UNSAVED] = 0;
+    let (vault, _) = find_pda(&[b"magic-fee-vault", &ER_VALIDATOR], &DELEGATION_PROGRAM);
+    let reserve = unsafe { *shard.lamports } >= rent_minimum(SHARD_SIZE) + LIVE_COMMIT_FEE;
+    if !undelegate && n >= 5 && eq32(accs[4].key(), &vault) && reserve {
+        // the shard is the delegated fee payer: MagicBlock takes any live fee from the shard's own reserve
+        let (gen_b, idx_b, bump_b) = ([gen], [idx], [bump]);
+        let seeds0: [&[u8]; 3] = [SHARD_SEED, &idx_b, &bump_b];
+        let seeds1: [&[u8]; 4] = [SHARD_SEED, &gen_b, &idx_b, &bump_b];
+        let seeds: &[&[u8]] = if gen == 0 { &seeds0 } else { &seeds1 };
+        invoke(
+            accs,
+            &Cpi {
+                program: &MAGIC_PROGRAM,
+                metas: &[(1, true, true), (3, true, false), (4, true, false), (1, true, false)],
+                data: &[1, 0, 0, 0],
+                seeds: &[seeds],
+            },
+        )?;
+        log("sabha: commit scheduled, paid by the shard");
+        return Ok(());
+    }
+    // sponsored: the caller signs. MagicBlock accepts 10 of these per delegation (undelegating is always allowed)
     let data: [u8; 4] = if undelegate { [2, 0, 0, 0] } else { [1, 0, 0, 0] };
     invoke(
         accs,
