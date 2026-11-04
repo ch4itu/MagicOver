@@ -116,11 +116,10 @@ Close earlier attempts at the same idea: Ejara's 2020 Tezos demo stored password
 ## Costs and who pays
 
 - **Players:** nothing.
-- **Sponsor (the app):** about 0.0017 SOL per player, once. A group of 35 names needs 0.0522 SOL of storage, about 0.0029 SOL of MagicBlock delegation deposit and a small save reserve (0.003 SOL suggested). Storage and deposit are held in accounts, not burned, but the registry has no way to close a group today, so plan as if they are spent.
-- **Rollup transactions:** 0 SOL in MagicBlock's current release, on Devnet and mainnet.
-- **Saves to Solana:** MagicBlock covers the first 10 saves of an account per delegation and refuses the 11th unless the account pays for itself. Each registry group pays from its reserve: saves 1 to 25 of a delegation cost nothing, later ones 0.0001 SOL each. Measured on Devnet, which runs the same MagicBlock release as mainnet.
+- **Sponsor (the app):** about 0.0017 SOL per player, once. A group of 35 names needs 0.0522 SOL of storage, about 0.003 SOL of MagicBlock delegation deposit and a small save reserve (0.003 SOL suggested). Storage and deposit are held in accounts, not burned, but the registry has no way to close a group today, so plan as if they are spent.
+- **MagicBlock's charges:** rollup transactions cost 0 SOL in its current release, which Devnet and mainnet both run. Its session charge (0.003 SOL) and save charge (0.001 SOL per save after the first) come out of the delegation deposit when a group leaves the rollup, never more than the deposit. MagicBlock refuses an account's 11th save in a delegation unless the account pays for its own saves, so each group does: from its 26th save in a delegation, 0.0001 SOL per save from its reserve.
 
-The full numbers, a comparison with a hosted login service, and ways for an app to earn the cost back: [Smaran for founders](FOUNDERS.md).
+The full numbers and how a founder can earn from Smaran: [Smaran for founders](FOUNDERS.md).
 
 ## Open problems
 
@@ -134,7 +133,7 @@ These are known gaps, not promises.
 
 - `smaran.js`: the file to load. It is built, not hand-written: `python3 smaran/build.py` copies the Solana web3.js, crypto, TweetNaCl and registry code unchanged from Magic Over's `index.html` and adds `api.js`. So the kit runs exactly the code the game runs.
 - `api.js`: the small `Smaran` interface above.
-- `FOUNDERS.md`: costs, and how an app can earn them back.
+- `FOUNDERS.md`: costs, and how a founder can earn from Smaran.
 - `index.html`: the demo page.
 - The registry program is in [`programs/registry`](../programs/registry).
 
