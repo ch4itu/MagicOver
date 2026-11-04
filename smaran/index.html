@@ -30,6 +30,8 @@
   .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
   .row button { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
   .status { margin: 14px 0 0; color: var(--muted); font-size: 14px; }
+  details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; color: var(--text); }
   ul { padding-left: 20px; color: var(--muted); }
   a { color: var(--gold); }
   [hidden] { display: none !important; }
@@ -67,6 +69,17 @@
       <button id="signOut">Sign out</button>
     </div>
     <p class="msg" id="sig"></p>
+    <details id="changeBox">
+      <summary>Change passphrase</summary>
+      <label for="oldPass">Current passphrase</label>
+      <input id="oldPass" type="password" autocomplete="current-password">
+      <label for="newPass">New passphrase</label>
+      <input id="newPass" type="password" autocomplete="new-password" placeholder="At least 16 characters">
+      <label for="newPass2">New passphrase again</label>
+      <input id="newPass2" type="password" autocomplete="new-password">
+      <button class="go" id="changeGo">Change passphrase</button>
+      <p class="msg" id="changeMsg" role="status"></p>
+    </details>
   </section>
 
   <p class="status" id="status">Checking the registry…</p>
@@ -162,9 +175,38 @@
     const hex = Array.from(sig.slice(0, 8), b => b.toString(16).padStart(2, '0')).join('');
     $('sig').textContent = `Signed "${text}" with your key: signature ${hex}… (64 bytes). Nothing was sent anywhere.`;
   };
+  const sayChange = (text, kind = '') => { $('changeMsg').textContent = text; $('changeMsg').className = 'msg ' + kind; };
+  $('changeGo').onclick = async () => {
+    if (!current) return;
+    const oldPass = $('oldPass').value, newPass = $('newPass').value;
+    if (newPass !== $('newPass2').value) return sayChange('The two new passphrases do not match.', 'bad');
+    if (newPass === oldPass) return sayChange('The new passphrase is the same as the current one.', 'bad');
+    const check = Smaran.checkPassphrase(newPass, current.name);
+    if (!check.ok) return sayChange('New passphrase: ' + check.errors.join('; ') + '.', 'bad');
+    $('changeGo').disabled = true;
+    try {
+      const p = await Smaran.changePassphrase({ name: current.name, passphrase: oldPass, newPassphrase: newPass, onProgress: e => {
+        if (e.phase === 'unlock') sayChange('Checking your current passphrase…');
+        if (e.phase === 'encrypt') sayChange('Locking your key with the new passphrase…');
+        if (e.phase === 'send') sayChange('Saving the new locked copy…');
+      } });
+      const same = p.publicKey === current.publicKey;
+      p.forget(); // the page keeps the session it already has; the key is the same
+      $('oldPass').value = ''; $('newPass').value = ''; $('newPass2').value = '';
+      sayChange(same ? 'Passphrase changed. Your player key stayed the same. Use the new passphrase in every app from now on.' : 'Passphrase changed.', 'good');
+    } catch (e) {
+      sayChange(e.message || String(e), 'bad');
+    } finally {
+      $('changeGo').disabled = false;
+    }
+  };
+
   $('signOut').onclick = () => {
     if (current) current.forget();
     current = null;
+    $('oldPass').value = ''; $('newPass').value = ''; $('newPass2').value = '';
+    sayChange('');
+    $('changeBox').open = false;
     $('player').hidden = true;
     $('form').hidden = false;
     setMode('in');

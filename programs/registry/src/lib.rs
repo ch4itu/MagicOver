@@ -23,6 +23,8 @@
 //!                      (only to the registry's MagicBlock ER validator)
 //!   4 Commit           [payer s, shard w, magic program, magic context w]
 //!   5 CommitUndelegate [admin s, shard w, magic program, magic context w]   (registry admin only)
+//!   6 UpdateEnvelope   [owner s, shard w]                               data: name_hash 32, envelope 212
+//!                      (passphrase change: the entry's own key replaces its locked copy; the key itself stays)
 //!   196.. (8-byte MagicBlock undelegation callback) [shard w, buffer s, payer s w, system]
 #![cfg_attr(target_arch = "bpf", no_std)]
 use solana_compiler_builtins as _;
@@ -616,6 +618,40 @@ fn ix_register(c: &Ctx) -> Result<(), u32> {
     Ok(())
 }
 
+/// Passphrase change. Only the key that owns the entry can replace its locked copy, and the player key does not
+/// change, so nothing else about the player changes either. The program cannot check what is inside the locked copy
+/// (it is encrypted); it only checks the length and the SCK1 marker, and the page checks the copy unlocks first.
+#[inline(never)]
+fn ix_update_envelope(c: &Ctx) -> Result<(), u32> {
+    let (accs, n, ix, program_id) = (c.accs, c.n, c.ix, c.program_id);
+    if n < 2 || ix.len() != 1 + 32 + ENVELOPE {
+        return Err(ERR_DATA);
+    }
+    let (owner, shard) = (&accs[0], &accs[1]);
+    if !owner.is_signer {
+        return Err(ERR_SIGNER);
+    }
+    shard_ok(shard, program_id)?;
+    let envelope = &ix[33..33 + ENVELOPE];
+    if &envelope[0..4] != b"SCK1" {
+        return Err(ERR_DATA);
+    }
+    let d = shard.data();
+    let pr = probe(d, &ix[1..33]);
+    if pr & FOUND == 0 {
+        return Err(ERR_NOT_FOUND);
+    }
+    let s = (pr & 0xff) as usize;
+    let e = HEADER + s * ENTRY;
+    if !eq32(&d[e + 40..e + 72], owner.key()) {
+        return Err(ERR_NOT_OWNER);
+    }
+    d[e + 72..e + 72 + ENVELOPE].copy_from_slice(envelope);
+    log("sabha: locked copy replaced by its owner");
+    unsafe { sol_log_64_(d[8] as u64, s as u64, 0, 0, 0) };
+    Ok(())
+}
+
 #[inline(never)]
 fn ix_touch(c: &Ctx) -> Result<(), u32> {
     let (accs, n, ix, program_id) = (c.accs, c.n, c.ix, c.program_id);
@@ -895,6 +931,7 @@ pub unsafe extern "C" fn entrypoint(input: *mut u8) -> u64 {
             3 => ix_delegate(&c),
             4 => ix_commit(&c, false),
             5 => ix_commit(&c, true),
+            6 => ix_update_envelope(&c),
             _ => Err(ERR_TAG),
         }
     };

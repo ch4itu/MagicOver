@@ -1,4 +1,4 @@
-/*! Smaran 1.0.0: sign up for a Solana app with a player name and a passphrase.
+/*! Smaran 1.1.0: sign up for a Solana app with a player name and a passphrase.
  * Built by smaran/build.py from Magic Over (https://github.com/ch4itu/MagicOver). Project code: MIT.
  * Bundled: Solana web3.js 1.98.4, hash-wasm, noble-ciphers and TweetNaCl, under their own licenses
  * (see THIRD_PARTY_NOTICES.md in the repository). Load this file once; it defines the globals
@@ -430,6 +430,12 @@ const SabhaSol = (() => {
     keys: [{ pk: owner, signer: true, writable: false }, { pk: pubkey(groupOf(shard)), signer: false, writable: true }],
     data: C.concat(Uint8Array.of(2), nameHash)
   });
+  // passphrase change: the entry's own key replaces its locked copy (instruction 6)
+  const updateIx = (owner, nameHash, envelope, shard) => ({
+    programId: PROGRAM_PK,
+    keys: [{ pk: owner, signer: true, writable: false }, { pk: pubkey(groupOf(shard)), signer: false, writable: true }],
+    data: C.concat(Uint8Array.of(6), nameHash, envelope)
+  });
   const commitIx = (payer, shard) => ({
     programId: PROGRAM_PK,
     keys: [
@@ -485,6 +491,31 @@ const SabhaSol = (() => {
     const restored = await C.decryptSeed({ name: found.normalized, password, ownerAddress: new A.PublicKey(found.entry.owner).toBase58(), envelope: found.entry.envelope, expectedNetworkHash: GENESIS_BYTES });
     return { account: restored.account, name: found.normalized, nameHash: found.nameHash, shard: found.shard, gen: found.gen, slot: found.entry.slot, counter: found.entry.counter, source: found.source };
   }
+  // Locks the same player key with a new passphrase. The current passphrase must unlock the current locked copy
+  // first (read from the rollup, not an older Solana copy); then the key signs the replacement itself.
+  async function changePassword({ name, password, newPassword, erUrl, baseUrl, onProgress = () => {} }) {
+    await assertEr(erUrl);
+    const found = await lookup(name, { erUrl, baseUrl, requireEr: true });
+    if (!found.entry) throw new Error(`No player named "${found.normalized}" was found on the ${found.source}.`);
+    const check = C.validatePassword(newPassword, found.normalized);
+    if (!check.ok) throw new Error(check.errors.join('; '));
+    onProgress({ phase: 'unlock' });
+    const restored = await C.decryptSeed({ name: found.normalized, password, ownerAddress: new A.PublicKey(found.entry.owner).toBase58(), envelope: found.entry.envelope, expectedNetworkHash: GENESIS_BYTES });
+    const account = restored.account;
+    restored.seed.fill(0);
+    let keep = false;
+    try {
+      onProgress({ phase: 'encrypt' });
+      const envelope = await C.encryptSeed({ name: found.normalized, password: newPassword, seed: C.accountSeed(account), ownerAddress: account.addr, networkHash: GENESIS_BYTES });
+      if (envelope.length !== ENVELOPE) throw new Error('Unexpected ChainKey envelope size.');
+      onProgress({ phase: 'send' });
+      const signature = await sendToEr(erUrl, account, [updateIx(playerKey(account), found.nameHash, envelope, found.shard)], 'Passphrase change');
+      keep = true;
+      return { account, name: found.normalized, nameHash: found.nameHash, shard: found.shard, gen: found.gen, signature };
+    } finally {
+      if (!keep) C.wipeAccount(account);
+    }
+  }
   // shard: the address restorePlayer or createPlayer returned (a number means a step-0 shard)
   function proveSigning({ account, nameHash, shard = nameHash[0] % NSHARDS, erUrl }) {
     return sendToEr(erUrl, account, [touchIx(playerKey(account), nameHash, shard)], 'Sign-in proof');
@@ -512,7 +543,7 @@ const SabhaSol = (() => {
     PROGRAM_ID, DEVNET_GENESIS, ER_VALIDATOR, DELEGATION_PROGRAM, SHARDS, DEFAULT_ER, DEFAULT_BASE, NSHARDS, SLOTS, POW_BITS, MAX_GEN,
     stepSize, stepIndex, groupAddress,
     b58encode, b58decode, rpc, assertDevnet, assertEr, lookup, registryStatus, solveProof, compileMessage,
-    createPlayer, restorePlayer, proveSigning, commitShard, waitForSolana, solanaAddress, erTxUrl, devnetAddressUrl
+    createPlayer, restorePlayer, changePassword, proveSigning, commitShard, waitForSolana, solanaAddress, erTxUrl, devnetAddressUrl
   });
   globalThis.SabhaSol = api;
   return api;
@@ -562,6 +593,15 @@ globalThis.Smaran = (() => {
     return player(back.account, back.name);
   }
 
+  // Locks the same player key with a new passphrase. The current passphrase is needed. The player key does not change,
+  // so the player is the same everywhere; every app on the registry then asks for the new passphrase.
+  // onProgress gets { phase: 'unlock' | 'encrypt' | 'send' }.
+  async function changePassphrase({ name, passphrase, newPassphrase, onProgress } = {}) {
+    const done = await S.changePassword({ name, password: passphrase, newPassword: newPassphrase, ...where, onProgress });
+    S.commitShard({ account: done.account, shard: done.shard, erUrl: where.erUrl }).catch(() => {});
+    return player(done.account, done.name);
+  }
+
   async function lookup(name) {
     const found = await S.lookup(name, where);
     return {
@@ -579,12 +619,13 @@ globalThis.Smaran = (() => {
   }
 
   return Object.freeze({
-    version: '1.0.0',
+    version: '1.1.0',
     network: 'devnet',
     registry: S.PROGRAM_ID,
     rollup: where.erUrl,
     signUp,
     signIn,
+    changePassphrase,
     lookup,
     status,
     checkName: name => C.normalizeName(name), // the stored form of a name; throws with the rule if it is not allowed

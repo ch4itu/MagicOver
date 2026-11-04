@@ -4,18 +4,36 @@ Smaran lets a player sign up for a Solana app with a player name and a passphras
 
 It is the sign-up that [Magic Over](../README.md) runs, packaged as one file, `smaran.js`, that any web page can load.
 
-**Try it:** [ch4itu.github.io/MagicOver/smaran](https://ch4itu.github.io/MagicOver/smaran/). If you already play Magic Over, sign in there with the same name and passphrase and you get the same player key.
+**Try it:** [ch4itu.github.io/MagicOver/smaran](https://ch4itu.github.io/MagicOver/smaran/). If you already play Magic Over, sign in there with the same name and passphrase and you get the same player key. You can also change your passphrase there.
 
-## Add it to a page
+**Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, and across two apps (Magic Over and the Smaran page). Not on mainnet yet.
+
+## What Smaran is, and what it is not
+
+**It is an app identity.** A player in a game, a member of a community, a loyalty card, a voter in a poll: something a person should be able to start using in seconds and carry from app to app. The app's sponsor pays the small storage cost; the player pays nothing.
+
+**It is not a savings wallet.** Do not keep valuable tokens or NFTs on a Smaran key. The locked copy of the key is public (that is what makes it free and serverless), so its safety depends on the passphrase. For low-value, everyday use that is a fair trade. For savings it is not. A player who later wants a real wallet can move anything of value there.
+
+**It can be disposable.** If a player forgets the passphrase, they lose that player and start a new one. Apps should treat the player key like a username they recognise, not like a bank account.
+
+## How it works
+
+1. **Sign up.** The browser makes a random signing key. It does not come from the passphrase.
+2. **Lock.** Argon2id (64 MiB of memory, three passes) turns the passphrase into a key that locks a copy of the signing key with XChaCha20-Poly1305. Each player gets a random salt, and the locked copy is tied to the player's name, public key and network, so it cannot be moved to another name or network. The passphrase never leaves the page.
+3. **Register.** After a small proof of work, the page stores three things in the player registry on MagicBlock's rollup: a hash of the name, the public key and the locked copy. The player's own new key signs this, with 0 SOL. The rollup then saves the registry to Solana.
+4. **Sign in anywhere.** Another device or app reads the locked copy by the name, unlocks it in the browser with the passphrase, and checks the key matches the registered public key.
+5. **Change the passphrase.** A player who still knows the passphrase can lock the same key with a new one. Only that player's key can replace its locked copy, and the player key never changes.
+
+## Add it to your app
 
 ```html
 <script src="smaran.js"></script>
 <script type="module">
   // a new player
-  const player = await Smaran.signUp({ name: 'asha-k', passphrase: 'a long passphrase you will remember' });
+  const player = await Smaran.signUp({ name: 'asha-k', passphrase: 'five random words are a good passphrase' });
 
   // the same player later, on any device
-  const again = await Smaran.signIn({ name: 'asha-k', passphrase: 'a long passphrase you will remember' });
+  const again = await Smaran.signIn({ name: 'asha-k', passphrase: 'five random words are a good passphrase' });
 
   again.publicKey;          // base58 Solana address of the player
   again.sign('hello');      // 64-byte Ed25519 signature
@@ -26,47 +44,94 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged as one file, `s
 
 | Call | What it does |
 | --- | --- |
-| `Smaran.signUp({ name, passphrase, onProgress })` | Creates the player and returns it. `onProgress` gets `{ phase: 'encrypt' \| 'proof' \| 'send' }`. Takes a few seconds. |
+| `Smaran.signUp({ name, passphrase, onProgress })` | Creates the player and returns it. Takes a few seconds. `onProgress` gets `{ phase: 'encrypt' \| 'proof' \| 'send' }`. |
 | `Smaran.signIn({ name, passphrase })` | Returns the same player on any device. Fails on a wrong passphrase. |
+| `Smaran.changePassphrase({ name, passphrase, newPassphrase })` | Locks the same key with a new passphrase. Needs the current one. Every app then uses the new one. |
 | `Smaran.lookup(name)` | `{ name, exists, publicKey, step }`, without a passphrase. |
 | `Smaran.status()` | `{ players, capacity, steps }` of the registry. |
 | `Smaran.checkName(name)` | The stored form of a name (lower case). Throws if the name is not allowed. |
-| `Smaran.checkPassphrase(passphrase, name)` | `{ ok, errors }` before you call `signUp`. |
+| `Smaran.checkPassphrase(passphrase, name)` | `{ ok, errors }`, to check before calling `signUp`. |
 | `player.publicKey`, `player.secretKey` | The player's Solana address, and the usual 64-byte secret key. |
 | `player.sign(message)`, `player.keypair()`, `player.forget()` | Sign bytes or text, get a web3.js `Keypair`, sign out. |
 
-Names are 3 to 32 characters: a to z, 0 to 9, `_` or `-`. Passphrases need at least 16 characters.
+Names are 3 to 32 characters: a to z, 0 to 9, `_` or `-`. Passphrases need at least 16 characters and some variety, and cannot contain the name.
 
 The player has 0 SOL. It can sign zero-fee transactions on MagicBlock's Ephemeral Rollup for accounts your program has delegated there, the way Magic Over's moves work. Anything on Solana itself still needs a sponsor to pay.
 
-## How it works
+## Pros
 
-1. The browser makes a random signing key. It does not come from the passphrase.
-2. Argon2id (64 MiB, three passes) turns the passphrase into a key that locks a copy of the signing key with XChaCha20-Poly1305. The passphrase never leaves the page.
-3. After a small proof of work, the page stores the name's hash, the public key and the locked copy in the player registry on MagicBlock's rollup. The player signs this itself, with 0 SOL. The rollup then saves the registry to Solana.
-4. Signing in reads the locked copy, unlocks it in the browser and checks it matches the registered public key.
+- **Nothing to install or buy.** No wallet app, no seed phrase, no SOL, no email, no Google or Apple account, no particular device.
+- **Back on any device.** The name and passphrase are enough. Tested in fresh browsers with nothing saved.
+- **One player across apps.** Every app on the same registry gets the same player. A player made on the Smaran page signs in to Magic Over with the same key, and the other way round.
+- **No company in the middle.** The registry is an open Solana program that anyone can read. There is no login server to run, trust, pay for or shut down.
+- **Free for players.** Sign-up is a zero-fee rollup transaction signed by the player's own new key, so no fee-paying relay service is needed.
+- **Cheap for the sponsor.** About 0.0016 SOL of storage per name, paid once.
+- **Grows without moving anyone.** Capacity opens in steps (140, then 280, 560 and so on, up to 8,820 names) and a name never moves once stored.
+- **Passphrase can change.** Because the key is random rather than made from the passphrase, a player can change the passphrase and stay the same player.
+- **Standard, careful crypto.** Argon2id with 64 MiB per guess, XChaCha20-Poly1305, a random salt per player, and the locked copy tied to name, key and network.
+- **Small to adopt.** One file, a handful of calls, and the same code Magic Over runs every day.
 
-More detail is in the [Magic Over README](../README.md#how-sign-up-works).
+## Cons
 
-## Who pays
+- **The locked copy is public, so passphrases can be guessed offline.** Anyone can download a player's locked copy and try passphrases on their own computers, as fast as they can, with no limit on tries. A strong passphrase makes this hopeless. A weak one can fall. See the numbers below. This is the main weakness.
+- **No reset.** A forgotten passphrase means a lost player. Nobody, including us, can recover it.
+- **Every app sees the key.** The app a player signs in to unlocks the key inside its own page. A bad app could keep it. Players should only sign in to apps they trust.
+- **Names are first come, first served.** Anyone can take a name before you, and names are shared by every app on the registry.
+- **Bots can fill an open step.** The proof of work slows them down but cannot stop a determined bot. Because capacity opens one paid step at a time, a flood can only fill the step that is open.
+- **Sign-ups need MagicBlock's rollup.** If it is down, new sign-ups and passphrase changes wait. Signing in still works from the copy saved on Solana.
+- **Devnet only today.** The registry address, the rollup and the network are fixed in `smaran.js`, and Devnet itself can be reset.
+- **Size and speed.** The file is about 560 KB, because the standard Solana web3.js library is inside. Sign-up takes a few seconds, and longer on older phones, because Argon2id is meant to be slow.
 
-The app's sponsor pays the registry's storage once, never the player. The registry grows in capacity steps of 35-name groups at about 0.055 SOL per group, roughly 0.0016 SOL per name at today's rent. A name goes into the first step with room and never moves.
+## How safe is a passphrase? (numbers)
 
-Today `smaran.js` uses the shared Magic Over registry on Solana Devnet, with 420 names of room in two open steps.
+One wrong guess costs an attacker one full Argon2id run: about **0.16 seconds and 64 MiB of memory on one server CPU core** (measured with a native Argon2 library; about 0.27 seconds in a browser). With 1,000 cores that is roughly 6,000 guesses a second. The time to try half of all possibilities:
 
-## Limits and safety
+| Passphrase | 1,000 CPU cores working on one player |
+| --- | --- |
+| A phrase on a list of a billion common phrases (song lines, name plus year, keyboard patterns) | about a day |
+| 4 random words from a 7,776-word list | about 9,000 years |
+| 5 random words from that list | about 70 million years |
+| 6 random words from that list | more than 500 billion years |
 
-- **One name, everywhere:** names are shared by every app on the same registry. A name taken in Magic Over is taken in your app too, and it is the same player.
-- **Apps see the key:** every app a player signs in to gets the full player key in memory. Players should only sign in to apps they trust. On Devnet nothing of value is at stake. This has to be solved before Smaran holds anything of value on mainnet.
-- **Passphrase strength:** the locked copy is public, so anyone can try passphrases against it offline. Argon2id makes each guess slow, but a long passphrase is what keeps a player safe.
-- **No reset or change:** a lost passphrase means a lost player, and the registry cannot yet change a passphrase.
-- **Bots:** the proof of work slows scripted sign-ups but cannot stop a determined bot. Capacity opens one paid step at a time, so a flood can only fill the step that is open.
-- **Devnet only:** the registry address, the rollup and the network are fixed in `smaran.js`. Using your own registry, or mainnet, means deploying `programs/registry` and changing those values.
+Argon2id's memory cost is there to blunt GPUs and custom chips, but a well-funded attacker can still rent many more machines than this. So: **use five or more random words.** Phrases people pick themselves are what attackers try first.
+
+**Why seed phrases are different.** A 12-word seed phrase made by a wallet is random: 2¹²⁸ possibilities. Even a billion billion guesses a second would take about ten trillion years to try them all. No computer that exists or is planned can guess it. A passphrase chosen by a person has far fewer real possibilities, which is why the locked copy needs a slow KDF and why the passphrase matters so much.
+
+## How it compares
+
+| | What the player needs | Where the backup lives | Limit on guesses | Cost to the player | Company needed |
+| --- | --- | --- | --- | --- | --- |
+| Seed-phrase wallet | 12 or 24 random words | Wherever they wrote them down | Not needed (random) | Needs SOL for fees | No |
+| **Smaran** | Name and passphrase | Public on-chain registry, locked | None (offline guessing possible) | Nothing; sponsor pays | No |
+| Phantom (Google/Apple + PIN) | Google or Apple account and a 4-digit PIN | Phantom's servers, plus Juicebox servers that check the PIN | Yes, Juicebox counts PIN tries | Nothing | Yes (Phantom, Google/Apple) |
+| Privy or Dynamic password mode | Email or social login, then a password | The company's servers | Behind the login | Nothing; app pays | Yes |
+| NEAR Auth | Google, Apple, email/password or passkey via Auth0 | NEAR's key servers (MPC) | Behind the login | Nothing; app pays | Yes (Auth0 and the key servers) |
+| Passkeys (LazorKit on Solana) | A device with Face ID or similar | The device, synced by Apple or Google | Device unlock | Nothing; sponsor pays | Apple or Google sync |
+| Hive | Username and master password | Keys made straight from the password | None (the public key is the target) | An existing account pays to create it | No |
+
+Close earlier attempts at the same idea: Ejara's 2020 Tezos demo stored password-locked secrets in a public contract under a username, but stayed on testnet and could not find a player's backup from a different browser. The VA-DAR paper (March 2026) proposes serverless recovery from an identifier and passphrase, with the backup on Arweave. Neither runs as a product.
+
+## Costs and who pays
+
+- **Players:** nothing.
+- **Sponsor (the app):** the registry's storage, about 0.055 SOL per group of 35 names, roughly 0.0016 SOL per name at today's rent. On Solana this is a storage deposit held in the registry's accounts, not a fee that is burned. The registry has no way to close groups today, so it stays locked there.
+- **Rollup transactions:** free on MagicBlock's Devnet rollup today. MagicBlock's mainnet pricing is not covered here.
+
+Ways a sponsor can cover the cost (options, not tested business models): the app's own income (ads, cosmetic items, premium features or subscriptions, within local rules on gaming and payments); charging other apps for a hosted registry or per sign-up above a free tier; selling short premium names while ordinary names stay free; and ecosystem grants or programmes for apps that bring in new users.
+
+## Open problems
+
+These are known gaps, not promises.
+
+- **Limiting guesses.** Today the locked copy is public, like a locked suitcase anyone can carry home and try combinations on forever. A card PIN is safer because after a few wrong tries the bank blocks it. Phantom gets that with Juicebox servers that count PIN tries. MagicBlock's private rollup runs in secure hardware and can keep data out of public view, so in principle it could hold the locked copies and count wrong tries. But MagicBlock documents its privacy as an access gate inside the rollup, and describes no encryption for data saved back to Solana, where account data is readable by anyone. Keeping the copies only inside the private rollup would mean players depend on that rollup never losing them. This needs MagicBlock to confirm durable private storage first.
+- **Apps seeing the key.** Wallet companies avoid this by doing the signing in their own separate window, so the app never sees the key. Smaran would need the same to be safe for anything of value.
+- **Mainnet.** Its own registry deployment, a fresh admin key, and the fixed values moved into one setting.
 
 ## Files
 
-- `smaran.js`: the file to load, about 550 KB. It is built, not hand-written: `python3 smaran/build.py` copies the Solana web3.js, crypto, TweetNaCl and registry code unchanged from Magic Over's `index.html` and adds `api.js`. So the kit runs exactly the code the game runs.
+- `smaran.js`: the file to load. It is built, not hand-written: `python3 smaran/build.py` copies the Solana web3.js, crypto, TweetNaCl and registry code unchanged from Magic Over's `index.html` and adds `api.js`. So the kit runs exactly the code the game runs.
 - `api.js`: the small `Smaran` interface above.
 - `index.html`: the demo page.
+- The registry program is in [`programs/registry`](../programs/registry).
 
 Project code: [MIT](../LICENSE). Bundled libraries keep their own licenses: see [third-party notices](../THIRD_PARTY_NOTICES.md).

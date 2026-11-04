@@ -21,7 +21,7 @@ for head in WANT:
     parts.append(found[0].strip())
 parts.append((HERE / 'api.js').read_text(encoding='utf-8').strip())
 
-banner = ('/*! Smaran 1.0.0: sign up for a Solana app with a player name and a passphrase.\n'
+banner = ('/*! Smaran 1.1.0: sign up for a Solana app with a player name and a passphrase.\n'
           ' * Built by smaran/build.py from Magic Over (https://github.com/ch4itu/MagicOver). Project code: MIT.\n'
           ' * Bundled: Solana web3.js 1.98.4, hash-wasm, noble-ciphers and TweetNaCl, under their own licenses\n'
           ' * (see THIRD_PARTY_NOTICES.md in the repository). Load this file once; it defines the globals\n'

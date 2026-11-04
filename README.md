@@ -18,7 +18,7 @@ To show this working in a real-time app, it comes with a 3D cricket game on Magi
 
 **On another device**, the same name and passphrase are enough. The browser reads the locked copy from the rollup, or the last copy saved on Solana, unlocks it locally and checks that the key matches the registered public key.
 
-The passphrase never leaves the browser, there is no login server, and the unlocked key is kept only in memory. There is also no passphrase reset: if the passphrase is lost, so is the player ID.
+The passphrase never leaves the browser, there is no login server, and the unlocked key is kept only in memory. There is no passphrase reset: if the passphrase is lost, so is the player ID. A player who still knows the passphrase can change it on the [Smaran page](https://ch4itu.github.io/MagicOver/smaran/); the player key stays the same.
 
 **Guests** can skip all of this. Bat vs AI uses a temporary key made in the browser.
 
@@ -85,7 +85,7 @@ This is a Devnet prototype.
 - **Leaderboard size:** the leaderboard holds 140 players, for the same account-size reason.
 - **Match results:** there are eight match tables, reused between matches. Only recorded results persist, and a custom client can skip recording.
 - **Saves:** leaderboard saves draw on a bounded sponsor reserve.
-- **Passphrase:** there is no passphrase reset.
+- **Passphrase:** there is no passphrase reset. The locked copy is public, so a weak passphrase can be guessed offline: this is an app identity, not a savings wallet. The [Smaran guide](smaran/README.md) has the numbers and all the pros and cons.
 - **Devnet:** Devnet itself may reset and erase test data.
 
 Next: better cricket motion from real shot references, teams and player skins, clearer cameras, useful replays, stadium atmosphere and smooth mobile play. **No wagers, stakes, entry fees, tokens or prize payouts are included in the game.**

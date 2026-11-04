@@ -42,6 +42,15 @@ globalThis.Smaran = (() => {
     return player(back.account, back.name);
   }
 
+  // Locks the same player key with a new passphrase. The current passphrase is needed. The player key does not change,
+  // so the player is the same everywhere; every app on the registry then asks for the new passphrase.
+  // onProgress gets { phase: 'unlock' | 'encrypt' | 'send' }.
+  async function changePassphrase({ name, passphrase, newPassphrase, onProgress } = {}) {
+    const done = await S.changePassword({ name, password: passphrase, newPassword: newPassphrase, ...where, onProgress });
+    S.commitShard({ account: done.account, shard: done.shard, erUrl: where.erUrl }).catch(() => {});
+    return player(done.account, done.name);
+  }
+
   async function lookup(name) {
     const found = await S.lookup(name, where);
     return {
@@ -59,12 +68,13 @@ globalThis.Smaran = (() => {
   }
 
   return Object.freeze({
-    version: '1.0.0',
+    version: '1.1.0',
     network: 'devnet',
     registry: S.PROGRAM_ID,
     rollup: where.erUrl,
     signUp,
     signIn,
+    changePassphrase,
     lookup,
     status,
     checkName: name => C.normalizeName(name), // the stored form of a name; throws with the rule if it is not allowed
