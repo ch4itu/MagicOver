@@ -41,7 +41,7 @@
 
   <section class="card" id="stop" hidden>
     <p id="stopText"></p>
-    <p id="stopLink" hidden><a href="./">Go to the Smaran page</a></p>
+    <p id="stopLink" hidden>To see your player or change your passphrase, <a href="./">go to the Smaran page</a>.</p>
   </section>
 
   <section class="card" id="form" hidden>
@@ -114,7 +114,7 @@
 
   // Never inside another page: a site could cover this window's buttons with its own.
   if (window.top !== window.self) return stop('Open this page in its own window.');
-  if (!opener) return stop('This window signs you in to other sites. Open it with a site\'s "Sign in with Smaran" button.', true);
+  if (!opener) return stop('This is Smaran\'s sign-in window. It opens when you choose "Sign in with Smaran" on a site, and it does nothing when opened by itself.', true);
 
   const post = msg => { try { if (appOrigin) opener.postMessage({ smaran: 1, ...msg }, appOrigin); } catch (e) { /* the site is gone */ } };
   const secure = origin => {
@@ -297,7 +297,8 @@
     setTimeout(() => window.close(), 50);
   }
   $('signOut').onclick = () => end(true);
-  window.addEventListener('pagehide', () => end(true));
+  // Only when the window is really going away, not when the browser keeps the page to come back to (persisted).
+  window.addEventListener('pagehide', e => { if (!e.persisted) end(true); });
   setInterval(() => { if (!ended && opener.closed) end(false); }, 1000);
 
   // ------------------------------------------------------------ talk to the site that opened this window
@@ -329,8 +330,12 @@
     queue.push(m);
     next();
   });
+  // On a phone this window opens as a tab and the site waits in the background, where its browser may pause it for a
+  // while. So the window keeps waiting for the site instead of giving up.
+  $('site').textContent = 'Connecting to the site that opened this window…';
+  $('site').hidden = false;
   waiting = setTimeout(() => {
-    if (!appOrigin && !ended) { ended = true; stop('The site did not answer. Close this window and sign in again from the site.'); }
+    if (!appOrigin && !ended) $('site').textContent = 'Still waiting for the site that opened this window. If nothing happens, close this window and sign in again from the site.';
   }, 15000);
   opener.postMessage({ smaran: 1, type: 'ready' }, '*');
 })();

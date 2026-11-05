@@ -6,7 +6,7 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged two ways for ot
 
 **Try it:** [ch4itu.github.io/MagicOver/smaran](https://ch4itu.github.io/MagicOver/smaran/). If you already play Magic Over, sign in there with the same name and passphrase and you get the same player key. You can also change your passphrase there.
 
-**Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, across two apps (Magic Over and the Smaran page), and with the sign-in window opened by a site on another address. Not on mainnet yet.
+**Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, across two apps (Magic Over and the Smaran page), and with the sign-in window opened by a site on another address (in a desktop browser; the window is not yet tested on a phone). Not on mainnet yet.
 
 ## What Smaran is, and what it is not
 
@@ -52,7 +52,7 @@ There are two ways. With the **sign-in window**, the player types the passphrase
 | `player.signTransaction(tx)`, `player.signAllTransactions(txs)` | A web3.js `Transaction` or `VersionedTransaction` gets the player's signature added; transaction message bytes give back the signature. The window lists the programs used and asks the player. |
 | `player.disconnect()`, `player.onDisconnect(fn)` | Signs out, or tells you when the player signs out or closes the window. |
 
-A request that does not go through fails with an error whose `code` is `rejected` (the player said no), `refused` (the window does not sign that) or `signed-out`.
+A request that does not go through fails with an error whose `code` says why, for example `rejected` (the player said no), `refused` (the window does not sign that) or `signed-out`.
 
 What the window does:
 

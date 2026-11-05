@@ -128,7 +128,8 @@ globalThis.SmaranConnect = (() => {
           end('signed-out', false);
         }
       }
-      const onLeave = () => end('left', true);
+      // only when this page is really going away, not when the browser keeps it to come back to (persisted)
+      const onLeave = e => { if (!e.persisted) end('left', true); };
       window.addEventListener('message', onMessage);
       window.addEventListener('pagehide', onLeave);
       const watch = setInterval(() => { if (popup.closed) end('closed', false); }, 500);
