@@ -6,6 +6,10 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged two ways for ot
 
 **Try it:** [ch4itu.github.io/MagicOver/smaran](https://ch4itu.github.io/MagicOver/smaran/). If you already play Magic Over, sign in there with the same name and passphrase and you get the same player key. You can also change your passphrase there.
 
+<p align="center"><img src="../media/preview-signin-window.gif" width="760" alt="A demo site opens Smaran's sign-in window; the player signs in and approves a message there, and the site never sees the passphrase or the key"></p>
+
+<p align="center"><sub>The sign-in window, opened by a demo site (game.example) and stepping through sign-in and one signature.</sub></p>
+
 **Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, across two apps (Magic Over and the Smaran page), and with the sign-in window opened by a site on another address (in a desktop browser; the window is not yet tested on a phone). Not on mainnet yet.
 
 ## What Smaran is, and what it is not

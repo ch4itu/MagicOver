@@ -8,6 +8,16 @@ To show this working in a real-time app, it comes with a 3D cricket game on Magi
 
 [Play it](https://ch4itu.github.io/MagicOver/) · [Onboarding demo, 37 s](https://ch4itu.github.io/MagicOver/media/onboarding.mp4) · [Pitch and gameplay](https://cdn.jsdelivr.net/gh/ch4itu/MagicOver@main/media/pitch.mp4)
 
+<p align="center"><img src="media/preview-play.gif" width="640" alt="Magic Over's 3D scene: a drive for four, then a pull for six"></p>
+
+<p align="center">
+  <img src="media/preview-home.png" width="250" alt="Home screen">
+  <img src="media/preview-signup.png" width="250" alt="Sign-up with a player name and a passphrase">
+  <img src="media/preview-match.png" width="250" alt="A Bat vs AI match: after the ball, the hidden spin is revealed">
+</p>
+
+<p align="center"><sub>Top: two deliveries drawn by the game's own 3D scene. Below: the home screen, sign-up and a Bat vs AI match on the live site, at phone size. The ping is high because these were taken on a test machine far from the rollup.</sub></p>
+
 ## How sign-up works
 
 1. The player picks a name (3 to 32 characters: a to z, 0 to 9, `_` or `-`) and a passphrase of at least 16 characters.
@@ -72,6 +82,7 @@ The leaderboard refreshes every five seconds while it is open and catches up whe
 - `programs/`: source for the game, the player registry and the result register, with a shared pinned build setup.
 - `media/onboarding.mp4`: 37-second recording on the live site. A player is created in one browser and recovered in a second browser with nothing saved.
 - `media/pitch.mp4`: narrated, captioned pitch with desktop and mobile gameplay.
+- `media/preview-*`: the pictures in these guides, taken from the live site on 5 November 2026.
 - `LICENSE` and `THIRD_PARTY_NOTICES.md`: project and bundled dependency licences.
 
 No package installation or login server is needed. The game talks directly to Solana and MagicBlock. To build the programs, use the pinned toolchain and `sbpf-linker 0.2.5`, then run `cargo build-bpf` from `programs/`.
