@@ -16,7 +16,8 @@
 //! Instructions (first data byte):
 //!   0 InitShard        [payer s w, shard w, system]                     data: shard u8, lamports u64 [, step u8]
 //!   1 Register         [owner s, step-0 shard, ..., target shard w]     data: name_hash 32, pow_nonce u64, envelope 212
-//!                      (the name's shard in every step up to the target; all but the target must be full)
+//!                      (the name's shard in every step up to the target; all but the target must be full;
+//!                      only as a transaction's own instruction, not from another program: error 18)
 //!   2 Touch            [owner s, shard w]                               data: name_hash 32
 //!   3 Delegate         [payer s w, shard w, this program, buffer w, delegation_record w,
 //!                       delegation_metadata w, delegation program, system]  data: shard u8, 1, ER validator 32, frequency u32
@@ -28,7 +29,8 @@
 //!                      delegation; otherwise the caller signs a sponsored commit)
 //!   5 CommitUndelegate [admin s, shard w, magic program, magic context w]   (registry admin only)
 //!   6 UpdateEnvelope   [owner s, shard w]                               data: name_hash 32, envelope 212
-//!                      (passphrase change: the entry's own key replaces its locked copy; the key itself stays)
+//!                      (passphrase change: the entry's own key replaces its locked copy; the key itself stays;
+//!                      only as a transaction's own instruction, not from another program: error 18)
 //!   196.. (8-byte MagicBlock undelegation callback) [shard w, buffer s, payer s w, system]
 #![cfg_attr(target_arch = "bpf", no_std)]
 use solana_compiler_builtins as _;
@@ -97,6 +99,7 @@ extern "C" {
         signers_seeds_len: u64,
     ) -> u64;
     fn sol_get_rent_sysvar(addr: *mut u8) -> u64;
+    fn sol_get_stack_height() -> u64;
     fn abort() -> !;
 }
 
@@ -171,6 +174,7 @@ const ERR_PATH: u32 = 14;
 const ERR_ADMIN: u32 = 15;
 const ERR_VALIDATOR: u32 = 16;
 const ERR_UNCHANGED: u32 = 17;
+const ERR_NESTED: u32 = 18;
 
 // ---------------------------------------------------------------- input parsing
 #[derive(Clone, Copy)]
@@ -343,6 +347,17 @@ fn leading_zero_bits(h: &[u8; 32]) -> u32 {
         }
     }
     bits
+}
+
+// Sign-up and passphrase change only run as a transaction's own instruction (stack height 1), never called from
+// another program: a program that a player approved a transaction for cannot use the player's signature to register a
+// name or to replace the player's locked copy.
+fn top_level() -> Result<(), u32> {
+    if unsafe { sol_get_stack_height() } == 1 {
+        Ok(())
+    } else {
+        Err(ERR_NESTED)
+    }
 }
 
 fn eq32(a: &[u8], b: &[u8]) -> bool {
@@ -568,6 +583,7 @@ fn ix_init_shard(c: &Ctx) -> Result<(), u32> {
 #[inline(never)]
 fn ix_register(c: &Ctx) -> Result<(), u32> {
     let (accs, n, ix, program_id) = (c.accs, c.n, c.ix, c.program_id);
+    top_level()?;
     // accounts: [owner, the name's shard in step 0, step 1, ..., target step]
     if n < 2 || n > MAX_GEN as usize + 2 || ix.len() != 1 + 32 + 8 + ENVELOPE {
         return Err(ERR_DATA);
@@ -632,6 +648,7 @@ fn ix_register(c: &Ctx) -> Result<(), u32> {
 #[inline(never)]
 fn ix_update_envelope(c: &Ctx) -> Result<(), u32> {
     let (accs, n, ix, program_id) = (c.accs, c.n, c.ix, c.program_id);
+    top_level()?;
     if n < 2 || ix.len() != 1 + 32 + ENVELOPE {
         return Err(ERR_DATA);
     }

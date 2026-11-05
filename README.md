@@ -2,7 +2,7 @@
 
 Magic Over shows that a Web2 player can start using a Solana app with just a player name and a passphrase. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same name and passphrase bring the same player back.
 
-The sign-up is called **Smaran**, Sanskrit for remembering: all a player needs is to remember a name and a passphrase. It is also packaged as one file that other web apps can load, where a Magic Over player signs in with the same name, passphrase and key: see [Smaran](smaran/).
+The sign-up is called **Smaran**, Sanskrit for remembering: all a player needs is to remember a name and a passphrase. It is also packaged for other web apps, as a sign-in window they open or as one file they load, where a Magic Over player signs in with the same name, passphrase and key: see [Smaran](smaran/).
 
 To show this working in a real-time app, it comes with a 3D cricket game on MagicBlock's Ephemeral Rollups, running on Solana Devnet.
 
@@ -68,7 +68,7 @@ The leaderboard refreshes every five seconds while it is open and catches up whe
 ## Files and building
 
 - `index.html`: the whole game in one file. Open it in a modern browser with internet access, or serve it from any static host.
-- `smaran/`: the sign-up as one file for other apps (`smaran.js`, built from this page by `smaran/build.py`), with a [demo page](https://ch4itu.github.io/MagicOver/smaran/) and a short guide.
+- `smaran/`: the sign-up for other apps: a sign-in window (`signin.html`, opened with `connect.js`) and one file (`smaran.js`, built from this page by `smaran/build.py`), with a [demo page](https://ch4itu.github.io/MagicOver/smaran/) and a short guide.
 - `programs/`: source for the game, the player registry and the result register, with a shared pinned build setup.
 - `media/onboarding.mp4`: 37-second recording on the live site. A player is created in one browser and recovered in a second browser with nothing saved.
 - `media/pitch.mp4`: narrated, captioned pitch with desktop and mobile gameplay.

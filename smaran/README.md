@@ -2,11 +2,11 @@
 
 Smaran lets a player sign up for a Solana app with a player name and a passphrase. There is no wallet app, no seed phrase and no SOL to buy. The same name and passphrase bring the same player back on any device, and in any app that uses Smaran. Smaran is Sanskrit for remembering: remembering a name and a passphrase is all a player needs.
 
-It is the sign-up that [Magic Over](../README.md) runs, packaged as one file, `smaran.js`, that any web page can load.
+It is the sign-up that [Magic Over](../README.md) runs, packaged two ways for other sites: a sign-in window on Smaran's own page, so the site never sees the passphrase or the key, and one file, `smaran.js`, that a page can load.
 
 **Try it:** [ch4itu.github.io/MagicOver/smaran](https://ch4itu.github.io/MagicOver/smaran/). If you already play Magic Over, sign in there with the same name and passphrase and you get the same player key. You can also change your passphrase there.
 
-**Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, and across two apps (Magic Over and the Smaran page). Not on mainnet yet.
+**Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, across two apps (Magic Over and the Smaran page), and with the sign-in window opened by a site on another address. Not on mainnet yet.
 
 ## What Smaran is, and what it is not
 
@@ -25,6 +25,46 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged as one file, `s
 5. **Change the passphrase.** A player who still knows the passphrase can lock the same key with a new one. Only that player's key can replace its locked copy, and the player key never changes.
 
 ## Add it to your app
+
+There are two ways. With the **sign-in window**, the player types the passphrase on Smaran's own page, and your site never sees the passphrase or the key. With **smaran.js in your page**, your page unlocks the key itself: simpler, but players have to trust your site with their key.
+
+### The sign-in window
+
+```html
+<script src="https://ch4itu.github.io/MagicOver/smaran/connect.js"></script>
+<script>
+  signInButton.onclick = async () => {
+    const player = await SmaranConnect.connect(); // opens Smaran's window; call it from a click
+    player.name;                                   // 'asha-k'
+    player.publicKey;                              // the player's Solana address (base58)
+    await player.signMessage('example.com sign-in, nonce 8f2c'); // the player approves it in the window
+    await player.signTransaction(tx);              // web3.js Transaction or VersionedTransaction, signed in place
+    player.onDisconnect(reason => {});             // the player signed out or closed the window
+    player.disconnect();
+  };
+</script>
+```
+
+| Call | What it does |
+| --- | --- |
+| `SmaranConnect.connect()` | Opens the sign-in window and resolves with the player once they sign in or create a player there. Call it from a click, or the browser blocks the window. |
+| `player.signMessage(message)` | Text or bytes. The window shows it and asks the player. Resolves with a 64-byte signature. |
+| `player.signTransaction(tx)`, `player.signAllTransactions(txs)` | A web3.js `Transaction` or `VersionedTransaction` gets the player's signature added; transaction message bytes give back the signature. The window lists the programs used and asks the player. |
+| `player.disconnect()`, `player.onDisconnect(fn)` | Signs out, or tells you when the player signs out or closes the window. |
+
+A request that does not go through fails with an error whose `code` is `rejected` (the player said no), `refused` (the window does not sign that) or `signed-out`.
+
+What the window does:
+
+- It shows your site's address as the browser reports it, not a name your site sends.
+- It runs only in its own window: not inside another page's frame, and not for sites without https (localhost is allowed for development).
+- It asks the player for every signature, and refuses a transaction passed off as a message.
+- It never signs a sign-up or a passphrase change for a site. Since 5 November 2026 the registry also refuses both when another program calls them, so no transaction a player approves in the window can register a name with their key or replace their locked copy.
+- The key stays in the window's memory. Signing out, closing the window or leaving your site signs the player out and wipes the key.
+
+If your site sends the header `Cross-Origin-Opener-Policy: same-origin`, the browser cuts the window off from your page: use `same-origin-allow-popups`.
+
+### smaran.js in your page
 
 ```html
 <script src="smaran.js"></script>
@@ -56,13 +96,14 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged as one file, `s
 
 Names are 3 to 32 characters: a to z, 0 to 9, `_` or `-`. Passphrases need at least 16 characters and some variety, and cannot contain the name.
 
-The player has 0 SOL. It can sign zero-fee transactions on MagicBlock's Ephemeral Rollup for accounts your program has delegated there, the way Magic Over's moves work. Anything on Solana itself still needs a sponsor to pay.
+Either way, the player has 0 SOL. It can sign zero-fee transactions on MagicBlock's Ephemeral Rollup for accounts your program has delegated there, the way Magic Over's moves work. Anything on Solana itself still needs a sponsor to pay.
 
 ## Pros
 
 - **Nothing to install or buy.** No wallet app, no seed phrase, no SOL, no email, no Google or Apple account, no particular device.
 - **Back on any device.** The name and passphrase are enough. Tested in fresh browsers with nothing saved.
 - **One player across apps.** Every app on the same registry gets the same player. A player made on the Smaran page signs in to Magic Over with the same key, and the other way round.
+- **Sites need not see the key.** With the sign-in window, the passphrase and the key stay on Smaran's own page. A site gets the player name, the public key and the signatures the player approves.
 - **No company in the middle.** The registry is an open Solana program that anyone can read. There is no login server to run, trust, pay for or shut down.
 - **Free for players.** Sign-up is a zero-fee rollup transaction signed by the player's own new key, so no fee-paying relay service is needed.
 - **Cheap for the sponsor.** About 0.0017 SOL per player, paid once (storage, MagicBlock's deposit and a small save reserve). No monthly fee.
@@ -76,7 +117,10 @@ The player has 0 SOL. It can sign zero-fee transactions on MagicBlock's Ephemera
 - **The locked copy is public, so passphrases can be guessed offline.** Anyone can download a player's locked copy and try passphrases on their own computers, as fast as they can, with no limit on tries. A strong passphrase makes this hopeless. A weak one can fall. See the numbers below. This is the main weakness.
 - **No reset.** A forgotten passphrase means a lost player. Nobody, including us, can recover it.
 - **Changing a passphrase does not undo a leak.** Old locked copies stay readable in the chain's history, so someone who already has an old copy and its passphrase can still unlock the key. If a passphrase leaked, make a new player.
-- **Every app sees the key.** The app a player signs in to unlocks the key inside its own page. A bad app could keep it. Players should only sign in to apps they trust.
+- **smaran.js puts the key in the site's page.** A site that loads it unlocks the key inside its own page, and a bad site could keep it. The sign-in window avoids this.
+- **A look-alike window can still ask for the passphrase.** A bad site can open its own copy of the sign-in window. Players should check that the address bar shows ch4itu.github.io before typing a passphrase.
+- **The window asks for every signature.** That suits signing in and occasional actions, not a game that signs every move.
+- **On phones the window opens as a new tab.** The player switches to it to sign in or approve, then back.
 - **Names are first come, first served.** Anyone can take a name before you, and names are shared by every app on the registry.
 - **Bots can fill an open step.** The proof of work slows them down but cannot stop a determined bot. Because capacity opens one paid step at a time, a flood can only fill the step that is open.
 - **A player can spend their group's save reserve.** Each passphrase change is a real change, so someone who changes theirs over and over makes their group pay for saves after the 25th. The loss is capped at the group's reserve, the copy on the rollup is not affected, and the sponsor refills the reserve when it runs out.
@@ -126,13 +170,14 @@ The full numbers, who controls what, and how apps and the operator can earn: [Sm
 These are known gaps, not promises.
 
 - **Limiting guesses.** Today the locked copy is public, like a locked suitcase anyone can carry home and try combinations on forever. A card PIN is safer because after a few wrong tries the bank blocks it. Phantom gets that with Juicebox servers that count PIN tries. MagicBlock's private rollup runs in secure hardware and can keep data out of public view, so in principle it could hold the locked copies and count wrong tries. But MagicBlock documents its privacy as an access gate inside the rollup, and describes no encryption for data saved back to Solana, where account data is readable by anyone. Keeping the copies only inside the private rollup would mean players depend on that rollup never losing them. This needs MagicBlock to confirm durable private storage first.
-- **Apps seeing the key.** Wallet companies avoid this by doing the signing in their own separate window, so the app never sees the key. Smaran needs the same before apps run by different people share one registry.
 - **Mainnet.** Its own registry deployment, a fresh admin key, and the fixed values moved into one setting.
 
 ## Files
 
 - `smaran.js`: the file to load. It is built, not hand-written: `python3 smaran/build.py` copies the Solana web3.js, crypto, TweetNaCl and registry code unchanged from Magic Over's `index.html` and adds `api.js`. So the kit runs exactly the code the game runs.
 - `api.js`: the small `Smaran` interface above.
+- `signin.html`: the sign-in window.
+- `connect.js`: the small file a site loads to open it. It has no dependencies; you can also copy it into your site.
 - `FOUNDERS.md`: costs, who controls what, and how apps and the operator can earn.
 - `index.html`: the demo page.
 - The registry program is in [`programs/registry`](../programs/registry).

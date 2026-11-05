@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Smaran sign-in</title>
+<style>
+  :root { --bg: #070b18; --card: #0f1730; --line: #24304f; --text: #eef2fb; --muted: #9fb0c8; --gold: #ffd166; --good: #7ee0a1; --bad: #ff8f8f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 440px; margin: 0 auto; padding: 20px 16px 32px; }
+  h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: 0.02em; }
+  h2 { margin: 0 0 10px; font-size: 18px; }
+  .site { margin: 0 0 16px; color: var(--muted); }
+  .site b { color: var(--text); word-break: break-all; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tabs button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: #1a2547; color: var(--text); border-color: #3a4a78; }
+  label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 14px; }
+  input { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0a1124; color: var(--text); font: inherit; }
+  input:focus { outline: 2px solid #3a4a78; border-color: #3a4a78; }
+  .go { width: 100%; margin-top: 16px; padding: 12px; border: 0; border-radius: 10px; background: var(--gold); color: #1b1404; font: inherit; font-weight: 600; cursor: pointer; }
+  .go:disabled { opacity: 0.6; cursor: wait; }
+  .msg { min-height: 24px; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+  .msg.bad { color: var(--bad); }
+  .note { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+  .box { white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; padding: 10px 12px; border-radius: 10px; background: #0a1124; border: 1px solid var(--line); font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .row { display: flex; gap: 8px; margin-top: 14px; }
+  .row button { flex: 1; margin-top: 0; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+  .row button.go { border: 0; background: var(--gold); color: #1b1404; font-weight: 600; }
+  a { color: var(--gold); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Smaran</h1>
+  <p class="site" id="site" hidden></p>
+
+  <section class="card" id="stop" hidden>
+    <p id="stopText"></p>
+    <p id="stopLink" hidden><a href="./">Go to the Smaran page</a></p>
+  </section>
+
+  <section class="card" id="form" hidden>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabIn" aria-selected="true">Sign in</button>
+      <button role="tab" id="tabNew" aria-selected="false">New player</button>
+    </div>
+    <label for="name">Player name</label>
+    <input id="name" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="3 to 32 letters, digits, _ or -">
+    <label for="pass">Passphrase</label>
+    <input id="pass" type="password" autocomplete="current-password" placeholder="At least 16 characters">
+    <div id="confirmRow" hidden>
+      <label for="confirm">Passphrase again</label>
+      <input id="confirm" type="password" autocomplete="new-password">
+    </div>
+    <button class="go" id="go">Sign in</button>
+    <p class="msg" id="msg" role="status"></p>
+    <p class="note" id="newNote" hidden>There is no passphrase reset. Use a passphrase you will remember.</p>
+    <p class="note" id="formNote"></p>
+  </section>
+
+  <section class="card" id="session" hidden>
+    <h2 id="who"></h2>
+    <p class="note" id="keep"></p>
+    <div class="row"><button id="signOut">Sign out</button></div>
+  </section>
+
+  <section class="card" id="ask" hidden>
+    <h2 id="askTitle"></h2>
+    <div class="box" id="askBody"></div>
+    <p class="note" id="askNote"></p>
+    <div class="row"><button class="go" id="approve">Approve</button><button id="reject">Reject</button></div>
+  </section>
+</main>
+<script src="smaran.js"></script>
+<script>
+// Smaran's own sign-in window. A site opens it with connect.js. The passphrase and the key stay in this window, which
+// the site cannot read (it is another origin). The site gets the player name, the public key, and the signatures the
+// player approves here. Closing the window signs the player out of that site.
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const W = globalThis.solanaWeb3;
+  const REGISTRY = Smaran.registry;
+  const TOUCH = 2; // the registry's sign-in proof: it only counts up a number in the player's own entry
+  const PROGRAMS = {
+    '11111111111111111111111111111111': 'System',
+    ComputeBudget111111111111111111111111111111: 'Compute budget',
+    MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr: 'Memo',
+    TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA: 'Token',
+    TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb: 'Token-2022',
+    [REGISTRY]: 'Smaran sign-in proof'
+  };
+  const opener = window.opener;
+  let appOrigin = null, host = '', player = null, mode = 'in', queue = [], asking = false, ended = false, waiting = null;
+
+  const show = id => ['stop', 'form', 'session', 'ask'].forEach(s => { $(s).hidden = s !== id; });
+  function site(before, after) {
+    const b = document.createElement('b');
+    b.textContent = host;
+    $('site').replaceChildren(before, b, after);
+    $('site').hidden = false;
+  }
+  function stop(text, link = false) {
+    $('stopText').textContent = text;
+    $('stopLink').hidden = !link;
+    $('site').hidden = true;
+    show('stop');
+  }
+
+  // Never inside another page: a site could cover this window's buttons with its own.
+  if (window.top !== window.self) return stop('Open this page in its own window.');
+  if (!opener) return stop('This window signs you in to other sites. Open it with a site\'s "Sign in with Smaran" button.', true);
+
+  const post = msg => { try { if (appOrigin) opener.postMessage({ smaran: 1, ...msg }, appOrigin); } catch (e) { /* the site is gone */ } };
+  const secure = origin => {
+    try {
+      const u = new URL(origin);
+      return u.protocol === 'https:' || (u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname));
+    } catch (e) { return false; }
+  };
+
+  // ------------------------------------------------------------ sign in
+  const say = (text, kind = '') => { $('msg').textContent = text; $('msg').className = 'msg ' + kind; };
+  function setMode(m) {
+    mode = m;
+    $('tabIn').setAttribute('aria-selected', String(m === 'in'));
+    $('tabNew').setAttribute('aria-selected', String(m === 'new'));
+    $('confirmRow').hidden = m !== 'new';
+    $('newNote').hidden = m !== 'new';
+    $('pass').autocomplete = m === 'new' ? 'new-password' : 'current-password';
+    $('go').textContent = m === 'new' ? 'Create player' : 'Sign in';
+    say('');
+  }
+  $('tabIn').onclick = () => setMode('in');
+  $('tabNew').onclick = () => setMode('new');
+  // Smaran.signUp asks the rollup to save the new player to Solana but does not wait. A site may close this window as
+  // soon as it hears the player signed in, which would cancel that request, so the window waits for it here: at most
+  // 20 seconds, and an error (for example, signUp's own request saved the player first) does not stop the sign-in.
+  async function saveToSolana(name) {
+    const S = globalThis.SabhaSol;
+    try {
+      const found = await S.lookup(name, { erUrl: Smaran.rollup, baseUrl: S.DEFAULT_BASE, requireEr: true });
+      if (found.entry && found.shard) {
+        await Promise.race([S.commitShard({ shard: found.shard, erUrl: Smaran.rollup }), new Promise(r => setTimeout(r, 20000))]);
+      }
+    } catch (e) { /* see above */ }
+  }
+  for (const id of ['name', 'pass', 'confirm']) $(id).onkeydown = e => { if (e.key === 'Enter') $('go').click(); };
+
+  $('go').onclick = async () => {
+    if (ended || player) return;
+    const name = $('name').value, pass = $('pass').value;
+    let normalized;
+    try { normalized = Smaran.checkName(name); } catch (e) { return say(e.message, 'bad'); }
+    if (mode === 'new') {
+      if (pass !== $('confirm').value) return say('The two passphrases do not match.', 'bad');
+      const check = Smaran.checkPassphrase(pass, normalized);
+      if (!check.ok) return say('Passphrase: ' + check.errors.join('; ') + '.', 'bad');
+    }
+    $('go').disabled = true;
+    try {
+      let p;
+      if (mode === 'new') {
+        say('Locking your key with your passphrase…');
+        p = await Smaran.signUp({ name: normalized, passphrase: pass, onProgress: e => {
+          if (e.phase === 'encrypt') say('Locking your key with your passphrase…');
+          if (e.phase === 'proof') say(`Anti-bot check… ${(e.attempts || 0).toLocaleString()} tries`);
+          if (e.phase === 'send') say('Saving your player on the rollup…');
+        } });
+        say('Saving your player to Solana…');
+        await saveToSolana(p.name);
+      } else {
+        say('Unlocking your key…');
+        p = await Smaran.signIn({ name: normalized, passphrase: pass });
+      }
+      $('pass').value = ''; $('confirm').value = '';
+      if (ended) return p.forget();
+      player = p;
+      say('');
+      post({ type: 'connected', name: p.name, publicKey: p.publicKey });
+      $('who').textContent = `Signed in as ${p.name}`;
+      $('keep').textContent = `Keep this window open while you use ${host}. Closing it signs you out there.`;
+      site('Signed in to ', '');
+      show('session');
+      next();
+    } catch (e) {
+      say(e.message || String(e), 'bad');
+    } finally {
+      $('go').disabled = false;
+    }
+  };
+
+  // ------------------------------------------------------------ requests from the site
+  const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const hex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+  // a Solana transaction message, only if the bytes are exactly one
+  function parseTx(bytes) {
+    try {
+      const msg = W.VersionedMessage.deserialize(bytes);
+      return same(Uint8Array.from(msg.serialize()), bytes) ? msg : null;
+    } catch (e) { return null; }
+  }
+  function readMessage(b) {
+    if (!(b instanceof Uint8Array) || b.length < 1 || b.length > 4096) throw new Error('A message must be 1 to 4,096 bytes.');
+    if (parseTx(b)) throw new Error('That is a transaction, not a message. Use signTransaction for it.');
+    let text = null;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(b); } catch (e) { text = null; }
+    // control and text-direction characters could hide or reorder what the player reads
+    if (text !== null && /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f‪-‮⁦-⁩]/.test(text)) text = null;
+    return {
+      title: 'Sign a message',
+      body: text !== null ? text : `${b.length} bytes: ${hex(b.slice(0, 48))}${b.length > 48 ? '…' : ''}`,
+      button: 'Sign'
+    };
+  }
+  function readTransactions(list) {
+    if (!Array.isArray(list) || list.length < 1 || list.length > 10) throw new Error('Send 1 to 10 transactions at a time.');
+    const used = new Map();
+    for (const b of list) {
+      if (!(b instanceof Uint8Array) || b.length > 1232) throw new Error('Each transaction must be sent as its message bytes, at most 1,232.');
+      const msg = parseTx(b);
+      if (!msg) throw new Error('That is not a Solana transaction message.');
+      const keys = msg.staticAccountKeys.map(k => k.toBase58());
+      if (!keys.slice(0, msg.header.numRequiredSignatures).includes(player.publicKey)) {
+        throw new Error(`That transaction does not need ${player.name}'s signature.`);
+      }
+      for (const ix of msg.compiledInstructions) {
+        const id = keys[ix.programIdIndex];
+        if (!id) throw new Error('That transaction calls a program it does not list.');
+        // sign-ups and passphrase changes are made only on Smaran's own pages
+        if (id === REGISTRY && ix.data[0] !== TOUCH) throw new Error('Sign-ups and passphrase changes can only be made on Smaran\'s own pages.');
+        used.set(id, PROGRAMS[id] || `${id.slice(0, 4)}…${id.slice(-4)}`);
+      }
+    }
+    return {
+      title: list.length === 1 ? 'Approve an action' : `Approve ${list.length} actions`,
+      body: 'It uses:\n' + [...used.values()].map(v => '• ' + v).join('\n'),
+      button: 'Approve'
+    };
+  }
+
+  function next() {
+    if (asking || ended || !player || !queue.length) return;
+    const m = queue[0];
+    let view;
+    try {
+      view = m.type === 'signMessage' ? readMessage(m.message) : readTransactions(m.messages);
+    } catch (e) {
+      queue.shift();
+      post({ type: 'error', id: m.id, code: 'refused', message: e.message });
+      return next();
+    }
+    asking = true;
+    $('askTitle').textContent = view.title;
+    $('askBody').textContent = view.body;
+    $('askNote').textContent = `Only ${view.button.toLowerCase()} if you expect this from ${host}.`;
+    $('approve').textContent = view.button;
+    // a short pause, so a click meant for something else cannot land on Approve
+    $('approve').disabled = true;
+    setTimeout(() => { $('approve').disabled = false; }, 600);
+    site('', ' asks you:');
+    show('ask');
+    try { window.focus(); } catch (e) { /* the browser may not allow it */ }
+  }
+  function answer(yes) {
+    if (!asking || ended) return;
+    asking = false;
+    const m = queue.shift();
+    if (yes && player) {
+      const items = m.type === 'signMessage' ? [m.message] : m.messages;
+      post({ type: 'result', id: m.id, signatures: items.map(b => player.sign(b)) });
+    } else {
+      post({ type: 'error', id: m.id, code: 'rejected', message: 'The player said no.' });
+    }
+    site('Signed in to ', '');
+    show('session');
+    next();
+  }
+  $('approve').onclick = () => answer(true);
+  $('reject').onclick = () => answer(false);
+
+  // ------------------------------------------------------------ sign out
+  function end(tell) {
+    if (ended) return;
+    ended = true;
+    if (player) { player.forget(); player = null; }
+    for (const m of queue) post({ type: 'error', id: m.id, code: 'signed-out', message: 'The player signed out.' });
+    queue = [];
+    asking = false;
+    if (tell) post({ type: 'disconnect' });
+    stop('Signed out. You can close this window.');
+    setTimeout(() => window.close(), 50);
+  }
+  $('signOut').onclick = () => end(true);
+  window.addEventListener('pagehide', () => end(true));
+  setInterval(() => { if (!ended && opener.closed) end(false); }, 1000);
+
+  // ------------------------------------------------------------ talk to the site that opened this window
+  window.addEventListener('message', e => {
+    if (ended || e.source !== opener) return;
+    const m = e.data;
+    if (!m || typeof m !== 'object' || m.smaran !== 1) return;
+    if (!appOrigin) {
+      if (m.type !== 'connect') return;
+      clearTimeout(waiting);
+      if (!secure(e.origin)) {
+        ended = true;
+        return stop(`${e.origin} is not a secure (https) site, so Smaran will not sign in to it.`);
+      }
+      appOrigin = e.origin;
+      host = new URL(appOrigin).host;
+      $('formNote').textContent = `${host} will see your player name and public key. It never sees your passphrase or your key.`;
+      site('', ' wants you to sign in.');
+      setMode('in');
+      show('form');
+      $('name').focus();
+      return;
+    }
+    if (e.origin !== appOrigin) return;
+    if (m.type === 'disconnect') return end(false);
+    if (m.type !== 'signMessage' && m.type !== 'signTransactions') return;
+    if (!player) return post({ type: 'error', id: m.id, code: 'not-signed-in', message: 'The player has not signed in.' });
+    if (queue.length >= 20) return post({ type: 'error', id: m.id, code: 'busy', message: 'Too many requests are waiting.' });
+    queue.push(m);
+    next();
+  });
+  waiting = setTimeout(() => {
+    if (!appOrigin && !ended) { ended = true; stop('The site did not answer. Close this window and sign in again from the site.'); }
+  }, 15000);
+  opener.postMessage({ smaran: 1, type: 'ready' }, '*');
+})();
+</script>
+</body>
+</html>
