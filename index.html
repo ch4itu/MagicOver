@@ -27,6 +27,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 button:disabled { opacity: 0.45; cursor: default; }
 button.primary { background: linear-gradient(135deg, var(--saffron), #ffb347); color: #1b0f00; border: 0; }
 button.soft { background: rgba(255, 138, 31, 0.14); border-color: rgba(255, 138, 31, 0.6); }
+button.link { display: block; width: 100%; margin-top: 12px; background: none; border: 0; padding: 6px 0; color: var(--teal); font-size: 14px; }
 button.teal { background: linear-gradient(135deg, var(--teal), #5ce1d6); color: #001a18; border: 0; }
 input { width: 100%; font: 500 16px var(--body); color: var(--text); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
 label { display: block; font: 700 12px var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 12px 0 6px; }
@@ -156,6 +157,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <button id="btnFriend" class="teal" type="button">Play a friend</button>
       <button id="btnLeaderboard" type="button">Leaderboard</button>
     </div>
+    <button id="btnWatch" class="link" type="button">Watch a live match</button>
     <details>
       <summary>How to play</summary>
       <ul>
@@ -210,6 +212,17 @@ details p, details li { color: var(--muted); font-size: 14px; }
     <div class="stack"><button id="lobbyLeaderboard" type="button">Leaderboard</button></div>
     <label>Open matches</label>
     <div id="openList"></div>
+    <div class="stack"><button type="button" data-back="home">Back</button></div>
+  </div>
+</section>
+
+<section id="live" class="screen card-screen" hidden>
+  <div class="card">
+    <div class="eyebrow">Magic Over · live now</div>
+    <h2>Watch a match</h2>
+    <p class="muted" id="liveCount">Reading tables…</p>
+    <div id="liveList"></div>
+    <p class="muted">Watching needs no sign-up and sends nothing. You see what the batter sees: the hidden variation stays hidden until the ball is played.</p>
     <div class="stack"><button type="button" data-back="home">Back</button></div>
   </div>
 </section>
@@ -3825,25 +3838,79 @@ globalThis.SOCompetition = (() => {
     finally { busy(btn, false); }
   }
 
+  // ------------------------------------------------------------ watch a live match (reads only: no key, no sign-up)
+  let liveTimer = 0;
+  const LIVE_PHASES = ['BOWLING', 'LIVE', 'AI_NEED', 'AI_REQUESTED', 'AI_SHOT'];
+  const MODE_NAMES = { PVP: 'Friend match', AI: 'Bat vs AI', AI_FULL: 'Full match vs AI' };
+  $('btnWatch').onclick = () => openLive();
+  function openLive() {
+    show('live');
+    refreshLive();
+    clearInterval(liveTimer);
+    liveTimer = setInterval(() => { if (!$('live').hidden) refreshLive(); else clearInterval(liveTimer); }, 4000);
+  }
+  async function refreshLive() {
+    try {
+      const [tables, slot] = await Promise.all([N.readTables(), N.currentSlot()]);
+      const mine = t => N.player && (t.a === N.player.b58 || t.b === N.player.b58);
+      // a game against the AI gives its player 5 minutes before it ends; if nobody has moved for a minute, they left
+      const fresh = t => t.mode !== 'PVP' && (t.phase === 'AI_NEED' || t.phase === 'BOWLING') ? slot < t.deadline - 30000 + 6000 : slot <= t.deadline + 1500;
+      const live = tables.filter(t => t && LIVE_PHASES.includes(t.phase) && fresh(t) && !mine(t));
+      // rows stay in place while their match is on (only the score changes), so a tap never lands on a replaced row
+      const list = $('liveList'), keep = new Set(live.map(t => t.idx + '-' + t.matchId));
+      for (const row of [...list.children]) if (!keep.has(row.dataset.key)) row.remove();
+      for (const t of live) {
+        const key = t.idx + '-' + t.matchId;
+        let row = list.querySelector(`[data-key="${key}"]`);
+        if (!row) {
+          row = document.createElement('button');
+          row.className = 'openRow';
+          row.type = 'button';
+          row.dataset.key = key;
+          row.innerHTML = '<span class="nm"></span><span class="vf"></span><span class="code"></span>';
+          row.querySelector('.nm').textContent = `${nameOf(t, 0)} v ${nameOf(t, 1)}`;
+          row.querySelector('.vf').textContent = MODE_NAMES[t.mode] || '';
+          row.onclick = () => watchMatch(t.idx, t.matchId, row);
+          list.appendChild(row);
+        }
+        row.querySelector('.code').textContent = `${t.runs[t.inn]}/${t.wkts[t.inn]}`;
+      }
+      $('liveCount').textContent = live.length ? `${live.length} match${live.length > 1 ? 'es' : ''} on now. Tap one to watch.` : 'No matches on right now. Check back soon, or play the AI.';
+    } catch (e) { $('liveCount').textContent = 'Could not read tables: ' + (e.message || e); }
+  }
+  async function watchMatch(idx, matchId, row) {
+    if (row.disabled) return;
+    row.disabled = true;
+    try {
+      clearInterval(liveTimer);
+      await N.syncClock(4);
+      await startMatch(idx, s => s.matchId === matchId, null, true);
+    } catch (e) { toast(e.message || String(e), 'bad'); openLive(); }
+    finally { row.disabled = false; }
+  }
+
   // ------------------------------------------------------------ match session
   let M = null, sessionGeneration = 0;
   const vsAi = s => s.mode === 'AI' || s.mode === 'AI_FULL';
+  // me: 0 or 1 when you play in this match, -1 when you watch it
   function role(s) {
+    const key = N.player ? N.player.b58 : null;
+    const me = s.a === key ? 0 : s.mode === 'PVP' && s.b === key ? 1 : -1;
+    if (me === -1) return { me, batting: false, bowling: false };
     if (s.mode === 'AI') return { me: 0, batting: true, bowling: false };
-    const me = s.mode === 'AI_FULL' ? 0 : s.a === N.player.b58 ? 0 : s.b === N.player.b58 ? 1 : -1;
     const bat = N.battingSide(s);
-    return { me, batting: me === bat, bowling: me !== -1 && me !== bat };
+    return { me, batting: me === bat, bowling: me !== bat };
   }
   // a read straight after a write can still return the table's previous match; wait until it shows ours
-  async function startMatch(idx, expect = null, expectedPair = null) {
+  async function startMatch(idx, expect = null, expectedPair = null, watching = false) {
     const generation = ++sessionGeneration;
     const active = () => generation === sessionGeneration;
     const s = expect ? await COMP.freshTable(N, idx, expect, { active }) : await N.readTable(idx);
     if (!active()) return;
     show('match');
-    M = { idx, expectedPair, prev: null, knownSeq: s.seq, live: null, busyUntil: 0, sent: {}, matchId: s.matchId, mode: s.mode, ended: false, lastClockSync: performance.now() };
-    $('matchCode').textContent = vsAi(s) ? 'vs AI' : `Code ${idx}-${s.matchId}`;
-    $('copyCode').hidden = vsAi(s);
+    M = { idx, expectedPair, watching, prev: null, knownSeq: s.seq, live: null, busyUntil: 0, sent: {}, matchId: s.matchId, mode: s.mode, ended: false, lastClockSync: performance.now() };
+    $('matchCode').textContent = watching ? 'Watching' : vsAi(s) ? 'vs AI' : `Code ${idx}-${s.matchId}`;
+    $('copyCode').hidden = watching || vsAi(s);
     $('finishCard').hidden = true;
     V.resetStumps(); V.resetBat(); V.resetBowler(); V.setBallDriver(null);
     poll(M);
@@ -3869,7 +3936,10 @@ globalThis.SOCompetition = (() => {
       if (M !== session) return false;
       if (s.readSlot != null && session.readSlot != null && s.readSlot < session.readSlot) return true;
       if (s.readSlot != null) session.readSlot = s.readSlot;
-      if (s.matchId !== session.matchId) { toast('This table was reused for a new match.', 'bad'); leaveMatch(); if (N.player && !N.player.guest) openLobby(); else show('home'); return false; }
+      if (s.matchId !== session.matchId) {
+        if (session.watching) { toast('That match has ended.'); leaveMatch(); openLive(); return false; }
+        toast('This table was reused for a new match.', 'bad'); leaveMatch(); if (N.player && !N.player.guest) openLobby(); else show('home'); return false;
+      }
       if (session.expectedPair && (s.a !== session.expectedPair.a || (s.phase !== 'WAITING' && s.b !== session.expectedPair.b))) { toast('Someone else joined this table. Return to the lobby and share a fresh code.', 'bad'); leaveMatch(); openLobby(); return false; }
       await handle(session, s);
       session.prev = s;
@@ -3912,7 +3982,7 @@ globalThis.SOCompetition = (() => {
     const slot = N.slotNow();
     // settle a ball nobody played as soon as the chain allows; try again every half second if a try was too early
     const settleKey = 'adv' + s.seq + ':' + Math.floor((slot - s.deadline) / 50);
-    if (s.phase === 'LIVE' && slot > s.deadline + 5 && !session.sent[settleKey]) {
+    if (r.me !== -1 && s.phase === 'LIVE' && slot > s.deadline + 5 && !session.sent[settleKey]) {
       session.sent[settleKey] = 1;
       N.send([N.I.advance(session.idx)], { label: 'Settle ball', wait: false }).catch(() => {});
     }
@@ -3924,7 +3994,7 @@ globalThis.SOCompetition = (() => {
         break;
       case 'BOWLING':
         if (r.bowling) showBowlPad(session, s);
-        else status(`${nameOf(s, N.battingSide(s) ^ 1)} is choosing a delivery…  ${clockText(s)}`);
+        else status(`${nameOf(s, N.battingSide(s) ^ 1)} is choosing a delivery…  ${s.mode === 'PVP' ? clockText(s) : ''}`);
         if (r.batting && slot > s.deadline + 15 && !session.sent['pen' + s.seq + ':' + s.deadline]) {
           session.sent['pen' + s.seq + ':' + s.deadline] = 1;
           N.send([N.I.advance(session.idx)], { label: 'Bowler timeout', wait: false }).catch(() => {});
@@ -3932,14 +4002,14 @@ globalThis.SOCompetition = (() => {
         break;
       case 'AI_NEED':
         status('The AI bowler is walking back to its mark…');
-        if (!session.sent['ai' + s.seq]) {
+        if (r.me === 0 && !session.sent['ai' + s.seq]) {
           session.sent['ai' + s.seq] = 1;
           N.send([N.I.aiNext(session.idx, s.seq)], { label: 'Next ball' }).catch(e => { toast(e.message, 'bad'); session.sent['ai' + s.seq] = 0; });
         }
         break;
       case 'AI_REQUESTED':
         status('The AI bowler is choosing a delivery (MagicBlock VRF)…');
-        if (slot > s.deadline + 10 && !session.sent['air' + s.seq + ':' + s.deadline]) {
+        if (r.me === 0 && slot > s.deadline + 10 && !session.sent['air' + s.seq + ':' + s.deadline]) {
           session.sent['air' + s.seq + ':' + s.deadline] = 1;
           N.send([N.I.aiNext(session.idx, s.seq)], { label: 'Retry ball', wait: false }).catch(() => {});
         }
@@ -3948,8 +4018,8 @@ globalThis.SOCompetition = (() => {
         if (r.batting) showBatPad(); else status('Ball in the air…');
         break;
       case 'AI_SHOT':
-        status('The AI is reading your ball (MagicBlock VRF)…');
-        if (slot > s.deadline + 10 && !session.sent['ais' + s.seq + ':' + s.deadline]) {
+        status(r.me === 0 ? 'The AI is reading your ball (MagicBlock VRF)…' : 'The AI is reading the ball (MagicBlock VRF)…');
+        if (r.me === 0 && slot > s.deadline + 10 && !session.sent['ais' + s.seq + ':' + s.deadline]) {
           session.sent['ais' + s.seq + ':' + s.deadline] = 1;
           N.send([N.I.aiNext(session.idx, s.seq)], { label: 'Retry AI shot', wait: false }).catch(() => {});
         }
@@ -3969,7 +4039,7 @@ globalThis.SOCompetition = (() => {
   // The AI's shot comes back from VRF a moment after you bowl, well before the ball reaches the bat on screen. Play
   // the delivery first, then show the AI's stroke and the result as the bat meets the ball.
   function aiPlayed(session, s) {
-    const L = s.last, asBowler = { me: 0, batting: false, bowling: true };
+    const L = s.last, asBowler = session.watching ? { me: -1, batting: false, bowling: false } : { me: 0, batting: false, bowling: true };
     if (!session.live || session.live.seq !== L.seq) startDelivery(session, { ...s, seq: L.seq, pace: L.pace, line: L.line, length: L.length }, asBowler);
     const meet = N.timeOfSlot(s.release + N.FLIGHT[L.pace] + (L.variation === 3 ? 18 : 0) + (L.grade === 5 ? 0 : L.delta));
     session.revealing = true;
@@ -3981,7 +4051,10 @@ globalThis.SOCompetition = (() => {
     return left ? `${left}s` : '';
   }
   function nameOf(s, side) {
-    if (vsAi(s)) return side === 0 ? (N.player.guest ? 'You' : N.player.name) : 'Magic Over AI';
+    if (vsAi(s)) {
+      if (side === 1) return 'Magic Over AI';
+      return N.player && s.a === N.player.b58 ? (N.player.guest ? 'You' : N.player.name) : s.aName || 'Guest';
+    }
     const n = side === 0 ? s.aName : s.bName, k = side === 0 ? s.a : s.b;
     return n || short(k);
   }
@@ -4177,23 +4250,25 @@ globalThis.SOCompetition = (() => {
   function finish(session, s) {
     session.ended = true;
     session.result = s;
-    $('leaderboardSave').textContent=s.mode==='PVP'?'Recording this result…':'AI practice is separate from the friend leaderboard.';
-    $('retryLeaderboard').hidden=s.mode!=='PVP';
-    if(s.mode==='PVP')session.savePromise=saveResult(session);
+    const watching = !!session.watching;
+    $('leaderboardSave').textContent=s.mode!=='PVP'?'AI practice is separate from the friend leaderboard.':watching?'The players record this result on the leaderboard.':'Recording this result…';
+    $('retryLeaderboard').hidden=s.mode!=='PVP'||watching;
+    if(s.mode==='PVP'&&!watching)session.savePromise=saveResult(session);
     hidePads();
     status('');
+    $('btnAgain').hidden = watching;
     $('btnAgain').textContent = s.mode === 'PVP' ? 'Rematch with this friend' : 'Play again';
-    $('rematchStatus').textContent = s.mode === 'PVP' ? 'Both players choose Rematch. The same table resets after the result.' : '';
+    $('rematchStatus').textContent = s.mode === 'PVP' && !watching ? 'Both players choose Rematch. The same table resets after the result.' : '';
     setTimeout(() => {
       if (M !== session) return;
       const meSide = role(s).me;
       let title;
       if (s.winner === 3) title = 'Match tied';
-      else if (s.mode === 'AI') title = s.winner === 1 ? 'You chased it down!' : 'The AI defended its total';
+      else if (s.mode === 'AI') title = s.winner === 1 ? (watching ? `${nameOf(s, 0)} chased it down` : 'You chased it down!') : 'The AI defended its total';
       else title = s.winner - 1 === meSide ? 'You won the Magic Over!' : `${nameOf(s, s.winner - 1)} won the Magic Over`;
       $('finishTitle').textContent = title;
       const lines = [];
-      if (s.mode === 'AI') lines.push(`Target ${s.target}. You scored ${s.runs[0]}/${s.wkts[0]} in ${s.balls[0]} balls.`);
+      if (s.mode === 'AI') lines.push(`Target ${s.target}. ${watching ? nameOf(s, 0) : 'You'} scored ${s.runs[0]}/${s.wkts[0]} in ${s.balls[0]} balls.`);
       else {
         const first = s.batFirst, second = first ^ 1;
         lines.push(`${nameOf(s, first)}: ${s.runs[0]}/${s.wkts[0]}`, `${nameOf(s, second)}: ${s.runs[1]}/${s.wkts[1]}`);
@@ -4226,10 +4301,11 @@ globalThis.SOCompetition = (() => {
     } catch (e) { if (active()) { $('rematchStatus').textContent = e.message || String(e); toast(e.message || String(e), 'bad'); } }
     finally { session.rematching = false; busy(button, false); }
   };
-  $('btnExit').onclick = () => { leaveMatch(); show(N.player && !N.player.guest ? 'lobby' : 'home'); if (N.player && !N.player.guest) openLobby(); };
+  $('btnExit').onclick = () => { const watching = M && M.watching; leaveMatch(); if (watching) { openLive(); return; } show(N.player && !N.player.guest ? 'lobby' : 'home'); if (N.player && !N.player.guest) openLobby(); };
   $('btnConcede').onclick = async () => {
     if (!M) return;
     const session = M;
+    if (session.watching) { leaveMatch(); openLive(); return; }
     if(!session.ended){await N.send([N.I.concede(session.idx)],{label:'Concede'}).catch(()=>{});const r=await N.readTable(session.idx).catch(()=>null);if(r?.matchId===session.matchId&&N.eligibleResult(r))await N.recordResult(r).catch(()=>{});}
     leaveMatch();
     show(N.player && !N.player.guest ? 'lobby' : 'home');

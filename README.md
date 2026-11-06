@@ -65,6 +65,8 @@ The browser checks that it is talking to the expected MagicBlock validators. It 
 
 Create a match and share its code, or pick an open match from the lobby. After the result, both players can choose **Rematch with this friend**. The original host reopens the same table after its 15-second reset, and the friend joins that exact next match.
 
+Anyone can watch a live match from the home screen, without signing up: the watching page only reads the table and sends nothing. Watchers see what the batter sees, so the hidden variation stays hidden until the ball is played.
+
 The **shared leaderboard** keeps recorded totals by player key in a separate result register, so reusing a match table does not erase them. A win is worth 3 points and a draw 1. AI practice is separate. Completed forfeits count, and a result recorded twice counts once.
 
 The leaderboard refreshes every five seconds while it is open and catches up when the player returns to the tab. It shows whether totals are saved on Solana. The page tries to save a finished friend result before reusing its table.
