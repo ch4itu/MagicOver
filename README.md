@@ -46,7 +46,7 @@ Each side bats one over of six balls, with two wickets.
 
 The program judges shot timing on the rollup in 10 ms slots: perfect within ±60 ms, good within ±130 ms and an edge within ±240 ms. These are scoring windows on the rollup, not a promise of 10 ms end-to-end latency. Network delay still affects the player.
 
-In Bat vs AI, MagicBlock VRF sets a target of 4 to 10 runs and picks the AI's deliveries. In a full match vs AI, you bat an over against the AI, then bowl one at it, as in a friend match: VRF picks the AI's deliveries and its shots, and the AI sees pace, line and length like any batter, never your hidden variation. Playing a friend needs a player ID.
+In Bat vs AI, MagicBlock VRF sets a target of 3 to 8 runs and picks the AI's deliveries. In a full match vs AI, you bat an over against the AI, then bowl one at it, as in a friend match: VRF picks the AI's deliveries and its shots, and the AI sees pace, line and length like any batter, never your hidden variation. Playing a friend needs a player ID.
 
 ## How it uses MagicBlock
 

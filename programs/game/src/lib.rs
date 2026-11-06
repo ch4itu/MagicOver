@@ -224,10 +224,11 @@ const P_AI_SHOT: u8 = 7; // full match: the player bowled, VRF is picking the AI
 const MODE_PVP: u8 = 0;
 const MODE_AI: u8 = 1;
 const MODE_AI_FULL: u8 = 2; // side A is the player, side B the AI; otherwise played like a friend match
-const AI_TIGHT: u8 = 150; // full match: chance in 256 that the AI bowls a tight ball (good length or yorker on the stumps)
-// bat vs AI: the target is AI_TARGET_MIN plus 0 to AI_TARGET_SPREAD - 1 runs, by VRF (4 to 10: an average player wins about half)
-const AI_TARGET_MIN: u16 = 4;
-const AI_TARGET_SPREAD: u8 = 7;
+const AI_TIGHT: u8 = 100; // full match: chance in 256 that the AI bowls a tight ball (good length or yorker on the stumps)
+// bat vs AI: the target is AI_TARGET_MIN plus 0 to AI_TARGET_SPREAD - 1 runs, by VRF. 3 to 8: in simulations a player who
+// often mistimes wins nearly half the chases, an average one about 3 in 5
+const AI_TARGET_MIN: u16 = 3;
+const AI_TARGET_SPREAD: u8 = 6;
 
 // timing in ER slots (10 ms on MagicBlock devnet)
 const RUNUP: u64 = 230; // 2.3 s from Bowl to release: room for a full run-up on screen
@@ -2121,6 +2122,6 @@ mod tests {
             }
         }
         println!("tight balls: full match {:.0}%, bat vs AI {:.0}%", 100.0 * full_tight as f64 / n as f64, 100.0 * chase_tight as f64 / n as f64);
-        assert!(full_tight > n * 60 / 100 && chase_tight < n * 35 / 100);
+        assert!(full_tight > n * 45 / 100 && chase_tight < n * 35 / 100);
     }
 }
