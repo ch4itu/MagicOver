@@ -46,15 +46,20 @@ Each side bats one over of six balls, with two wickets.
 
 The program judges shot timing on the rollup in 10 ms slots: perfect within ±60 ms, good within ±130 ms and an edge within ±240 ms. These are scoring windows on the rollup, not a promise of 10 ms end-to-end latency. Network delay still affects the player.
 
-In Bat vs AI, MagicBlock VRF sets a target of 3 to 8 runs and picks the AI's deliveries. In a full match vs AI, you bat an over against the AI, then bowl one at it, as in a friend match: VRF picks the AI's deliveries and its shots, and the AI sees pace, line and length like any batter, never your hidden variation. Playing a friend needs a player ID.
+Ways to play:
+
+- **Bat vs AI** (no sign-up): chase a target of 3 to 8 runs set by MagicBlock VRF, which also picks the AI's deliveries.
+- **Full match vs AI** (no sign-up): bat an over against the AI, then bowl one at it, as in a friend match. VRF picks the AI's deliveries and its shots. The AI sees pace, line and length like any batter, never your hidden variation.
+- **Play a friend** (needs a player ID): create a match and share its code, or join an open one.
+- **Watch** (no sign-up): follow any live match from the home screen. The watching page only reads the table and sends nothing. It sees what the batter sees, so the hidden variation stays hidden until the ball is played.
 
 ## How it uses MagicBlock
 
 | Feature | Use in Magic Over |
 | --- | --- |
-| **Public ER** | Runs the delegated player registry, so players can register without any SOL. |
-| **Private ER / PER** | Runs create, join, bowl, shot and resolution across eight reusable match tables. |
-| **Private account permissions** | A separate ball account holds the bowler's hidden variation. Pace, line and length are visible; the variation is revealed after the ball is resolved. |
+| **Public ER** | Runs the delegated player registry and the friend leaderboard, so players can register and record results without any SOL. |
+| **Private ER / PER** | Runs every match, against a friend or the AI: create, join, bowl, shot and resolution across eight reusable match tables. |
+| **Private account permissions** | A separate ball account holds the hidden variation. Only a human bowler can read it: never the batter or a watcher, and nobody while the AI bowls. Pace, line and length are visible; the variation is revealed after the ball is resolved. |
 | **VRF** | Picks the AI's target, its deliveries and, in a full match, its shots. The program checks the expected callback signer, table and sequence. The hidden variation also mixes in a private secret, so the VRF output alone does not reveal it. |
 | **Zero-SOL player actions** | Player keys with no SOL sign every rollup move in the browser, with no wallet pop-ups. Sponsor costs still exist. |
 | **Solana commits** | Registration asks for a registry save to Solana Devnet. Each newly recorded friend result asks for a save of the leaderboard totals. Match tables stay delegated so they can be reused quickly. |
@@ -64,8 +69,6 @@ The browser checks that it is talking to the expected MagicBlock validators. It 
 ## Friend matches and the leaderboard
 
 Create a match and share its code, or pick an open match from the lobby. After the result, both players can choose **Rematch with this friend**. The original host reopens the same table after its 15-second reset, and the friend joins that exact next match.
-
-Anyone can watch a live match from the home screen, without signing up: the watching page only reads the table and sends nothing. Watchers see what the batter sees, so the hidden variation stays hidden until the ball is played.
 
 The **shared leaderboard** keeps recorded totals by player key in a separate result register, so reusing a match table does not erase them. A win is worth 3 points and a draw 1. AI practice is separate. Completed forfeits count, and a result recorded twice counts once.
 
@@ -86,7 +89,7 @@ The leaderboard refreshes every five seconds while it is open and catches up whe
 - `programs/`: source for the game, the player registry and the result register, with a shared pinned build setup.
 - `media/onboarding.mp4`: 37-second recording on the live site. A player is created in one browser and recovered in a second browser with nothing saved.
 - `media/pitch.mp4`: narrated, captioned pitch with desktop and mobile gameplay.
-- `media/preview-*`: the pictures in these guides, taken from the live site on 5 November 2026.
+- `media/preview-*`: the pictures in these guides, taken from the live site on 5 and 6 November 2026.
 - `LICENSE` and `THIRD_PARTY_NOTICES.md`: project and bundled dependency licences.
 
 No package installation or login server is needed. The game talks directly to Solana and MagicBlock. To build the programs, use the pinned toolchain and `sbpf-linker 0.2.5`, then run `cargo build-bpf` from `programs/`.
