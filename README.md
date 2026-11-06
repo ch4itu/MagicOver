@@ -32,7 +32,7 @@ To show this working in a real-time app, it comes with a 3D cricket game on Magi
 
 The passphrase never leaves the browser, there is no login server, and the unlocked key is kept only in memory. There is no passphrase reset: if the passphrase is lost, so is the player ID. A player who still knows the passphrase can change it on the [Smaran page](https://ch4itu.github.io/MagicOver/smaran/); the player key stays the same.
 
-**Guests** can skip all of this. Bat vs AI uses a temporary key made in the browser.
+**Guests** can skip all of this. Games against the AI use a temporary key made in the browser.
 
 **Why players need no SOL:** the registry and the match tables were created and paid for once, then delegated to MagicBlock's rollups. Sign-up and every move in a match are rollup transactions that the player signs at no cost.
 
@@ -46,7 +46,7 @@ Each side bats one over of six balls, with two wickets.
 
 The program judges shot timing on the rollup in 10 ms slots: perfect within ±60 ms, good within ±130 ms and an edge within ±240 ms. These are scoring windows on the rollup, not a promise of 10 ms end-to-end latency. Network delay still affects the player.
 
-In Bat vs AI, MagicBlock VRF sets the target and picks the AI's deliveries. Playing a friend needs a player ID.
+In Bat vs AI, MagicBlock VRF sets a target of 4 to 10 runs and picks the AI's deliveries. In a full match vs AI, you bat an over against the AI, then bowl one at it, as in a friend match: VRF picks the AI's deliveries and its shots, and the AI sees pace, line and length like any batter, never your hidden variation. Playing a friend needs a player ID.
 
 ## How it uses MagicBlock
 
@@ -55,7 +55,7 @@ In Bat vs AI, MagicBlock VRF sets the target and picks the AI's deliveries. Play
 | **Public ER** | Runs the delegated player registry, so players can register without any SOL. |
 | **Private ER / PER** | Runs create, join, bowl, shot and resolution across eight reusable match tables. |
 | **Private account permissions** | A separate ball account holds the bowler's hidden variation. Pace, line and length are visible; the variation is revealed after the ball is resolved. |
-| **VRF** | Picks the AI's target and deliveries. The program checks the expected callback signer, table and sequence. The hidden variation also mixes in a private secret, so the VRF output alone does not reveal it. |
+| **VRF** | Picks the AI's target, its deliveries and, in a full match, its shots. The program checks the expected callback signer, table and sequence. The hidden variation also mixes in a private secret, so the VRF output alone does not reveal it. |
 | **Zero-SOL player actions** | Player keys with no SOL sign every rollup move in the browser, with no wallet pop-ups. Sponsor costs still exist. |
 | **Solana commits** | Registration asks for a registry save to Solana Devnet. Each newly recorded friend result asks for a save of the leaderboard totals. Match tables stay delegated so they can be reused quickly. |
 

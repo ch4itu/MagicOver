@@ -15,16 +15,22 @@
 //!                                                                        idx, which, has_validator, validator 32, commit_ms u32
 //!   2 SetupPrivacy ER  [signer s, ball w, permission w, vault w, magic, permission program]   idx, secret 32
 //!   3 CreateMatch  ER  [player s, state w, ball w, permission w, vault w, magic, permission program]  idx, mode, name_len, name
+//!                      (mode 0 friend match, 1 bat vs AI: chase a VRF target, 2 full match vs AI: bat an over, then bowl one)
 //!   4 JoinMatch    ER  same accounts as CreateMatch                    idx, match_id u32, name_len, name
 //!   5 Bowl         ER  [bowler s, state w, ball w]                     idx, seq u32, pace, line, length
 //!   6 Shot         ER  [batter s, state w, ball w, permission w, vault w, magic, permission program]  idx, seq u32, shot (5 = leave)
 //!   7 Advance      ER  same accounts as Shot, any signer               idx
-//!   8 AiNextBall   ER  [batter s w, state w, ball w, identity, vrf program, queue w, system, slot hashes]  idx, seq u32
+//!   8 AiNextBall   ER  [player s w, state w, ball w, identity, vrf program, queue w, system, slot hashes]  idx, seq u32
+//!                      (asks VRF for the AI's next ball; in a full match, also asks again when the AI's shot is late)
 //!   9 Concede      ER  same accounts as Shot                           idx
 //!  10 CommitUndelegate ER [payer s w, pda w, magic program, magic context w]   idx, which
 //!  11 Arm          ER  [bowler s, ball w]                              idx, seq u32, variation
 //!                      Touches only the private account, so the TEE hides it from the batter.
-//!  "SOVRFCB1" VRF callback [vrf identity s, state w, ball w]          randomness 32, idx, seq u32
+//!  12 BowlToAi     ER  same accounts as 8                              idx, seq u32, pace, line, length
+//!                      (full match: the player bowls the armed ball to the AI, and VRF picks the AI's shot. The AI
+//!                      sees pace, line and length like any batter, never the hidden variation)
+//!  "SOVRFCB1" VRF callback [vrf identity s, state w, ball w (, permission w, vault w, magic, permission program)]
+//!                      randomness 32, idx, seq u32. The AI bowls, or (with the four permission accounts) plays its shot.
 //!  MagicBlock undelegate callback (8-byte discriminator)
 #![cfg_attr(target_arch = "bpf", no_std)]
 use solana_compiler_builtins as _;
@@ -213,9 +219,15 @@ const P_LIVE: u8 = 3;
 const P_AI_NEED: u8 = 4;
 const P_AI_REQUESTED: u8 = 5;
 const P_FINISHED: u8 = 6;
+const P_AI_SHOT: u8 = 7; // full match: the player bowled, VRF is picking the AI's shot
 
 const MODE_PVP: u8 = 0;
 const MODE_AI: u8 = 1;
+const MODE_AI_FULL: u8 = 2; // side A is the player, side B the AI; otherwise played like a friend match
+const AI_TIGHT: u8 = 150; // full match: chance in 256 that the AI bowls a tight ball (good length or yorker on the stumps)
+// bat vs AI: the target is AI_TARGET_MIN plus 0 to AI_TARGET_SPREAD - 1 runs, by VRF (4 to 10: an average player wins about half)
+const AI_TARGET_MIN: u16 = 4;
+const AI_TARGET_SPREAD: u8 = 7;
 
 // timing in ER slots (10 ms on MagicBlock devnet)
 const RUNUP: u64 = 230; // 2.3 s from Bowl to release: room for a full run-up on screen
@@ -644,6 +656,74 @@ const FIT: [[[i8; 4]; 4]; 5] = [
     [[0, 0, 0, 0], [4, 4, 4, 4], [2, 2, 2, 2], [1, 1, 1, 1]],
 ];
 
+// AI batting: weights in 256 for defend, drive, cut, pull, loft, leave, by situation (cautious, normal,
+// aggressive), pace, length and line. Generated offline from expected runs over the hidden variations.
+const AI_SHOT: [[[[[u8; 6]; 4]; 4]; 3]; 3] = [
+    [
+        [
+            [[157, 20, 19, 30, 0, 30], [205, 25, 25, 0, 0, 1], [158, 98, 0, 0, 0, 0], [157, 99, 0, 0, 0, 0]],
+            [[1, 13, 0, 0, 242, 0], [1, 13, 0, 0, 242, 0], [2, 3, 0, 0, 251, 0], [2, 1, 0, 0, 253, 0]],
+            [[37, 12, 151, 43, 6, 7], [72, 24, 65, 84, 11, 0], [89, 71, 0, 89, 7, 0], [57, 36, 0, 158, 5, 0]],
+            [[9, 1, 217, 18, 0, 11], [22, 3, 91, 114, 0, 26], [12, 8, 8, 221, 0, 7], [12, 8, 8, 221, 0, 7]],
+        ],
+        [
+            [[150, 21, 21, 32, 0, 32], [200, 28, 28, 0, 0, 0], [155, 101, 0, 0, 0, 0], [155, 101, 0, 0, 0, 0]],
+            [[6, 82, 2, 1, 164, 1], [6, 83, 1, 0, 166, 0], [15, 26, 0, 0, 215, 0], [16, 13, 0, 0, 227, 0]],
+            [[37, 13, 152, 46, 0, 8], [73, 25, 67, 91, 0, 0], [91, 74, 0, 91, 0, 0], [60, 39, 0, 157, 0, 0]],
+            [[10, 1, 213, 19, 0, 13], [22, 3, 91, 112, 0, 28], [13, 9, 9, 217, 0, 8], [13, 9, 9, 217, 0, 8]],
+        ],
+        [
+            [[141, 23, 22, 35, 0, 35], [193, 31, 31, 0, 0, 1], [152, 104, 0, 0, 0, 0], [152, 104, 0, 0, 0, 0]],
+            [[7, 89, 2, 2, 154, 2], [7, 91, 1, 0, 157, 0], [19, 31, 0, 0, 206, 0], [20, 17, 0, 0, 219, 0]],
+            [[36, 13, 149, 49, 0, 9], [70, 25, 65, 96, 0, 0], [90, 76, 0, 90, 0, 0], [61, 42, 0, 153, 0, 0]],
+            [[10, 2, 209, 21, 0, 14], [22, 3, 91, 110, 0, 30], [15, 10, 10, 211, 0, 10], [15, 10, 10, 211, 0, 10]],
+        ],
+    ],
+    [
+        [
+            [[113, 32, 32, 39, 1, 39], [156, 43, 43, 6, 2, 6], [155, 97, 1, 1, 1, 1], [151, 95, 3, 3, 1, 3]],
+            [[1, 13, 1, 0, 240, 1], [1, 13, 1, 0, 241, 0], [2, 3, 0, 0, 251, 0], [2, 1, 0, 0, 253, 0]],
+            [[39, 20, 119, 34, 30, 14], [63, 33, 57, 54, 47, 2], [76, 61, 1, 76, 41, 1], [52, 32, 1, 142, 28, 1]],
+            [[13, 3, 212, 17, 0, 11], [29, 8, 87, 108, 0, 24], [12, 8, 8, 221, 0, 7], [12, 8, 8, 221, 0, 7]],
+        ],
+        [
+            [[108, 33, 33, 40, 1, 41], [151, 46, 45, 6, 2, 6], [151, 99, 2, 1, 1, 2], [148, 97, 3, 3, 1, 4]],
+            [[6, 56, 2, 2, 188, 2], [6, 57, 2, 0, 191, 0], [10, 16, 0, 0, 230, 0], [10, 9, 0, 0, 237, 0]],
+            [[44, 23, 131, 40, 2, 16], [75, 39, 68, 68, 3, 3], [89, 73, 1, 89, 3, 1], [59, 38, 1, 155, 2, 1]],
+            [[13, 4, 208, 19, 0, 12], [29, 9, 86, 106, 0, 26], [13, 9, 9, 217, 0, 8], [13, 9, 9, 217, 0, 8]],
+        ],
+        [
+            [[102, 34, 34, 42, 2, 42], [145, 48, 48, 6, 2, 7], [148, 101, 2, 2, 1, 2], [144, 98, 4, 4, 2, 4]],
+            [[7, 61, 3, 3, 179, 3], [7, 63, 2, 0, 184, 0], [12, 20, 0, 0, 224, 0], [13, 11, 0, 0, 232, 0]],
+            [[43, 24, 127, 42, 2, 18], [73, 40, 67, 70, 3, 3], [89, 74, 1, 89, 2, 1], [60, 41, 1, 150, 2, 2]],
+            [[14, 5, 203, 20, 0, 14], [29, 10, 85, 103, 1, 28], [15, 10, 10, 211, 0, 10], [15, 10, 10, 211, 0, 10]],
+        ],
+    ],
+    [
+        [
+            [[81, 39, 39, 42, 13, 42], [98, 47, 47, 24, 16, 24], [116, 72, 17, 17, 17, 17], [108, 67, 22, 22, 16, 21]],
+            [[1, 13, 1, 1, 239, 1], [2, 13, 1, 0, 240, 0], [2, 3, 0, 0, 251, 0], [2, 2, 0, 0, 252, 0]],
+            [[34, 24, 84, 24, 72, 18], [46, 31, 41, 32, 95, 11], [51, 41, 8, 51, 97, 8], [38, 24, 8, 106, 72, 8]],
+            [[15, 7, 205, 17, 2, 10], [33, 16, 80, 99, 5, 23], [12, 8, 7, 220, 2, 7], [12, 8, 7, 220, 2, 7]],
+        ],
+        [
+            [[78, 40, 40, 42, 14, 42], [95, 48, 48, 24, 17, 24], [111, 73, 18, 18, 18, 18], [104, 68, 23, 22, 17, 22]],
+            [[5, 42, 3, 3, 200, 3], [6, 43, 3, 1, 202, 1], [7, 12, 1, 1, 234, 1], [7, 6, 2, 2, 238, 1]],
+            [[45, 32, 108, 33, 14, 24], [65, 46, 60, 48, 20, 17], [75, 61, 12, 75, 21, 12], [51, 34, 11, 135, 14, 11]],
+            [[16, 8, 200, 18, 3, 11], [33, 17, 79, 97, 6, 24], [13, 9, 9, 215, 2, 8], [13, 9, 9, 215, 2, 8]],
+        ],
+        [
+            [[75, 40, 40, 43, 15, 43], [91, 49, 48, 25, 18, 25], [108, 73, 19, 19, 19, 18], [101, 69, 23, 23, 17, 23]],
+            [[6, 46, 4, 4, 192, 4], [6, 47, 3, 2, 196, 2], [9, 14, 2, 1, 229, 1], [9, 7, 2, 2, 234, 2]],
+            [[45, 33, 104, 34, 14, 26], [64, 46, 59, 49, 20, 18], [74, 62, 13, 74, 20, 13], [52, 36, 12, 130, 14, 12]],
+            [[17, 9, 194, 20, 3, 13], [34, 18, 78, 94, 6, 26], [15, 10, 10, 209, 2, 10], [15, 10, 10, 209, 2, 10]],
+        ],
+    ],
+];
+// AI timing: chance in 256 of perfect, good, edge and missed, by pace; bands in slots from the visible ideal.
+const AI_TIMING: [[u8; 4]; 3] = [[77, 89, 64, 26], [69, 90, 66, 31], [61, 87, 72, 36]];
+const AI_BAND: [[u8; 2]; 4] = [[0, 6], [7, 13], [14, 24], [25, 40]];
+
 struct Ball {
     pace: u8,
     line: u8,
@@ -742,6 +822,47 @@ fn outcome(b: &Ball) -> u16 {
     }
 }
 
+/// Picks from `w` (summing to 256) using byte `r`.
+fn pick8(r: u8, w: &[u8]) -> u8 {
+    let mut acc: u16 = 0;
+    for (i, x) in w.iter().enumerate() {
+        acc += *x as u16;
+        if (r as u16) < acc {
+            return i as u8;
+        }
+    }
+    (w.len() - 1) as u8
+}
+
+/// The AI batter's shot (255 leaves the ball) and its timing, in slots from when the ball would arrive at its
+/// visible pace. Drawn from VRF bytes. The AI sees what any batter sees (pace, line, length and the match
+/// situation), never the hidden variation, so a hidden slower ball makes it early.
+fn ai_shot(s: &[u8], rnd: &[u8]) -> (u8, i64) {
+    let (pace, line, length) = (s[S_PACE] as usize, s[S_LINE] as usize, s[S_LENGTH] as usize);
+    let inn = s[S_INN] as usize;
+    let runs = rd16(s, S_RUNS + 2 * inn) as i32;
+    let balls_left = 6 - s[S_BALLS + inn] as i32;
+    let wkts_left = 2 - s[S_WKTS + inn] as i32;
+    let need = if inn == 1 { rd16(s, S_TARGET) as i32 - runs } else { 8 - runs };
+    let need = if need < 0 { 0 } else { need };
+    // careful with one wicket left and an easy rate to chase, aggressive when the rate climbs
+    let risk = if wkts_left == 1 && 2 * need < 3 * balls_left {
+        0
+    } else if 2 * need < 5 * balls_left {
+        1
+    } else {
+        2
+    };
+    let shot = pick8(rnd[0], &AI_SHOT[risk][pace][length][line]);
+    if shot == 5 {
+        return (255, 0);
+    }
+    let band = pick8(rnd[1], &AI_TIMING[pace]) as usize;
+    let (lo, hi) = (AI_BAND[band][0], AI_BAND[band][1]);
+    let mag = (lo + rnd[2] % (hi - lo + 1)) as i64;
+    (shot, if rnd[3] & 1 == 0 { -mag } else { mag })
+}
+
 fn grade_for(delta: i64) -> u8 {
     let a = if delta < 0 { -delta } else { delta };
     if a <= W_PERFECT {
@@ -782,10 +903,29 @@ fn reset_innings(s: &mut [u8]) {
     s[S_INN] = 0;
 }
 
+/// Full match vs AI: hands the next ball to whoever bowls it. The AI's ball waits for the player to ask VRF for
+/// it (8); the player's ball waits for Arm and BowlToAi. With `new_bowler`, also changes who may read the private
+/// ball: the player while they bowl, nobody while the AI bowls.
+fn next_ball_full(c: &Ctx, p: &Privacy, slot: u64, new_bowler: bool) -> Result<(), u32> {
+    let s = c.accs[1].data();
+    wr64(s, S_DEADLINE, slot + AI_IDLE);
+    if batting_side(s) == 0 {
+        s[S_PHASE] = P_AI_NEED;
+        return if new_bowler { set_reader(c, p, None) } else { Ok(()) };
+    }
+    s[S_PHASE] = P_BOWLING;
+    if !new_bowler {
+        return Ok(());
+    }
+    let player = side_key(s, 0);
+    set_reader(c, p, Some(&player))
+}
+
 /// After a ball or penalty: move the match on. Updates who may read the private ball.
 #[inline(never)]
 fn advance_match(c: &Ctx, p: &Privacy, slot: u64) -> Result<(), u32> {
     let s = c.accs[1].data();
+    let full = s[S_MODE] == MODE_AI_FULL;
     let inn = s[S_INN] as usize;
     let runs = rd16(s, S_RUNS + 2 * inn);
     let wkts = s[S_WKTS + inn];
@@ -794,6 +934,9 @@ fn advance_match(c: &Ctx, p: &Privacy, slot: u64) -> Result<(), u32> {
     let chasing = s[S_MODE] == MODE_AI || inn == 1;
     let innings_over = balls >= 6 || wkts >= 2 || (chasing && target > 0 && runs >= target);
     if !innings_over {
+        if full {
+            return next_ball_full(c, p, slot, false);
+        }
         if s[S_MODE] == MODE_AI {
             s[S_PHASE] = P_AI_NEED;
             wr64(s, S_DEADLINE, slot + AI_IDLE);
@@ -822,8 +965,11 @@ fn advance_match(c: &Ctx, p: &Privacy, slot: u64) -> Result<(), u32> {
         s[S_PHASE] = P_BOWLING;
         s[S_TIMEOUTS] = 0;
         wr64(s, S_DEADLINE, slot + BOWL_CLOCK);
-        let bowler = side_key(s, batting_side(s) ^ 1);
         log("so: innings break");
+        if full {
+            return next_ball_full(c, p, slot, true);
+        }
+        let bowler = side_key(s, batting_side(s) ^ 1);
         return set_reader(c, p, Some(&bowler));
     }
     let first = rd16(s, S_RUNS);
@@ -839,8 +985,11 @@ fn advance_match(c: &Ctx, p: &Privacy, slot: u64) -> Result<(), u32> {
             s[S_PHASE] = P_BOWLING;
             s[S_TIMEOUTS] = 0;
             wr64(s, S_DEADLINE, slot + BOWL_CLOCK);
-            let bowler = side_key(s, batting_side(s) ^ 1);
             log("so: tied, another super over");
+            if full {
+                return next_ball_full(c, p, slot, true);
+            }
+            let bowler = side_key(s, batting_side(s) ^ 1);
             return set_reader(c, p, Some(&bowler));
         }
         s[S_WINNER] = 3;
@@ -1175,7 +1324,7 @@ fn ix_create_match(c: &Ctx) -> Result<(), u32> {
     }
     let idx = ix[1];
     let mode = ix[2];
-    if mode > MODE_AI {
+    if mode > MODE_AI_FULL {
         return Err(ERR_RANGE);
     }
     let (_, bb) = check_table(c, idx)?;
@@ -1354,6 +1503,14 @@ fn ix_advance(c: &Ctx) -> Result<(), u32> {
     }
     match s[S_PHASE] {
         P_LIVE => resolve(c, &p, 255, slot),
+        P_BOWLING if s[S_MODE] == MODE_AI_FULL => {
+            // the player stopped bowling to the AI: the match is abandoned and the AI wins
+            s[S_WINNER] = 2;
+            s[S_PHASE] = P_FINISHED;
+            wr64(s, S_DEADLINE, slot + FINISH_HOLD);
+            log("so: abandoned");
+            set_reader(c, &p, None)
+        }
         P_BOWLING => {
             // bowler ran the clock down: one penalty run, and three in a row forfeits
             let inn = s[S_INN] as usize;
@@ -1391,19 +1548,13 @@ fn ix_advance(c: &Ctx) -> Result<(), u32> {
     }
 }
 
-#[inline(never)]
-fn ix_ai_next_ball(c: &Ctx) -> Result<(), u32> {
-    // [batter s w, state w, ball w, identity, vrf program, queue w, system, slot hashes]
-    let (accs, ix, program_id) = (c.accs, c.ix, c.program_id);
-    if ix.len() != 6 || c.n < 8 {
-        return Err(ERR_DATA);
+/// Asks MagicBlock VRF for randomness. The oracle calls back with the table's state and ball accounts and, for the
+/// AI's shot, the accounts that change who may read the ball. Accounts as in instruction 8.
+fn request_vrf(c: &Ctx, idx: u8, seq: &[u8], slot: u64, for_shot: bool) -> Result<(), u32> {
+    let (accs, program_id) = (c.accs, c.program_id);
+    if c.n < 8 {
+        return Err(ERR_ACCOUNTS);
     }
-    let batter = &accs[0];
-    if !batter.is_signer {
-        return Err(ERR_SIGNER);
-    }
-    let idx = ix[1];
-    check_table(c, idx)?;
     let (identity, id_bump) = find_pda(&[IDENTITY_SEED], program_id);
     if !eq32(&identity, accs[3].key())
         || !eq32(accs[4].key(), &VRF_PROGRAM)
@@ -1413,28 +1564,12 @@ fn ix_ai_next_ball(c: &Ctx) -> Result<(), u32> {
     {
         return Err(ERR_ACCOUNTS);
     }
-    let slot = now_slot();
-    let s = accs[1].data();
-    if s[S_MODE] != MODE_AI {
-        return Err(ERR_PHASE);
-    }
-    let phase = s[S_PHASE];
-    if !(phase == P_AI_NEED || (phase == P_AI_REQUESTED && slot > rd64(s, S_DEADLINE))) {
-        return Err(ERR_PHASE);
-    }
-    if !eq32(&s[S_A..S_A + 32], batter.key()) {
-        return Err(ERR_TURN);
-    }
-    let seq = rd32(s, S_SEQ);
-    if seq != rd32(ix, 2) {
-        return Err(ERR_SEQ);
-    }
     // RequestRandomness (scoped identity, regular priority)
-    let mut data = [0u8; 8 + 32 + 32 + 4 + 8 + 4 + 2 * 34 + 4 + 5];
+    let mut data = [0u8; 8 + 32 + 32 + 4 + 8 + 4 + 6 * 34 + 4 + 5];
     data[0] = 10;
     let mut seed = [0u8; 32];
     let slot_b = slot.to_le_bytes();
-    sha256(&[accs[1].key(), &ix[2..6], &slot_b], &mut seed);
+    sha256(&[accs[1].key(), seq, &slot_b], &mut seed);
     let mut o = 8;
     data[o..o + 32].copy_from_slice(&seed);
     o += 32;
@@ -1444,20 +1579,28 @@ fn ix_ai_next_ball(c: &Ctx) -> Result<(), u32> {
     o += 4;
     data[o..o + 8].copy_from_slice(&VRF_CALLBACK);
     o += 8;
-    data[o..o + 4].copy_from_slice(&2u32.to_le_bytes());
+    let (perm, _) = find_pda(&[b"permission:", accs[2].key()], &PERMISSION_PROGRAM);
+    let callback: [(&[u8; 32], u8); 6] = [
+        (accs[1].key(), 1),
+        (accs[2].key(), 1),
+        (&perm, 1),
+        (&EPHEMERAL_VAULT, 1),
+        (&MAGIC_PROGRAM, 0),
+        (&PERMISSION_PROGRAM, 0),
+    ];
+    let n = if for_shot { 6 } else { 2 };
+    data[o..o + 4].copy_from_slice(&(n as u32).to_le_bytes());
     o += 4;
-    data[o..o + 32].copy_from_slice(accs[1].key());
-    data[o + 32] = 0;
-    data[o + 33] = 1;
-    o += 34;
-    data[o..o + 32].copy_from_slice(accs[2].key());
-    data[o + 32] = 0;
-    data[o + 33] = 1;
-    o += 34;
+    for (key, writable) in callback.iter().take(n) {
+        data[o..o + 32].copy_from_slice(*key);
+        data[o + 32] = 0;
+        data[o + 33] = *writable;
+        o += 34;
+    }
     data[o..o + 4].copy_from_slice(&5u32.to_le_bytes());
     o += 4;
     data[o] = idx;
-    data[o + 1..o + 5].copy_from_slice(&ix[2..6]);
+    data[o + 1..o + 5].copy_from_slice(seq);
     o += 5;
     let id_bump_b = [id_bump];
     invoke(
@@ -1468,10 +1611,98 @@ fn ix_ai_next_ball(c: &Ctx) -> Result<(), u32> {
             data: &data[..o],
             seeds: &[&[IDENTITY_SEED, &id_bump_b]],
         },
-    )?;
+    )
+}
+
+#[inline(never)]
+fn ix_ai_next_ball(c: &Ctx) -> Result<(), u32> {
+    // [player s w, state w, ball w, identity, vrf program, queue w, system, slot hashes]
+    let (accs, ix) = (c.accs, c.ix);
+    if ix.len() != 6 || c.n < 8 {
+        return Err(ERR_DATA);
+    }
+    let player = &accs[0];
+    if !player.is_signer {
+        return Err(ERR_SIGNER);
+    }
+    let idx = ix[1];
+    check_table(c, idx)?;
+    let slot = now_slot();
+    let s = accs[1].data();
+    let mode = s[S_MODE];
+    if mode != MODE_AI && mode != MODE_AI_FULL {
+        return Err(ERR_PHASE);
+    }
+    if !eq32(&s[S_A..S_A + 32], player.key()) {
+        return Err(ERR_TURN);
+    }
+    if rd32(s, S_SEQ) != rd32(ix, 2) {
+        return Err(ERR_SEQ);
+    }
+    let phase = s[S_PHASE];
+    let late = slot > rd64(s, S_DEADLINE);
+    if phase == P_AI_SHOT && late {
+        // full match: the AI's shot did not come back in time, ask again
+        request_vrf(c, idx, &ix[2..6], slot, true)?;
+        wr64(s, S_DEADLINE, slot + VRF_TIMEOUT);
+        log("so: ai shot requested again");
+        return Ok(());
+    }
+    if !(phase == P_AI_NEED || (phase == P_AI_REQUESTED && late)) {
+        return Err(ERR_PHASE);
+    }
+    request_vrf(c, idx, &ix[2..6], slot, false)?;
     s[S_PHASE] = P_AI_REQUESTED;
     wr64(s, S_DEADLINE, slot + VRF_TIMEOUT);
     log("so: ai ball requested");
+    Ok(())
+}
+
+/// Full match: the player bowls the armed ball to the AI, then asks VRF for the AI's shot.
+#[inline(never)]
+fn ix_bowl_to_ai(c: &Ctx) -> Result<(), u32> {
+    // [bowler s w, state w, ball w, identity, vrf program, queue w, system, slot hashes]
+    let ix = c.ix;
+    if ix.len() != 9 || c.n < 8 {
+        return Err(ERR_DATA);
+    }
+    let bowler = &c.accs[0];
+    if !bowler.is_signer {
+        return Err(ERR_SIGNER);
+    }
+    let idx = ix[1];
+    check_table(c, idx)?;
+    let (pace, line, length) = (ix[6], ix[7], ix[8]);
+    if pace > 2 || line > 3 || length > 3 {
+        return Err(ERR_RANGE);
+    }
+    let slot = now_slot();
+    let s = c.accs[1].data();
+    if s[S_PHASE] != P_BOWLING || s[S_MODE] != MODE_AI_FULL || batting_side(s) != 1 {
+        return Err(ERR_PHASE);
+    }
+    if !eq32(&s[S_A..S_A + 32], bowler.key()) {
+        return Err(ERR_TURN);
+    }
+    let seq = rd32(s, S_SEQ);
+    if seq != rd32(ix, 2) {
+        return Err(ERR_SEQ);
+    }
+    // the hidden variation was armed earlier, in a transaction only the bowler can see
+    let b = c.accs[2].data();
+    if b[B_ARMED] != ARM_SET || rd32(b, B_SEQ) != seq {
+        return Err(ERR_NOT_ARMED);
+    }
+    request_vrf(c, idx, &ix[2..6], slot, true)?;
+    b[B_ARMED] = ARM_LIVE;
+    s[S_PACE] = pace;
+    s[S_LINE] = line;
+    s[S_LENGTH] = length;
+    s[S_ARMED] = 1;
+    wr64(s, S_RELEASE, slot + RUNUP);
+    wr64(s, S_DEADLINE, slot + VRF_TIMEOUT);
+    s[S_PHASE] = P_AI_SHOT;
+    log("so: bowled to the ai");
     Ok(())
 }
 
@@ -1487,9 +1718,30 @@ fn pick(r: u8, weights: &[u16]) -> u8 {
     (weights.len() - 1) as u8
 }
 
+/// The AI's delivery: pace, line and length straight from the VRF output, the hidden variation from `hidden`. In a
+/// full match the AI mostly bowls tight, like a careful bowler: good length or a yorker on the stumps, at pace.
+/// Otherwise, and always in bat vs AI, a looser mix.
+fn ai_ball(full: bool, rnd: &[u8], hidden: u8) -> (u8, u8, u8, u8) {
+    if full && rnd[5] < AI_TIGHT {
+        return (
+            pick(rnd[0], &[0, 85, 171]),
+            pick(rnd[1], &[0, 128, 128, 0]),
+            pick(rnd[2], &[85, 0, 171, 0]),
+            pick(hidden, &[90, 55, 70, 41]),
+        );
+    }
+    (
+        pick(rnd[0], &[64, 90, 102]),
+        pick(rnd[1], &[52, 90, 77, 37]),
+        pick(rnd[2], &[38, 77, 90, 51]),
+        pick(hidden, &[102, 51, 64, 39]),
+    )
+}
+
 #[inline(never)]
 fn ix_vrf_callback(c: &Ctx) -> Result<(), u32> {
-    // [vrf identity s, state w, ball w]; data: callback disc, randomness 32, idx, seq u32
+    // [vrf identity s, state w, ball w (, permission w, vault w, magic, permission program)];
+    // data: callback disc, randomness 32, idx, seq u32
     let (accs, ix, program_id) = (c.accs, c.ix, c.program_id);
     if c.n < 3 || ix.len() < 8 + 32 + 5 {
         return Err(ERR_DATA);
@@ -1500,28 +1752,37 @@ fn ix_vrf_callback(c: &Ctx) -> Result<(), u32> {
     }
     let rnd = &ix[8..40];
     let idx = ix[40];
-    check_table(c, idx)?;
+    let (_, bb) = check_table(c, idx)?;
     let slot = now_slot();
     let s = accs[1].data();
-    if s[S_MODE] != MODE_AI || s[S_PHASE] != P_AI_REQUESTED {
+    let mode = s[S_MODE];
+    if mode != MODE_AI && mode != MODE_AI_FULL {
         return Err(ERR_PHASE);
     }
     let seq = rd32(s, S_SEQ);
     if seq != rd32(ix, 41) {
         return Err(ERR_SEQ);
     }
-    if rd16(s, S_TARGET) == 0 {
-        wr16(s, S_TARGET, 8 + (rnd[4] % 11) as u16);
+    if s[S_PHASE] == P_AI_SHOT {
+        // full match: the AI plays the ball the player bowled
+        let p = privacy_for(c, idx, bb);
+        privacy_accounts_ok(c, &p)?;
+        let (shot, timing) = ai_shot(s, rnd);
+        let at = rd64(s, S_RELEASE) as i64 + FLIGHT[s[S_PACE] as usize] as i64 + timing;
+        log("so: ai played");
+        return resolve(c, &p, shot, if at < 0 { 0 } else { at as u64 });
     }
-    // visible part straight from the VRF output
-    let pace = pick(rnd[0], &[64, 90, 102]);
-    let line = pick(rnd[1], &[52, 90, 77, 37]);
-    let length = pick(rnd[2], &[38, 77, 90, 51]);
-    // hidden part also mixes in the private secret, so the VRF output alone does not reveal it
+    if s[S_PHASE] != P_AI_REQUESTED {
+        return Err(ERR_PHASE);
+    }
+    if mode == MODE_AI && rd16(s, S_TARGET) == 0 {
+        wr16(s, S_TARGET, AI_TARGET_MIN + (rnd[4] % AI_TARGET_SPREAD) as u16);
+    }
+    // the hidden part also mixes in the private secret, so the VRF output alone does not reveal it
     let b = accs[2].data();
     let mut h = [0u8; 32];
     sha256(&[&b[B_SECRET..B_SECRET + 32], rnd], &mut h);
-    let variation = pick(h[0], &[102, 51, 64, 39]);
+    let (pace, line, length, variation) = ai_ball(mode == MODE_AI_FULL, rnd, h[0]);
     let mut next = [0u8; 32];
     sha256(&[&h, b"next"], &mut next);
     b[B_SECRET..B_SECRET + 32].copy_from_slice(&next);
@@ -1728,6 +1989,7 @@ pub unsafe extern "C" fn entrypoint(input: *mut u8) -> u64 {
             9 => ix_concede(&c),
             10 => ix_commit_undelegate(&c),
             11 => ix_arm(&c),
+            12 => ix_bowl_to_ai(&c),
             _ => Err(ERR_TAG),
         }
     };
@@ -1758,5 +2020,107 @@ mod tests {
         assert_eq!(grade_for(-20), 2);
         assert_eq!(grade_for(20), 3);
         assert_eq!(grade_for(40), 4);
+    }
+
+    #[test]
+    fn ai_tables_sum_to_256() {
+        for risk in AI_SHOT.iter() {
+            for pace in risk.iter() {
+                for length in pace.iter() {
+                    for w in length.iter() {
+                        assert_eq!(w.iter().map(|x| *x as u16).sum::<u16>(), 256);
+                    }
+                }
+            }
+        }
+        for w in AI_TIMING.iter() {
+            assert_eq!(w.iter().map(|x| *x as u16).sum::<u16>(), 256);
+        }
+    }
+
+    struct Rng(u64);
+    impl Rng {
+        fn byte(&mut self) -> u8 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 24) as u8
+        }
+        fn bytes(&mut self) -> [u8; 32] {
+            let mut b = [0u8; 32];
+            for x in b.iter_mut() {
+                *x = self.byte();
+            }
+            b
+        }
+    }
+
+    /// One innings of the AI batting against `bowl`, through the program's own functions. `target` 0: batting first.
+    fn ai_innings(rng: &mut Rng, target: u16, bowl: &dyn Fn(&mut Rng) -> (u8, u8, u8, u8)) -> u16 {
+        let mut s = [0u8; STATE_SIZE];
+        s[S_INN] = if target > 0 { 1 } else { 0 };
+        wr16(&mut s, S_TARGET, target);
+        let inn = s[S_INN] as usize;
+        loop {
+            let (pace, line, length, variation) = bowl(rng);
+            s[S_PACE] = pace;
+            s[S_LINE] = line;
+            s[S_LENGTH] = length;
+            let (shot, timing) = ai_shot(&s, &rng.bytes());
+            assert!(shot <= 4 || shot == 255);
+            assert!(timing >= -40 && timing <= 40);
+            let slower = if variation == 3 { SLOWER as i64 } else { 0 };
+            let grade = if shot == 255 { 5 } else { grade_for(timing - slower) };
+            let r = outcome(&Ball { pace, line, length, variation, shot, grade }) & 0xff;
+            s[S_BALLS + inn] += 1;
+            if r == 7 {
+                s[S_WKTS + inn] += 1;
+            } else {
+                let runs = rd16(&s, S_RUNS + 2 * inn) + r;
+                wr16(&mut s, S_RUNS + 2 * inn, runs);
+            }
+            let runs = rd16(&s, S_RUNS + 2 * inn);
+            if s[S_BALLS + inn] >= 6 || s[S_WKTS + inn] >= 2 || (target > 0 && runs >= target) {
+                return runs;
+            }
+        }
+    }
+
+    #[test]
+    fn ai_batter_scores_off_loose_balls_not_tight_ones() {
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+        let tight = |r: &mut Rng| (2u8, 1 + r.byte() % 2, if r.byte() % 2 == 0 { 0 } else { 2 }, r.byte() % 4);
+        let random = |r: &mut Rng| (r.byte() % 3, r.byte() % 4, r.byte() % 4, r.byte() % 4);
+        let n = 20_000;
+        let (mut t, mut l) = (0u32, 0u32);
+        for _ in 0..n {
+            t += ai_innings(&mut rng, 0, &tight) as u32;
+            l += ai_innings(&mut rng, 0, &random) as u32;
+        }
+        let (tight_mean, loose_mean) = (t as f64 / n as f64, l as f64 / n as f64);
+        println!("AI runs an over: tight bowling {tight_mean:.2}, random bowling {loose_mean:.2}");
+        assert!(tight_mean < 1.5, "tight {tight_mean}");
+        assert!(loose_mean > 4.0 && loose_mean < 8.0, "loose {loose_mean}");
+    }
+
+    #[test]
+    fn ai_bowls_tight_in_a_full_match_only() {
+        let mut rng = Rng(42);
+        let (mut full_tight, mut chase_tight, n) = (0u32, 0u32, 20_000u32);
+        let is_tight = |b: (u8, u8, u8, u8)| b.0 >= 1 && (b.1 == 1 || b.1 == 2) && (b.2 == 0 || b.2 == 2);
+        for _ in 0..n {
+            let (rnd, hidden) = (rng.bytes(), rng.byte());
+            let full = ai_ball(true, &rnd, hidden);
+            let chase = ai_ball(false, &rnd, hidden);
+            assert!(full.0 <= 2 && full.1 <= 3 && full.2 <= 3 && full.3 <= 3);
+            if is_tight(full) {
+                full_tight += 1;
+            }
+            if is_tight(chase) {
+                chase_tight += 1;
+            }
+        }
+        println!("tight balls: full match {:.0}%, bat vs AI {:.0}%", 100.0 * full_tight as f64 / n as f64, 100.0 * chase_tight as f64 / n as f64);
+        assert!(full_tight > n * 60 / 100 && chase_tight < n * 35 / 100);
     }
 }

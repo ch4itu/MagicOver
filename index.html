@@ -26,6 +26,7 @@ button:hover { background: rgba(255, 255, 255, 0.14); }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 button:disabled { opacity: 0.45; cursor: default; }
 button.primary { background: linear-gradient(135deg, var(--saffron), #ffb347); color: #1b0f00; border: 0; }
+button.soft { background: rgba(255, 138, 31, 0.14); border-color: rgba(255, 138, 31, 0.6); }
 button.teal { background: linear-gradient(135deg, var(--teal), #5ce1d6); color: #001a18; border: 0; }
 input { width: 100%; font: 500 16px var(--body); color: var(--text); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
 label { display: block; font: 700 12px var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 12px 0 6px; }
@@ -151,6 +152,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
     <div class="facts"><div><b>0 SOL</b><small>per player</small></div><div><b>10 ms</b><small>timing slots</small></div><div><b>Hidden</b><small>swing and slower balls</small></div></div>
     <div class="stack">
       <button id="btnAi" class="primary" type="button">Bat vs AI · no sign-up</button>
+      <button id="btnFull" class="soft" type="button">Full match vs AI</button>
       <button id="btnFriend" class="teal" type="button">Play a friend</button>
       <button id="btnLeaderboard" type="button">Leaderboard</button>
     </div>
@@ -161,6 +163,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
         <li>Tap a shot as the ball reaches the bat: Defend, Drive, Cut, Pull, Loft, or Leave. Keys: ↓ defend, Space drive, ← cut, → pull, ↑ loft, L leave.</li>
         <li>Timing is judged on-chain: within 60 ms is perfect, 130 ms good, 240 ms an edge, beyond that you miss.</li>
         <li>Each side bats one over with two wickets. A tie goes to another Super Over.</li>
+        <li>Full match vs AI: bat one over against the AI, then bowl one at it. The AI never sees your hidden variation.</li>
       </ul>
     </details>
     <details>
@@ -867,7 +870,8 @@ globalThis.SONet = (() => {
   const TABLES = ADDR.tables.map(t => ({ state: pk(t.state), ball: pk(t.ball), permission: pk(t.permission), stateB58: t.state }));
   const FLIGHT = [120, 95, 75];
   const SLOT_MS = 10;
-  const PHASES = ['FREE', 'WAITING', 'BOWLING', 'LIVE', 'AI_NEED', 'AI_REQUESTED', 'FINISHED'];
+  const PHASES = ['FREE', 'WAITING', 'BOWLING', 'LIVE', 'AI_NEED', 'AI_REQUESTED', 'FINISHED', 'AI_SHOT'];
+  const MODES = ['PVP', 'AI', 'AI_FULL']; // friend match, bat vs AI, full match vs AI
   const ERRORS = { 5: 'That is not possible right now.', 6: 'It is not your turn.', 7: 'The match moved on. Try again.', 8: 'Too early: the ball has not been released.', 14: 'That table is busy.', 15: 'The delivery was not armed.', 17: 'The leaderboard sponsor reserve needs a refill.' };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -992,6 +996,7 @@ globalThis.SONet = (() => {
     shot: (i, seq, shot) => ix([meta(player.key, true, true), ...table(i), ...privacy(i)], C.concat(Uint8Array.of(6, i), u32(seq), Uint8Array.of(shot))),
     advance: i => ix([meta(player.key, true, true), ...table(i), ...privacy(i)], Uint8Array.of(7, i)),
     aiNext: (i, seq) => ix([meta(player.key, true, true), ...table(i), meta(IDENTITY, false, false), meta(VRF_PROGRAM, false, false), meta(VRF_QUEUE, false, true), meta(SYSTEM, false, false), meta(SLOT_HASHES, false, false)], C.concat(Uint8Array.of(8, i), u32(seq))),
+    bowlToAi: (i, seq, pace, line, length) => ix([meta(player.key, true, true), ...table(i), meta(IDENTITY, false, false), meta(VRF_PROGRAM, false, false), meta(VRF_QUEUE, false, true), meta(SYSTEM, false, false), meta(SLOT_HASHES, false, false)], C.concat(Uint8Array.of(12, i), u32(seq), Uint8Array.of(pace, line, length))),
     recordResult: (i, matchId) => ({ programId: pk(LEADERBOARD_PROGRAM), keys: [meta(player.key, true, true), meta(pk(LEADERBOARD_ADDRESS), false, true), meta(TABLES[i].state, false, false), meta(MAGIC_PROGRAM, false, false), meta(pk('MagicContext1111111111111111111111111111111'), false, true), meta(pk(LEADERBOARD_FEE_VAULT), false, true)], data: C.concat(Uint8Array.of(2, i), u32(matchId)) }),
     concede: i => ix([meta(player.key, true, true), ...table(i), ...privacy(i)], Uint8Array.of(9, i)),
   };
@@ -1008,13 +1013,13 @@ globalThis.SONet = (() => {
       hist[inn].push({ pace: d[h], line: d[h + 1], length: d[h + 2], variation: d[h + 3], shot: d[h + 4], grade: d[h + 5], result: d[h + 6], wkind: d[h + 7] });
     }
     return {
-      idx, phase: PHASES[d[9]] || 'UNKNOWN', mode: d[10] === 1 ? 'AI' : 'PVP', inn: d[11], superOver: d[12], timeouts: d[13], winner: d[14],
+      idx, phase: PHASES[d[9]] || 'UNKNOWN', mode: MODES[d[10]] || 'UNKNOWN', inn: d[11], superOver: d[12], timeouts: d[13], winner: d[14],
       a: key(16), b: key(48), aName: name(256), bName: name(280), matchId: dv.getUint32(80, true), seq: dv.getUint32(84, true),
       deadline: Number(dv.getBigUint64(88, true)), release: Number(dv.getBigUint64(96, true)),
       pace: d[104], line: d[105], length: d[106], armed: d[107],
       runs: [dv.getUint16(112, true), dv.getUint16(114, true)], wkts: [d[116], d[117]], balls: [d[118], d[119]],
       target: dv.getUint16(120, true), batFirst: d[122],
-      last: { shot: d[124], grade: d[125], result: d[126], variation: d[127], delta: dv.getInt32(128, true), seq: dv.getUint32(132, true), wkind: d[136], pace: d[137], line: d[138], length: d[139] },
+      last: { shot: d[124], grade: d[125], result: d[126], variation: d[127], delta: dv.getInt32(128, true), seq: dv.getUint32(132, true), wkind: d[136], pace: d[137], line: d[138], length: d[139], slot: dv.getUint32(140, true) },
       hist, fours: [d[240], d[241]], sixes: [d[242], d[243]], created: Number(dv.getBigUint64(248, true)),
     };
   }
@@ -1079,7 +1084,7 @@ globalThis.SONet = (() => {
   async function currentSlot() { return rpc('getSlot', [{ commitment: 'processed' }]); }
 
   return Object.freeze({
-    TEE, TABLES, FLIGHT, SLOT_MS, LEADERBOARD_PROGRAM, LEADERBOARD_ADDRESS, LEADERBOARD_FEE_VAULT, readLeaderboard, readRollupLeaderboard, readCommittedLeaderboard, parseLeaderboard, recordResult, waitForLeaderboardCommit, eligibleResult, setPlayer, login, get player() { return player; }, get clock() { return clock; },
+    TEE, TABLES, FLIGHT, SLOT_MS, MODES, LEADERBOARD_PROGRAM, LEADERBOARD_ADDRESS, LEADERBOARD_FEE_VAULT, readLeaderboard, readRollupLeaderboard, readCommittedLeaderboard, parseLeaderboard, recordResult, waitForLeaderboardCommit, eligibleResult, setPlayer, login, get player() { return player; }, get clock() { return clock; },
     syncClock, slotNow, timeOfSlot, freshBlockhash, send, prepareShots, sendPreparedShot, I, readTable, readTables, battingSide, sideKey, reclaimable, currentSlot, sleep,
   });
 })();
@@ -3708,12 +3713,12 @@ globalThis.SOCompetition = (() => {
   }
 
   // ------------------------------------------------------------ home
-  $('btnAi').onclick = async () => {
-    const b = $('btnAi');
+  for (const [id, mode] of [['btnAi', 1], ['btnFull', 2]]) $(id).onclick = async () => {
+    const b = $(id);
     busy(b, true, 'Opening the private rollup…');
     try {
       if (!N.player) await enter(C.generateAccount(), 'Guest', true);
-      await createMatch(1);
+      await createMatch(mode);
     } catch (e) { toast(e.message || String(e), 'bad'); }
     finally { busy(b, false); }
   };
@@ -3807,7 +3812,7 @@ globalThis.SOCompetition = (() => {
       try {
         await N.send([N.I.create(i, mode, N.player.guest ? '' : N.player.name)], { label: 'Create match' });
       } catch (e) { lastError = e; continue; }
-      return startMatch(i, s => s.a === N.player.b58 && s.mode === (mode ? 'AI' : 'PVP') && s.phase !== 'FINISHED' && s.phase !== 'FREE');
+      return startMatch(i, s => s.a === N.player.b58 && s.mode === N.MODES[mode] && s.phase !== 'FINISHED' && s.phase !== 'FREE');
     }
     throw lastError;
   }
@@ -3822,9 +3827,10 @@ globalThis.SOCompetition = (() => {
 
   // ------------------------------------------------------------ match session
   let M = null, sessionGeneration = 0;
+  const vsAi = s => s.mode === 'AI' || s.mode === 'AI_FULL';
   function role(s) {
     if (s.mode === 'AI') return { me: 0, batting: true, bowling: false };
-    const me = s.a === N.player.b58 ? 0 : s.b === N.player.b58 ? 1 : -1;
+    const me = s.mode === 'AI_FULL' ? 0 : s.a === N.player.b58 ? 0 : s.b === N.player.b58 ? 1 : -1;
     const bat = N.battingSide(s);
     return { me, batting: me === bat, bowling: me !== -1 && me !== bat };
   }
@@ -3836,8 +3842,8 @@ globalThis.SOCompetition = (() => {
     if (!active()) return;
     show('match');
     M = { idx, expectedPair, prev: null, knownSeq: s.seq, live: null, busyUntil: 0, sent: {}, matchId: s.matchId, mode: s.mode, ended: false, lastClockSync: performance.now() };
-    $('matchCode').textContent = s.mode === 'AI' ? 'vs AI' : `Code ${idx}-${s.matchId}`;
-    $('copyCode').hidden = s.mode === 'AI';
+    $('matchCode').textContent = vsAi(s) ? 'vs AI' : `Code ${idx}-${s.matchId}`;
+    $('copyCode').hidden = vsAi(s);
     $('finishCard').hidden = true;
     V.resetStumps(); V.resetBat(); V.resetBowler(); V.setBallDriver(null);
     poll(M);
@@ -3851,7 +3857,7 @@ globalThis.SOCompetition = (() => {
       $('ping').textContent = `ping ${Math.round(N.clock.upMs * 2)} ms`;
       // keep the connection warm and the slot clock fresh; a cold connection makes the first shot late
       if (performance.now() - session.lastClockSync > 1500 && s.phase !== 'LIVE') { session.lastClockSync = performance.now(); N.syncClock(1).catch(() => {}); N.freshBlockhash().catch(() => {}); }
-      const fast = s.phase === 'LIVE' || s.phase === 'AI_REQUESTED' || (s.phase === 'BOWLING' && role(s).batting);
+      const fast = s.phase === 'LIVE' || s.phase === 'AI_REQUESTED' || s.phase === 'AI_SHOT' || (s.phase === 'BOWLING' && role(s).batting);
       await sleep(fast ? 60 : 220);
     }
   }
@@ -3896,12 +3902,13 @@ globalThis.SOCompetition = (() => {
     // a ball was resolved
     if (resolving) {
       session.knownSeq = s.seq;
-      onResolved(session, s, r);
+      if (s.mode === 'AI_FULL' && aiBatted(session, s)) aiPlayed(session, s);
+      else onResolved(session, s, r);
     }
     const now = performance.now();
     const idle = now >= session.busyUntil;
-    // a new delivery is in the air
-    if (s.phase === 'LIVE' && (!session.live || session.live.seq !== s.seq) && idle) startDelivery(session, s, r);
+    // a new delivery is in the air (in a full match vs AI, also yours while the AI decides how to play it)
+    if ((s.phase === 'LIVE' || s.phase === 'AI_SHOT') && (!session.live || session.live.seq !== s.seq) && idle) startDelivery(session, s, r);
     const slot = N.slotNow();
     // settle a ball nobody played as soon as the chain allows; try again every half second if a try was too early
     const settleKey = 'adv' + s.seq + ':' + Math.floor((slot - s.deadline) / 50);
@@ -3940,18 +3947,41 @@ globalThis.SOCompetition = (() => {
       case 'LIVE':
         if (r.batting) showBatPad(); else status('Ball in the air…');
         break;
+      case 'AI_SHOT':
+        status('The AI is reading your ball (MagicBlock VRF)…');
+        if (slot > s.deadline + 10 && !session.sent['ais' + s.seq + ':' + s.deadline]) {
+          session.sent['ais' + s.seq + ':' + s.deadline] = 1;
+          N.send([N.I.aiNext(session.idx, s.seq)], { label: 'Retry AI shot', wait: false }).catch(() => {});
+        }
+        break;
       case 'FINISHED':
         if (!session.ended) finish(session, s);
         break;
     }
   }
   function status(text) { $('matchStatus').textContent = text; }
+  // Full match vs AI: did the AI bat the ball that was just resolved?
+  function aiBatted(session, s) {
+    const p = session.prev;
+    if (p && p.seq === s.last.seq) return N.battingSide(p) === 1;
+    return !!(session.live && session.live.seq === s.last.seq && !session.live.batting);
+  }
+  // The AI's shot comes back from VRF a moment after you bowl, well before the ball reaches the bat on screen. Play
+  // the delivery first, then show the AI's stroke and the result as the bat meets the ball.
+  function aiPlayed(session, s) {
+    const L = s.last, asBowler = { me: 0, batting: false, bowling: true };
+    if (!session.live || session.live.seq !== L.seq) startDelivery(session, { ...s, seq: L.seq, pace: L.pace, line: L.line, length: L.length }, asBowler);
+    const meet = N.timeOfSlot(s.release + N.FLIGHT[L.pace] + (L.variation === 3 ? 18 : 0) + (L.grade === 5 ? 0 : L.delta));
+    session.revealing = true;
+    session.busyUntil = Math.max(session.busyUntil, meet + 3500);
+    setTimeout(() => { if (M === session) onResolved(session, s, asBowler); }, Math.max(0, meet - performance.now()));
+  }
   function clockText(s) {
     const left = Math.max(0, Math.round((s.deadline - N.slotNow()) * N.SLOT_MS / 1000));
     return left ? `${left}s` : '';
   }
   function nameOf(s, side) {
-    if (s.mode === 'AI') return side === 0 ? (N.player.guest ? 'You' : N.player.name) : 'Magic Over AI';
+    if (vsAi(s)) return side === 0 ? (N.player.guest ? 'You' : N.player.name) : 'Magic Over AI';
     const n = side === 0 ? s.aName : s.bName, k = side === 0 ? s.a : s.b;
     return n || short(k);
   }
@@ -4125,16 +4155,19 @@ globalThis.SOCompetition = (() => {
     if ($('bowlPad').hidden) renderBowlPad();
     $('bowlPad').hidden = false;
     $('batPad').hidden = true;
-    status(`You are bowling. Ball ${s.balls[s.inn] + 1} of 6.  ${clockText(s)}`);
+    const toAi = s.mode === 'AI_FULL';
+    status(toAi ? `You are bowling to the AI. Ball ${s.balls[s.inn] + 1} of 6.` : `You are bowling. Ball ${s.balls[s.inn] + 1} of 6.  ${clockText(s)}`);
     $('bowlGo').onclick = async () => {
       const b = $('bowlGo');
       busy(b, true, 'Bowling…');
       try {
         // 1) hidden: the variation goes into the private account, invisible to the batter
         await N.send([N.I.arm(session.idx, s.seq, pick.variation)], { label: 'Arm delivery' });
-        // 2) public: run-up and release with pace, line and length
-        await N.send([N.I.bowl(session.idx, s.seq, pick.pace, pick.line, pick.length)], { label: 'Bowl' });
+        // 2) public: run-up and release with pace, line and length (to the AI: VRF then picks its shot)
+        if (toAi) await N.send([N.I.bowlToAi(session.idx, s.seq, pick.pace, pick.line, pick.length)], { label: 'Bowl' });
+        else await N.send([N.I.bowl(session.idx, s.seq, pick.pace, pick.line, pick.length)], { label: 'Bowl' });
         hidePads();
+        if (toAi) kick(session);
       } catch (e) { toast(e.message || String(e), 'bad'); }
       finally { busy(b, false); }
     };
@@ -4188,7 +4221,7 @@ globalThis.SOCompetition = (() => {
         if (!active()) return;
         await startMatch(next.idx, s => s.matchId === next.matchId && s.a === session.result.a && (s.phase === 'WAITING' || s.b === session.result.b) && s.phase !== 'FINISHED', { a: session.result.a, b: session.result.b });
       } else {
-        await createMatch(1);
+        await createMatch(session.mode === 'AI_FULL' ? 2 : 1);
       }
     } catch (e) { if (active()) { $('rematchStatus').textContent = e.message || String(e); toast(e.message || String(e), 'bad'); } }
     finally { session.rematching = false; busy(button, false); }
