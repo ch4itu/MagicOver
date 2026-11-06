@@ -27,7 +27,10 @@
 //!                      With the ER validator's fee vault and at least 100,000 lamports above rent, the shard pays as
 //!                      MagicBlock's delegated fee payer, which lifts MagicBlock's limit of 10 sponsored commits per
 //!                      delegation; otherwise the caller signs a sponsored commit)
-//!   5 CommitUndelegate [admin s, shard w, magic program, magic context w]   (registry admin only)
+//!   5 CommitUndelegate [caller s, shard w, magic program, magic context w]
+//!                      (the registry admin; or anyone once the shard's save reserve is down to its last 10 paid saves,
+//!                      0.001 SOL above rent, so anyone can refill it: take it off the rollup here, send it SOL on
+//!                      Solana, then delegate it again with 3)
 //!   6 UpdateEnvelope   [owner s, shard w]                               data: name_hash 32, envelope 212
 //!                      (passphrase change: the entry's own key replaces its locked copy; the key itself stays;
 //!                      only as a transaction's own instruction, not from another program: error 18)
@@ -148,6 +151,7 @@ const POW_BITS: u32 = 16;
 const MAGIC: &[u8; 8] = b"SABREG01";
 const UNSAVED: usize = 20; // header byte: 1 while the shard has changes that no save has been scheduled for
 const LIVE_COMMIT_FEE: u64 = 100_000; // MagicBlock's charge per committed account to a delegated fee payer
+const LOW_RESERVE: u64 = 10 * LIVE_COMMIT_FEE; // below this above rent, anyone may take a shard off the rollup to refill it
 const POW_DOMAIN: &[u8] = b"SABHA-SOL-POW-V1";
 
 const MAX_PERMITTED_DATA_INCREASE: usize = 10_240;
@@ -848,19 +852,23 @@ fn ix_commit(c: &Ctx, undelegate: bool) -> Result<(), u32> {
     if !accs[0].is_signer {
         return Err(ERR_SIGNER);
     }
-    // anyone may save a shard's new changes to Solana; only the admin may take it off the rollup
-    let admin = eq32(accs[0].key(), &ADMIN);
-    if undelegate && !admin {
-        return Err(ERR_ADMIN);
-    }
     if !eq32(accs[2].key(), &MAGIC_PROGRAM) || !eq32(accs[3].key(), &MAGIC_CONTEXT) {
         return Err(ERR_ACCOUNTS);
     }
     let shard = &accs[1];
     shard_ok(shard, program_id)?;
+    // Anyone may save a shard's new changes to Solana. Taking a shard off the rollup is for the admin, and for anyone once
+    // its save reserve is down to its last 10 paid saves, so the registry never needs our key to keep saving: anyone can
+    // take it off here, send it SOL on Solana, and delegate it again (instruction 3 is open to anyone).
+    let admin = eq32(accs[0].key(), &ADMIN);
+    let lamports = unsafe { *shard.lamports };
+    let low = lamports < rent_minimum(SHARD_SIZE) + LOW_RESERVE;
+    if undelegate && !admin && !low {
+        return Err(ERR_ADMIN);
+    }
     let d = shard.data();
     // saves are limited and can cost the shard lamports, so a save needs a change to save
-    if d[UNSAVED] == 0 && !admin {
+    if d[UNSAVED] == 0 && !admin && !undelegate {
         return Err(ERR_UNCHANGED);
     }
     let (gen, idx) = (d[15], d[8]);
@@ -870,7 +878,7 @@ fn ix_commit(c: &Ctx, undelegate: bool) -> Result<(), u32> {
     }
     d[UNSAVED] = 0;
     let (vault, _) = find_pda(&[b"magic-fee-vault", &ER_VALIDATOR], &DELEGATION_PROGRAM);
-    let reserve = unsafe { *shard.lamports } >= rent_minimum(SHARD_SIZE) + LIVE_COMMIT_FEE;
+    let reserve = lamports >= rent_minimum(SHARD_SIZE) + LIVE_COMMIT_FEE;
     if !undelegate && n >= 5 && eq32(accs[4].key(), &vault) && reserve {
         // the shard is the delegated fee payer: MagicBlock takes any live fee from the shard's own reserve
         let (gen_b, idx_b, bump_b) = ([gen], [idx], [bump]);

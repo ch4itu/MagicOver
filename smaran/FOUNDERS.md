@@ -23,7 +23,7 @@ A registry program costs about 0.15 SOL once. Room opens in steps: 140 places fo
 
 ## Who controls what
 
-Names belong to the players who registered them: nobody, the admin included, can take, move or delete one. Anyone can open the next step by paying for it. The admin key can only take a group off the rollup (to refill its reserve) and force a save. The real control is the program's upgrade key, which can change the rules.
+Names belong to the players who registered them: nobody, the admin included, can take, move or delete one. Anyone can open the next step by paying for it, and anyone can refill a group once its save reserve runs low, so saving never depends on the admin key. Beyond that, the admin key can only take a group off the rollup at any time and force a save. The real control is the program's upgrade key, which can change the rules.
 
 ## How apps that use Smaran earn
 
