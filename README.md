@@ -4,7 +4,7 @@ Magic Over shows that a Web2 player can start using a Solana app with just a pla
 
 The sign-up is called **Smaran**, Sanskrit for remembering: all a player needs is to remember a name and a passphrase. It is also packaged for other web apps, as a sign-in window they open or as one file they load, where a Magic Over player signs in with the same name, passphrase and key: see [Smaran](smaran/).
 
-Smaran is built to outlive the app: the login is saved on Solana, not on any login server, the page is open source, and anyone can refill the registry's save reserves when they run low, so players can still sign in if we stop. Smaran's guide says [what it still depends on](smaran/#what-smaran-is-and-what-it-is-not).
+Smaran is built to outlive the app: the login is saved on Solana, not on any login server, the page is open source, and anyone can refill the registry's save reserves when they run low, so players can still sign in if we stop. Smaran's guide says [what it still depends on](smaran/README.md#what-smaran-is-and-what-it-is-not).
 
 To show this working in a real-time app, it comes with a 3D cricket game on MagicBlock's Ephemeral Rollups, running on Solana Devnet.
 
