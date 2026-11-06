@@ -41,7 +41,7 @@ Smaran is not something an app sells. It cuts costs and brings players.
 2. **Run registries for other apps,** for a setup fee plus the cost of their steps. Needs the registry address as a kit setting instead of fixed.
 3. **Sell short names** at a fixed price, while ordinary names stay free. Needs a program change.
 
-Other apps trust a shared registry more when its operator holds less control: prices fixed on-chain, steps anyone can open (already true), and later the upgrade key shared with partner apps or given up. Not built.
+Other apps trust a shared registry more when its operator holds less control. Already true: anyone can open the next step, and anyone can refill a low reserve. Not built yet: prices fixed on-chain, and the upgrade key shared with partner apps or given up.
 
 ## Plan
 

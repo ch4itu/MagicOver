@@ -1,5 +1,7 @@
 # Smaran
 
+**A login built to outlive the app.**
+
 Smaran lets a player sign up for a Solana app with a player name and a passphrase. There is no wallet app, no seed phrase and no SOL to buy. The same name and passphrase bring the same player back on any device, and in any app that uses Smaran. Smaran is Sanskrit for remembering: remembering a name and a passphrase is all a player needs.
 
 It is the sign-up that [Magic Over](../README.md) runs, packaged two ways for other sites: a sign-in window on Smaran's own page, so the site never sees the passphrase or the key, and one file, `smaran.js`, that a page can load.
@@ -14,11 +16,13 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged two ways for ot
 
 ## What Smaran is, and what it is not
 
-**It is a login.** A player in a game, a member of a community, a voter in a poll: something a person should be able to start using in seconds and carry from app to app. The player never sees a wallet, a key, SOL or a fee. The app pays the chain costs, the way it pays for its servers.
+**It is a login.** A player in a game, a member of a community, a voter in a poll: something a person should be able to start using in seconds and carry from app to app. The player never needs a wallet, a seed phrase or SOL, and never pays a fee. The app pays the chain costs, the way it pays for its servers.
 
 **It is not a wallet.** A Smaran account holds no money. The locked copy of the key is public (that is what makes it free and serverless), so its safety depends on the passphrase: fine for a login, not for money. Anything of value belongs in a real wallet, and apps that take payments should do it through a normal payment provider or a licensed partner, never through the Smaran key.
 
 **It can be disposable.** If a player forgets the passphrase, they lose that player and start a new one. Apps should treat the player key like a username they recognise, not like a bank account.
+
+**It is built to outlive the app.** The login is saved on Solana, not on any login server, and the sign-in page is open source, so anyone can keep and host a copy. If the app that made it shuts down, its players can still sign in with the same name and passphrase and get the same key back. Anyone can refill the registry's save reserves when they run low, without our key, and nothing is held for players, so there is nothing to withdraw. What it still depends on: Solana itself (this deployment is on Devnet, which can be reset, so this holds on mainnet), MagicBlock's rollup for new sign-ups and passphrase changes, and our upgrade key, which can still change the registry's rules (the plan is to lock the registry on mainnet).
 
 ## How it works
 
