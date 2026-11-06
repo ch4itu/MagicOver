@@ -77,6 +77,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
 #overs { font: 700 18px var(--display); color: var(--muted); font-variant-numeric: tabular-nums; }
 .vs { background: #141d3a; padding: 7px 12px; display: grid; align-content: center; font: 600 12px var(--body); color: var(--muted); max-width: 34vw; }
 .vs b { color: var(--text); font: 700 14px var(--display); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vsMini { display: none; }
 .sub { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 #target { font: 700 14px var(--display); letter-spacing: 0.04em; text-transform: uppercase; background: var(--panel); border-radius: 8px; padding: 4px 9px; }
 #strip { display: flex; gap: 4px; }
@@ -138,6 +139,8 @@ details p, details li { color: var(--muted); font-size: 14px; }
   .bowlRight { width: 100%; }
   #score { font-size: 26px; }
   .vs { display: none; }
+  .vsMini { display: block; margin-top: 4px; font: 600 11px var(--body); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+  .vsMini b { color: var(--text); font: 700 12px var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
 }
 @media (prefers-reduced-motion: reduce) { .banner, .toast { transition: none; } }
 </style>
@@ -244,7 +247,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
   <div class="bug">
     <div class="bugMain">
       <div class="so" id="soNum">Magic Over</div>
-      <div class="bat"><div class="nm"><span id="batName">Batter</span><em id="batTick"></em></div><div class="scoreLine"><span id="score">0/0</span><span id="overs">0.0</span></div></div>
+      <div class="bat"><div class="nm"><span id="batName">Batter</span><em id="batTick"></em></div><div class="scoreLine"><span id="score">0/0</span><span id="overs">0.0</span></div><div class="vsMini">Bowling <b id="bowlNameMini">Bowler</b></div></div>
       <div class="vs"><span>Bowling</span><b><span id="bowlName">Bowler</span> <em id="bowlTick" style="color:var(--teal);font-style:normal"></em></b></div>
     </div>
     <div class="sub"><span id="target">1st innings</span><div id="strip"></div></div>
@@ -3965,7 +3968,7 @@ globalThis.SOCompetition = (() => {
     // soon as the chain answers; until then the scoreboard keeps showing the score before that ball
     const resolving = s.seq > session.knownSeq;
     session.latest = s;
-    if (scoreKeyOf(s) !== session.scoreKey && !resolving && !session.revealing) { session.scoreKey = scoreKeyOf(s); renderScore(s); }
+    if (scoreKeyOf(s) !== session.scoreKey && !resolving && !session.revealing && !session.holdBoard) { session.scoreKey = scoreKeyOf(s); renderScore(s); }
     const note = msg => { if (resolving || session.revealing) (session.notes = session.notes || []).push(msg); else toast(msg); };
     if (session.prev && session.prev.inn === 0 && s.inn === 1) note(`Innings break. ${nameOf(s, N.battingSide(s))} needs ${s.target} to win.`);
     if (session.prev && s.superOver > session.prev.superOver) note('Scores level! Another Super Over.');
@@ -3973,7 +3976,7 @@ globalThis.SOCompetition = (() => {
     if (resolving) {
       session.knownSeq = s.seq;
       if (s.mode === 'AI_FULL' && aiBatted(session, s)) aiPlayed(session, s);
-      else onResolved(session, s, r);
+      else onResolved(session, s, r, session.prev);
     }
     const now = performance.now();
     const idle = now >= session.busyUntil;
@@ -4042,9 +4045,10 @@ globalThis.SOCompetition = (() => {
     const L = s.last, asBowler = session.watching ? { me: -1, batting: false, bowling: false } : { me: 0, batting: false, bowling: true };
     if (!session.live || session.live.seq !== L.seq) startDelivery(session, { ...s, seq: L.seq, pace: L.pace, line: L.line, length: L.length }, asBowler);
     const meet = N.timeOfSlot(s.release + N.FLIGHT[L.pace] + (L.variation === 3 ? 18 : 0) + (L.grade === 5 ? 0 : L.delta));
+    const before = session.prev;
     session.revealing = true;
     session.busyUntil = Math.max(session.busyUntil, meet + 3500);
-    setTimeout(() => { if (M === session) onResolved(session, s, asBowler); }, Math.max(0, meet - performance.now()));
+    setTimeout(() => { if (M === session) onResolved(session, s, asBowler, before); }, Math.max(0, meet - performance.now()));
   }
   function clockText(s) {
     const left = Math.max(0, Math.round((s.deadline - N.slotNow()) * N.SLOT_MS / 1000));
@@ -4065,7 +4069,7 @@ globalThis.SOCompetition = (() => {
     const inn = s.inn, bat = s.mode === 'AI' ? 0 : N.battingSide(s);
     if (bat !== kitSide) { kitSide = bat; V.setTeams(bat === 0 ? V.COLORS.a : V.COLORS.b, bat === 0 ? V.COLORS.b : V.COLORS.a); }
     $('batName').textContent = nameOf(s, bat);
-    $('bowlName').textContent = s.mode === 'AI' ? 'Magic Over AI' : nameOf(s, bat ^ 1);
+    $('bowlName').textContent = $('bowlNameMini').textContent = s.mode === 'AI' ? 'Magic Over AI' : nameOf(s, bat ^ 1);
     $('score').textContent = `${s.runs[inn]}/${s.wkts[inn]}`;
     $('overs').textContent = `0.${s.balls[inn]}`;
     const target = s.target;
@@ -4153,16 +4157,29 @@ globalThis.SOCompetition = (() => {
   function showBatPad() { $('batPad').hidden = false; $('bowlPad').hidden = true; document.querySelectorAll('#batPad button').forEach(b => b.classList.remove('picked')); }
   function hidePads() { $('batPad').hidden = true; $('bowlPad').hidden = true; }
 
-  function onResolved(session, s, r) {
+  // The board as it stood after the ball that ended an innings: the state before that ball, plus the ball.
+  function inningsEnd(before, L) {
+    const i = before.inn, e = { ...before, runs: [...before.runs], wkts: [...before.wkts], balls: [...before.balls], hist: before.hist.map(h => [...h]) };
+    if (L.result === 7) e.wkts[i]++; else e.runs[i] += L.result;
+    e.hist[i].push({ result: L.result });
+    e.balls[i]++;
+    return e;
+  }
+
+  function onResolved(session, s, r, before = null) {
     const L = s.last;
     session.revealing = true;
     let shown = false, cls = '';
+    // a ball that ended an innings or a Super Over: the board shows that innings' final score with the ball's
+    // result, and moves to the next innings only when the ball's moment is over
+    const ended = !!before && before.seq === L.seq && (s.inn !== before.inn || s.superOver !== before.superOver);
     const reveal = () => {
       if (shown || M !== session) return;
       shown = true;
       session.revealing = false;
       const latest = session.latest || s;
-      session.scoreKey = scoreKeyOf(latest); renderScore(latest);
+      session.scoreKey = scoreKeyOf(latest);
+      if (ended) { session.holdBoard = true; renderScore(inningsEnd(before, L)); } else renderScore(latest);
       $('banner').className = 'banner show ' + cls;
       for (const m of (session.notes || []).splice(0)) toast(m);
     };
@@ -4197,6 +4214,7 @@ globalThis.SOCompetition = (() => {
     setTimeout(() => {
       if (M !== session) return;
       reveal();
+      if (session.holdBoard) { session.holdBoard = false; const latest = session.latest || s; session.scoreKey = scoreKeyOf(latest); renderScore(latest); }
       banner.className = 'banner';
       V.setBallDriver(null); V.resetStumps(); V.resetBat(); V.resetBowler(); V.setCamera('broadcast');
     }, hold);
