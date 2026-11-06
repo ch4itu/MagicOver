@@ -28,8 +28,8 @@
 //!                      MagicBlock's delegated fee payer, which lifts MagicBlock's limit of 10 sponsored commits per
 //!                      delegation; otherwise the caller signs a sponsored commit)
 //!   5 CommitUndelegate [caller s, shard w, magic program, magic context w]
-//!                      (the registry admin; or anyone once the shard's save reserve is down to its last 10 paid saves,
-//!                      0.001 SOL above rent, so anyone can refill it: take it off the rollup here, send it SOL on
+//!                      (the registry admin; or anyone once the shard's save reserve is below 0.001 SOL above rent,
+//!                      fewer than 10 paid saves, so anyone can refill it: take it off the rollup here, send it SOL on
 //!                      Solana, then delegate it again with 3)
 //!   6 UpdateEnvelope   [owner s, shard w]                               data: name_hash 32, envelope 212
 //!                      (passphrase change: the entry's own key replaces its locked copy; the key itself stays;
@@ -858,7 +858,7 @@ fn ix_commit(c: &Ctx, undelegate: bool) -> Result<(), u32> {
     let shard = &accs[1];
     shard_ok(shard, program_id)?;
     // Anyone may save a shard's new changes to Solana. Taking a shard off the rollup is for the admin, and for anyone once
-    // its save reserve is down to its last 10 paid saves, so the registry never needs our key to keep saving: anyone can
+    // its save reserve has fewer than 10 paid saves left, so the registry never needs our key to keep saving: anyone can
     // take it off here, send it SOL on Solana, and delegate it again (instruction 3 is open to anyone).
     let admin = eq32(accs[0].key(), &ADMIN);
     let lamports = unsafe { *shard.lamports };

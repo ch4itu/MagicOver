@@ -46,6 +46,6 @@ Other apps trust a shared registry more when its operator holds less control. Al
 ## Plan
 
 1. **Now:** Devnet, free, 420 places, real players during Forge.
-2. **Smaran on mainnet:** about 0.39 SOL for the registry program and the first 140 places. Magic Over is the first app.
+2. **Smaran on mainnet:** about 0.38 SOL for the registry program and the first 140 places. Magic Over is the first app.
 3. **First outside app:** run a registry for it (operator's way 2).
 4. **Per-player billing (operator's way 1),** once apps ask for it.

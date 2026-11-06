@@ -22,7 +22,7 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged two ways for ot
 
 **It can be disposable.** If a player forgets the passphrase, they lose that player and start a new one. Apps should treat the player key like a username they recognise, not like a bank account.
 
-**It is built to outlive the app.** The login is saved on Solana, not on any login server, and the sign-in page is open source, so anyone can keep and host a copy. If the app that made it shuts down, its players can still sign in with the same name and passphrase and get the same key back. Anyone can refill the registry's save reserves when they run low, without our key, and nothing is held for players, so there is nothing to withdraw. What it still depends on: Solana itself (this deployment is on Devnet, which can be reset, so this holds on mainnet), MagicBlock's rollup for new sign-ups and passphrase changes, and our upgrade key, which can still change the registry's rules (the plan is to lock the registry on mainnet).
+**It is built to outlive the app.** The login is saved on Solana, not on any login server, and the sign-in page is open source, so anyone can keep and host a copy. If the app that made it shuts down, its players can still sign in with the same name and passphrase and get the same key back. Anyone can refill the registry's save reserves when they run low, without our key, and nothing is held for players, so there is nothing to withdraw. What it still depends on: Solana itself (this deployment is on Devnet, which can be reset, so this only holds once Smaran is on mainnet), MagicBlock's rollup for new sign-ups and passphrase changes, and our upgrade key, which can still change the registry's rules.
 
 ## How it works
 
@@ -132,7 +132,7 @@ Either way, the player has 0 SOL. It can sign zero-fee transactions on MagicBloc
 - **Names are first come, first served.** Anyone can take a name before you, and names are shared by every app on the registry.
 - **Bots can fill an open step.** The proof of work slows them down but cannot stop a determined bot. Because capacity opens one paid step at a time, a flood can only fill the step that is open.
 - **A player can spend their group's save reserve.** Each passphrase change is a real change, so someone who changes theirs over and over makes their group pay for saves after the 25th. The loss is capped at the group's reserve, the copy on the rollup is not affected, and anyone can refill a reserve once it runs low (see Costs).
-- **Sign-ups need MagicBlock's rollup.** If it is down, new sign-ups and passphrase changes wait. Signing in still works from the copy saved on Solana.
+- **Sign-ups need MagicBlock's rollup.** If it is down, new sign-ups and passphrase changes fail until it is back. Signing in still works from the copy saved on Solana.
 - **Devnet only today.** The registry address, the rollup and the network are fixed in `smaran.js`, and Devnet itself can be reset.
 - **Size and speed.** The file is about 560 KB, because the standard Solana web3.js library is inside. Sign-up takes a few seconds, and longer on older phones, because Argon2id is meant to be slow.
 
@@ -170,7 +170,7 @@ Close earlier attempts at the same idea: Ejara's 2020 Tezos demo stored password
 - **Players:** nothing.
 - **Sponsor (the app):** about 0.0017 SOL per player, once. A group of 35 names needs 0.0522 SOL of storage, about 0.003 SOL of MagicBlock delegation deposit and a small save reserve (0.003 SOL suggested). Storage and deposit are held in accounts, not burned, but the registry has no way to close a group today, so plan as if they are spent.
 - **MagicBlock's charges:** rollup transactions cost 0 SOL in its current release, which Devnet and mainnet both run. Its session charge (0.003 SOL) and save charge (0.001 SOL per save after the first) come out of the delegation deposit when a group leaves the rollup, never more than the deposit. MagicBlock refuses an account's 11th save in a delegation unless the account pays for its own saves, so each group does: from its 26th save in a delegation, 0.0001 SOL per save from its reserve.
-- **Refilling a reserve:** anyone can do it, not just the sponsor. Once a group's reserve is down to its last 10 paid saves (0.001 SOL above rent), anyone can take the group off the rollup (instruction 5), send it SOL on Solana, and delegate it again (instruction 3). The refiller pays the top-up plus a new delegation deposit of about 0.003 SOL. While the group is off the rollup, sign-ups for names that land in it fail until it is back; sign-ins still work from the copy on Solana.
+- **Refilling a reserve:** anyone can do it, not just the sponsor. Once a group's reserve falls below 0.001 SOL above rent (fewer than 10 paid saves left), anyone can take the group off the rollup (instruction 5), send it SOL on Solana, and delegate it again (instruction 3). The refiller pays the top-up plus a new delegation deposit of about 0.003 SOL. While the group is off the rollup, sign-ups for names that land in it fail until it is back; sign-ins still work from the copy on Solana.
 
 The full numbers, who controls what, and how apps and the operator can earn: [Smaran for founders](FOUNDERS.md).
 
