@@ -101,6 +101,23 @@ const HEADER: usize = 128;
 const ROW: usize = 72;
 const CAPACITY: usize = 140;
 const BOARD_MAGIC: &[u8; 8] = b"MOBOARD1";
+// Row layout by board version (header byte 8). Version 1 kept wins, losses and draws as u32 at +56, +60 and +64.
+// Version 2 packs every count as u16 so a row also holds batting and bowling totals: wins, losses, draws, runs off the
+// bat, fours, sixes and wickets taken, at +56 to +70.
+const BOARD_V1: u8 = 1;
+const BOARD_V2: u8 = 2;
+const R_WINS: usize = 56;
+const R_LOSSES: usize = 58;
+const R_DRAWS: usize = 60;
+const R_RUNS: usize = 62;
+const R_FOURS: usize = 64;
+const R_SIXES: usize = 66;
+const R_WICKETS: usize = 68;
+// The game table keeps match totals per side (A then B): runs off the bat, fours, sixes and wickets lost, u16 each.
+// S_TOTALS_ON is 1 when they were counted from the match's first ball (matches created after the game program
+// learned to keep them); otherwise the result still counts for wins, losses and draws, without totals.
+const S_TOTALS: usize = 304;
+const S_TOTALS_ON: usize = 320;
 // Fixed sponsor and game identities for this Devnet deployment.
 const OPERATOR: [u8; 32] = [240, 245, 33, 212, 39, 39, 71, 159, 130, 37, 245, 248, 117, 196, 199, 238, 238, 219, 127, 236, 6, 3, 251, 190, 108, 86, 112, 232, 229, 213, 0, 49];
 const GAME: [u8; 32] = [251, 179, 49, 100, 143, 53, 186, 149, 42, 91, 247, 113, 222, 82, 52, 122, 187, 41, 20, 155, 65, 117, 249, 17, 90, 26, 19, 193, 242, 82, 135, 190];
@@ -395,7 +412,7 @@ fn board(c: &Ctx) -> Result<u8, u32> {
     if c.n < 2 || !c.accs[1].is_writable { return Err(ERR_ACCOUNTS); }
     if !eq32(c.accs[1].owner(),c.program_id) { return Err(ERR_OWNER); }
     let d = c.accs[1].data();
-    if d.len()!=BOARD_SIZE || &d[..8]!=BOARD_MAGIC || d[8]!=1 || d[9]>1 || rd16(d,10) as usize > CAPACITY { return Err(ERR_DATA); }
+    if d.len()!=BOARD_SIZE || &d[..8]!=BOARD_MAGIC || (d[8]!=BOARD_V1 && d[8]!=BOARD_V2) || d[9]>1 || rd16(d,10) as usize > CAPACITY { return Err(ERR_DATA); }
     let (key,bump) = find_pda(&[BOARD_SEED, &[d[9]]], c.program_id);
     if !eq32(&key,c.accs[1].key()) { return Err(ERR_PDA); }
     Ok(bump)
@@ -413,12 +430,42 @@ fn init(c: &Ctx) -> Result<(),u32> {
     let mut data=[0u8;52]; data[4..12].copy_from_slice(&c.ix[2..10]);
     data[12..20].copy_from_slice(&(BOARD_SIZE as u64).to_le_bytes());data[20..52].copy_from_slice(c.program_id);
     invoke(c.accs,&Cpi{program:&SYSTEM_PROGRAM,metas:&[(0,true,true),(1,true,true)],data:&data,seeds:&[&[BOARD_SEED,&[c.ix[1]],&[bump]]]})?;
-    let d=c.accs[1].data(); d[..8].copy_from_slice(BOARD_MAGIC);d[8]=1;d[9]=c.ix[1];d[16..48].copy_from_slice(c.accs[0].key());
+    let d=c.accs[1].data(); d[..8].copy_from_slice(BOARD_MAGIC);d[8]=BOARD_V2;d[9]=c.ix[1];d[16..48].copy_from_slice(c.accs[0].key());
     Ok(())
 }
-// Pure state transition: validate first, reserve both rows, then update exactly once.
+// Version 1 to 2 in place: every row keeps its key, name, wins, losses and draws; the new totals start at zero.
+// Checks every row first, so it changes nothing when it fails. A version 2 board is left as it is.
+fn upgrade_board(d: &mut [u8]) -> Result<(),u32> {
+    if d[8]==BOARD_V2 { return Ok(()); }
+    if d[8]!=BOARD_V1 { return Err(ERR_DATA); }
+    let count=rd16(d,10) as usize;
+    if count>CAPACITY { return Err(ERR_DATA); }
+    for r in 0..count { let o=HEADER+r*ROW; for f in [56,60,64] { if rd32(d,o+f)>u16::MAX as u32 { return Err(ERR_RANGE); } } }
+    for r in 0..count {
+        let o=HEADER+r*ROW;
+        let (w,l,dr)=(rd32(d,o+56),rd32(d,o+60),rd32(d,o+64));
+        d[o+56..o+ROW].fill(0);
+        wr16(d,o+R_WINS,w as u16);wr16(d,o+R_LOSSES,l as u16);wr16(d,o+R_DRAWS,dr as u16);
+    }
+    d[8]=BOARD_V2;
+    Ok(())
+}
+// A win, loss or draw count as it stands, in either version (stat is the version 2 offset).
+fn result_count(d: &[u8], o: usize, stat: usize) -> u32 {
+    if d[8]==BOARD_V1 { rd32(d,o+56+(stat-R_WINS)*2) } else { rd16(d,o+stat) as u32 }
+}
+fn add16(d: &mut [u8], o: usize, v: u16) { let x=rd16(d,o).saturating_add(v); wr16(d,o,x); }
+fn migrate(c: &Ctx) -> Result<(),u32> {
+    authority(c)?;
+    if c.ix.len()!=2 || c.ix[1]!=c.accs[1].data()[9] { return Err(ERR_DATA); }
+    upgrade_board(c.accs[1].data())
+}
+// Pure state transition: validate first, reserve both rows, then update exactly once. A version 1 board is moved to
+// version 2 as part of the update. Inlined into record: it takes six registers of arguments, and the rollup only
+// supports calls with five.
+#[inline(always)]
 fn apply_result(d: &mut [u8], s: &[u8], idx: usize, expected: u32) -> Result<(),u32> {
-    if d.len()!=BOARD_SIZE || &d[..8]!=BOARD_MAGIC || d[8]!=1 || idx>=8 { return Err(ERR_DATA); }
+    if d.len()!=BOARD_SIZE || &d[..8]!=BOARD_MAGIC || (d[8]!=BOARD_V1 && d[8]!=BOARD_V2) || idx>=8 { return Err(ERR_DATA); }
     if s.len()!=384 || &s[..8]!=b"SOVER001" || s[8] as usize != idx || s[9]!=6 || s[10]!=0 || !(1..=3).contains(&s[14]) { return Err(ERR_PHASE); }
     let mid=rd32(s,80);
     if mid!=expected || mid==0 { return Err(ERR_SEQ); }
@@ -434,14 +481,22 @@ fn apply_result(d: &mut [u8], s: &[u8], idx: usize, expected: u32) -> Result<(),
     }
     if count+added>CAPACITY { return Err(ERR_RANGE); }
     if rd32(d,12)==u32::MAX {return Err(ERR_RANGE);}
-    for side in 0..2 { let o=HEADER+rows[side]*ROW;let stat=if s[14]==3{64}else if s[14] as usize==side+1{56}else{60};if rd32(d,o+stat)==u32::MAX{return Err(ERR_RANGE);} }
+    let stat_for=|side: usize| if s[14]==3 {R_DRAWS} else if s[14] as usize==side+1 {R_WINS} else {R_LOSSES};
+    for side in 0..2 { let o=HEADER+rows[side]*ROW;if result_count(d,o,stat_for(side))>=u16::MAX as u32{return Err(ERR_RANGE);} }
+    upgrade_board(d)?;
+    let totals=s[S_TOTALS_ON]==1;
     for side in 0..2 {
         let o=HEADER+rows[side]*ROW;
         if rows[side]>=count { d[o..o+32].copy_from_slice(&s[16+side*32..48+side*32]); }
         let name=256+side*24; let len=(s[name] as usize).min(23);
         d[o+32..o+56].fill(0);d[o+32]=len as u8;d[o+33..o+33+len].copy_from_slice(&s[name+1..name+1+len]);
-        let stat=if s[14]==3 {64} else if s[14] as usize==side+1 {56} else {60};
-        wr32(d,o+stat,rd32(d,o+stat).checked_add(1).ok_or(ERR_RANGE)?);
+        let stat=stat_for(side);
+        wr16(d,o+stat,rd16(d,o+stat).checked_add(1).ok_or(ERR_RANGE)?);
+        if totals {
+            // batting: this side's runs, fours and sixes; bowling: the wickets the other side lost
+            let (mine,theirs)=(S_TOTALS+side*8,S_TOTALS+(1-side)*8);
+            add16(d,o+R_RUNS,rd16(s,mine));add16(d,o+R_FOURS,rd16(s,mine+2));add16(d,o+R_SIXES,rd16(s,mine+4));add16(d,o+R_WICKETS,rd16(s,theirs+6));
+        }
     }
     wr16(d,10,(count+added) as u16);wr32(d,12,rd32(d,12).checked_add(1).ok_or(ERR_RANGE)?);wr32(d,48+idx*4,mid);
     Ok(())
@@ -647,30 +702,69 @@ pub unsafe extern "C" fn entrypoint(input:*mut u8)->u64 {
     let mut accs=[Acc::empty();MAX_ACCOUNTS];let (n,ix,program_id)=parse(input,&mut accs);
     let c=Ctx{accs:&accs,n,ix,program_id};
     let r=if ix.len()>=8 && ix[..8]==EXTERNAL_UNDELEGATE {ix_undelegate_callback(&c)}
-    else {match ix.first(){Some(0)=>init(&c),Some(1)=>ix_delegate(&c),Some(2)=>record(&c),Some(3)=>commit(&c),_=>Err(ERR_TAG)}};
+    else {match ix.first(){Some(0)=>init(&c),Some(1)=>ix_delegate(&c),Some(2)=>record(&c),Some(3)=>commit(&c),Some(4)=>migrate(&c),_=>Err(ERR_TAG)}};
     match r {Ok(())=>0,Err(e)=>e as u64}
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn board(version:u8)->Vec<u8>{let mut d=vec![0;BOARD_SIZE];d[..8].copy_from_slice(BOARD_MAGIC);d[8]=version;d}
     fn fixture()->(Vec<u8>,Vec<u8>) {
-        let mut d=vec![0;BOARD_SIZE];d[..8].copy_from_slice(BOARD_MAGIC);d[8]=1;
+        let d=board(BOARD_V2);
         let mut s=vec![0;384];s[..8].copy_from_slice(b"SOVER001");s[9]=6;s[14]=1;s[16..48].fill(1);s[48..80].fill(2);wr32(&mut s,80,1);(d,s)
     }
-    #[test]fn repeat_is_idempotent(){let(mut d,s)=fixture();apply_result(&mut d,&s,0,1).unwrap();let old=d.clone();apply_result(&mut d,&s,0,1).unwrap();assert_eq!(d,old);assert_eq!(rd32(&d,12),1);assert_eq!(rd32(&d,HEADER+56),1);assert_eq!(rd32(&d,HEADER+ROW+60),1);}
-    #[test]fn rematch_and_reversed_sides(){let(mut d,mut s)=fixture();apply_result(&mut d,&s,0,1).unwrap();wr32(&mut s,80,2);s[14]=2;apply_result(&mut d,&s,0,2).unwrap();assert_eq!(rd16(&d,10),2);assert_eq!(rd32(&d,HEADER+56),1);assert_eq!(rd32(&d,HEADER+60),1);assert_eq!(rd32(&d,HEADER+ROW+56),1);}
-    #[test]fn draws(){let(mut d,mut s)=fixture();s[14]=3;apply_result(&mut d,&s,0,1).unwrap();assert_eq!(rd32(&d,HEADER+64),1);assert_eq!(rd32(&d,HEADER+ROW+64),1);}
+    // the game table's match totals: side A then B, each (runs, fours, sixes, wickets lost)
+    fn totals(s:&mut [u8],a:[u16;4],b:[u16;4]){for(side,t)in[a,b].iter().enumerate(){for(k,v)in t.iter().enumerate(){wr16(s,S_TOTALS+side*8+k*2,*v);}}s[S_TOTALS_ON]=1;}
+    fn row(d:&[u8],r:usize)->[u16;7]{let o=HEADER+r*ROW;[R_WINS,R_LOSSES,R_DRAWS,R_RUNS,R_FOURS,R_SIXES,R_WICKETS].map(|f|rd16(d,o+f))}
+    // a version 1 board laid out like the live one: five players, twelve matches
+    const LIVE:[(u8,&[u8],u32,u32,u32);5]=[(11,b"yash",4,1,0),(12,b"rishi",1,2,0),(13,b"chaitu",0,2,0),(14,b"sai",0,7,0),(15,b"rahul",7,0,0)];
+    fn live_v1()->Vec<u8>{
+        let mut d=board(BOARD_V1);
+        for(r,(k,name,w,l,dr))in LIVE.iter().enumerate(){let o=HEADER+r*ROW;d[o..o+32].fill(*k);d[o+32]=name.len() as u8;d[o+33..o+33+name.len()].copy_from_slice(name);wr32(&mut d,o+56,*w);wr32(&mut d,o+60,*l);wr32(&mut d,o+64,*dr);}
+        wr16(&mut d,10,5);wr32(&mut d,12,12);wr32(&mut d,48,73);wr32(&mut d,52,21);wr32(&mut d,68,10);wr32(&mut d,76,18);d
+    }
+    fn live_state(a:u8,b:u8,mid:u32,winner:u8)->Vec<u8>{let(_,mut s)=fixture();s[16..48].fill(a);s[48..80].fill(b);wr32(&mut s,80,mid);s[14]=winner;s}
+    #[test]fn repeat_is_idempotent(){let(mut d,s)=fixture();apply_result(&mut d,&s,0,1).unwrap();let old=d.clone();apply_result(&mut d,&s,0,1).unwrap();assert_eq!(d,old);assert_eq!(rd32(&d,12),1);assert_eq!(rd16(&d,HEADER+R_WINS),1);assert_eq!(rd16(&d,HEADER+ROW+R_LOSSES),1);}
+    #[test]fn rematch_and_reversed_sides(){let(mut d,mut s)=fixture();apply_result(&mut d,&s,0,1).unwrap();wr32(&mut s,80,2);s[14]=2;apply_result(&mut d,&s,0,2).unwrap();assert_eq!(rd16(&d,10),2);assert_eq!(rd16(&d,HEADER+R_WINS),1);assert_eq!(rd16(&d,HEADER+R_LOSSES),1);assert_eq!(rd16(&d,HEADER+ROW+R_WINS),1);}
+    #[test]fn draws(){let(mut d,mut s)=fixture();s[14]=3;apply_result(&mut d,&s,0,1).unwrap();assert_eq!(rd16(&d,HEADER+R_DRAWS),1);assert_eq!(rd16(&d,HEADER+ROW+R_DRAWS),1);}
     #[test]fn invalid_states_do_not_change_totals(){for(case,value)in[(9,2),(10,1),(14,0),(8,8)]{let(mut d,mut s)=fixture();let old=d.clone();s[case]=value;assert!(apply_result(&mut d,&s,0,1).is_err());assert_eq!(d,old);}}
     #[test]fn reject_self_and_missing_opponent(){for v in [0,1]{let(mut d,mut s)=fixture();s[48..80].fill(v);assert!(apply_result(&mut d,&s,0,1).is_err());assert_eq!(rd32(&d,12),0);}}
     #[test]fn reject_stale_and_wrong_ids(){let(mut d,s)=fixture();assert!(apply_result(&mut d,&s,0,2).is_err());assert!(apply_result(&mut d,&s,1,1).is_err());}
     #[test]fn capacity_checks_both_players_before_writing(){let(mut d,s)=fixture();wr16(&mut d,10,139);let old=d.clone();assert!(apply_result(&mut d,&s,0,1).is_err());assert_eq!(d,old);}
-    #[test]fn malformed_board_and_short_state(){let(mut d,s)=fixture();d[8]=2;assert!(apply_result(&mut d,&s,0,1).is_err());let(mut d,_)=fixture();assert!(apply_result(&mut d,&s[..300],0,1).is_err());}
+    #[test]fn malformed_board_and_short_state(){for v in [0,3]{let(mut d,s)=fixture();d[8]=v;assert!(apply_result(&mut d,&s,0,1).is_err());}let(mut d,s)=fixture();assert!(apply_result(&mut d,&s[..300],0,1).is_err());}
     #[test]fn independent_tables_deduplicate_separately(){let(mut d,mut s)=fixture();apply_result(&mut d,&s,0,1).unwrap();s[8]=1;apply_result(&mut d,&s,1,1).unwrap();assert_eq!(rd32(&d,12),2);assert_eq!(rd16(&d,10),2);}
     #[test]fn older_match_is_ignored_after_a_newer_result(){let(mut d,mut s)=fixture();wr32(&mut s,80,5);apply_result(&mut d,&s,0,5).unwrap();let old=d.clone();wr32(&mut s,80,4);apply_result(&mut d,&s,0,4).unwrap();assert_eq!(d,old);}
     #[test]fn full_board_still_accepts_known_players(){let(mut d,mut s)=fixture();apply_result(&mut d,&s,0,1).unwrap();wr16(&mut d,10,140);wr32(&mut s,80,2);apply_result(&mut d,&s,0,2).unwrap();assert_eq!(rd32(&d,12),2);}
-    #[test]fn replacing_table_does_not_erase_totals(){let(mut d,mut s)=fixture();apply_result(&mut d,&s,0,1).unwrap();s[16..48].fill(3);s[48..80].fill(4);wr32(&mut s,80,2);apply_result(&mut d,&s,0,2).unwrap();assert_eq!(rd16(&d,10),4);assert_eq!(rd32(&d,HEADER+56),1);}
+    #[test]fn replacing_table_does_not_erase_totals(){let(mut d,mut s)=fixture();apply_result(&mut d,&s,0,1).unwrap();s[16..48].fill(3);s[48..80].fill(4);wr32(&mut s,80,2);apply_result(&mut d,&s,0,2).unwrap();assert_eq!(rd16(&d,10),4);assert_eq!(rd16(&d,HEADER+R_WINS),1);}
     #[test]fn match_overflow_rejected_before_changes(){let(mut d,s)=fixture();wr32(&mut d,12,u32::MAX);let old=d.clone();assert!(apply_result(&mut d,&s,0,1).is_err());assert_eq!(d,old);}
-    #[test]fn player_overflow_rejected_before_changes(){let(mut d,mut s)=fixture();apply_result(&mut d,&s,0,1).unwrap();wr32(&mut d,HEADER+56,u32::MAX);wr32(&mut s,80,2);let old=d.clone();assert!(apply_result(&mut d,&s,0,2).is_err());assert_eq!(d,old);}
+    #[test]fn player_overflow_rejected_before_changes(){let(mut d,mut s)=fixture();apply_result(&mut d,&s,0,1).unwrap();wr16(&mut d,HEADER+R_WINS,u16::MAX);wr32(&mut s,80,2);let old=d.clone();assert!(apply_result(&mut d,&s,0,2).is_err());assert_eq!(d,old);}
     #[test]fn names_never_determine_identity(){let(mut d,mut s)=fixture();s[256]=4;s[257..261].copy_from_slice(b"same");s[280]=4;s[281..285].copy_from_slice(b"same");apply_result(&mut d,&s,0,1).unwrap();assert_eq!(rd16(&d,10),2);}
-
+    // ------------------------------------------------ version 2: batting and bowling totals
+    #[test]fn upgrade_keeps_every_row_and_header(){
+        let mut d=live_v1();let old=d.clone();upgrade_board(&mut d).unwrap();
+        assert_eq!(d[8],BOARD_V2);assert_eq!(d[..8],old[..8]);assert_eq!(d[9..HEADER],old[9..HEADER]);
+        for(r,(k,name,w,l,dr))in LIVE.iter().enumerate(){let o=HEADER+r*ROW;assert!(d[o..o+32].iter().all(|b|b==k));assert_eq!(&d[o+33..o+33+name.len()],*name);assert_eq!(d[o+32..o+56],old[o+32..o+56]);assert_eq!(row(&d,r),[*w as u16,*l as u16,*dr as u16,0,0,0,0]);assert_eq!(d[o+70..o+72],[0,0]);}
+        assert!(d[HEADER+5*ROW..].iter().all(|b|*b==0));
+        let once=d.clone();upgrade_board(&mut d).unwrap();assert_eq!(d,once);
+    }
+    #[test]fn upgrade_refuses_counts_too_big_and_changes_nothing(){let mut d=live_v1();wr32(&mut d,HEADER+3*ROW+60,70_000);let old=d.clone();assert_eq!(upgrade_board(&mut d),Err(ERR_RANGE));assert_eq!(d,old);d[8]=7;assert_eq!(upgrade_board(&mut d),Err(ERR_DATA));}
+    #[test]fn v1_board_upgrades_with_the_next_result(){
+        // yash (A) beats rahul (B) on table 0: A made 9 with a four and a six, B made 8 with a six; A lost 1 wicket, B lost 2
+        let mut d=live_v1();let mut s=live_state(11,15,74,1);totals(&mut s,[9,1,1,1],[8,0,1,2]);
+        apply_result(&mut d,&s,0,74).unwrap();
+        assert_eq!(d[8],BOARD_V2);assert_eq!(rd16(&d,10),5);assert_eq!(rd32(&d,12),13);assert_eq!(rd32(&d,48),74);
+        assert_eq!(row(&d,0),[5,1,0,9,1,1,2]);assert_eq!(row(&d,4),[7,1,0,8,0,1,1]);
+        assert_eq!(row(&d,1),[1,2,0,0,0,0,0]);assert_eq!(row(&d,2),[0,2,0,0,0,0,0]);assert_eq!(row(&d,3),[0,7,0,0,0,0,0]);
+    }
+    #[test]fn v1_duplicate_changes_nothing(){let mut d=live_v1();let old=d.clone();let s=live_state(11,15,73,1);apply_result(&mut d,&s,0,73).unwrap();assert_eq!(d,old);}
+    #[test]fn v1_overflow_checked_before_upgrade(){let mut d=live_v1();wr32(&mut d,HEADER+56,u16::MAX as u32);let old=d.clone();let s=live_state(11,15,74,1);assert_eq!(apply_result(&mut d,&s,0,74),Err(ERR_RANGE));assert_eq!(d,old);}
+    #[test]fn new_player_on_v1_board_gets_a_clean_row(){let mut d=live_v1();let mut s=live_state(16,12,22,2);s[8]=1;totals(&mut s,[3,0,0,2],[4,1,0,0]);apply_result(&mut d,&s,1,22).unwrap();assert_eq!(rd16(&d,10),6);assert_eq!(row(&d,5),[0,1,0,3,0,0,0]);assert_eq!(row(&d,1),[2,2,0,4,1,0,2]);}
+    #[test]fn totals_only_when_the_table_counted_them(){let(mut d,mut s)=fixture();totals(&mut s,[9,1,1,1],[8,0,1,2]);s[S_TOTALS_ON]=0;apply_result(&mut d,&s,0,1).unwrap();assert_eq!(row(&d,0),[1,0,0,0,0,0,0]);assert_eq!(row(&d,1),[0,1,0,0,0,0,0]);}
+    #[test]fn totals_add_up_and_saturate(){
+        let(mut d,mut s)=fixture();totals(&mut s,[12,2,1,1],[6,0,1,2]);apply_result(&mut d,&s,0,1).unwrap();
+        wr32(&mut s,80,2);s[14]=3;totals(&mut s,[5,1,0,2],[5,0,0,1]);apply_result(&mut d,&s,0,2).unwrap();
+        assert_eq!(row(&d,0),[1,0,1,17,3,1,3]);assert_eq!(row(&d,1),[0,1,1,11,0,1,3]);
+        wr16(&mut d,HEADER+R_RUNS,u16::MAX-3);wr32(&mut s,80,3);s[14]=2;apply_result(&mut d,&s,0,3).unwrap();
+        assert_eq!(row(&d,0),[1,1,1,u16::MAX,4,1,4]);assert_eq!(rd32(&d,12),3);
+    }
 }

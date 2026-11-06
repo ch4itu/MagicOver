@@ -57,8 +57,8 @@ Ways to play:
 
 | Feature | Use in Magic Over |
 | --- | --- |
-| **Public ER** | Runs the delegated player registry and the friend leaderboard, so players can register and record results without any SOL. |
-| **Private ER / PER** | Runs every match, against a friend or the AI: create, join, bowl, shot and resolution across eight reusable match tables. |
+| **Public ER** | Runs the delegated player registry, so players can register without any SOL. |
+| **Private ER / PER** | Runs every match, against a friend or the AI: create, join, bowl, shot and resolution across eight reusable match tables. It also runs the friend leaderboard, which reads each finished result straight from its match table, so players record results without any SOL. |
 | **Private account permissions** | A separate ball account holds the hidden variation. Only a human bowler can read it: never the batter or a watcher, and nobody while the AI bowls. Pace, line and length are visible; the variation is revealed after the ball is resolved. |
 | **VRF** | Picks the AI's target, its deliveries and, in a full match, its shots. The program checks the expected callback signer, table and sequence. The hidden variation also mixes in a private secret, so the VRF output alone does not reveal it. |
 | **Zero-SOL player actions** | Player keys with no SOL sign every rollup move in the browser, with no wallet pop-ups. Sponsor costs still exist. |
@@ -70,7 +70,7 @@ The browser checks that it is talking to the expected MagicBlock validators. It 
 
 Create a match and share its code, or pick an open match from the lobby. After the result, both players can choose **Rematch with this friend**. The original host reopens the same table after its 15-second reset, and the friend joins that exact next match.
 
-The **shared leaderboard** keeps recorded totals by player key in a separate result register, so reusing a match table does not erase them. A win is worth 3 points and a draw 1. AI practice is separate. Completed forfeits count, and a result recorded twice counts once.
+The **shared leaderboard** keeps recorded totals by player key in a separate result register, so reusing a match table does not erase them. A win is worth 3 points and a draw 1. It also adds up each player's runs off the bat, fours, sixes and wickets taken, Super Overs included, for friend matches from 7 November 2026; earlier results count only for wins, losses and draws. AI practice is separate. Completed forfeits count, and a result recorded twice counts once.
 
 The leaderboard refreshes every five seconds while it is open and catches up when the player returns to the tab. It shows whether totals are saved on Solana. The page tries to save a finished friend result before reusing its table.
 

@@ -197,6 +197,10 @@ const S_SIXES: usize = 242; // u8 x2
 const S_CREATED: usize = 248; // u64 slot
 const S_NAME_A: usize = 256; // len u8 + up to 23 bytes, as claimed by the player
 const S_NAME_B: usize = 280;
+// Match totals per side (A, then B), for the leaderboard: runs off the bat, fours, sixes and wickets lost, u16 each.
+// Unlike the innings counts above, a Super Over does not reset them.
+const S_TOTALS: usize = 304;
+const S_TOTALS_ON: usize = 320; // 1: the totals were kept from this match's first ball
 const NAME_MAX: usize = 23;
 
 // ball offsets
@@ -446,6 +450,10 @@ fn now_slot() -> u64 {
 
 fn rd16(d: &[u8], o: usize) -> u16 {
     u16::from_le_bytes([d[o], d[o + 1]])
+}
+fn add16(d: &mut [u8], o: usize, v: u16) {
+    let x = rd16(d, o).saturating_add(v);
+    wr16(d, o, x);
 }
 fn wr16(d: &mut [u8], o: usize, v: u16) {
     d[o..o + 2].copy_from_slice(&v.to_le_bytes());
@@ -894,6 +902,22 @@ fn side_key(s: &[u8], side: u8) -> [u8; 32] {
     k
 }
 
+/// Adds a scored ball to the batting side's match totals (runs off the bat, fours, sixes, wickets lost).
+fn count_totals(s: &mut [u8], result: u8) {
+    let t = S_TOTALS + batting_side(s) as usize * 8;
+    if result == 7 {
+        add16(s, t + 6, 1);
+        return;
+    }
+    add16(s, t, result as u16);
+    if result == 4 {
+        add16(s, t + 2, 1);
+    }
+    if result == 6 {
+        add16(s, t + 4, 1);
+    }
+}
+
 fn reset_innings(s: &mut [u8]) {
     for o in S_RUNS..S_TARGET {
         s[o] = 0;
@@ -1043,6 +1067,7 @@ fn resolve(c: &Ctx, p: &Privacy, shot: u8, slot: u64) -> Result<(), u32> {
             s[S_SIXES + inn] += 1;
         }
     }
+    count_totals(s, result);
     s[S_LAST] = shot;
     s[S_LAST + 1] = grade;
     s[S_LAST + 2] = result;
@@ -1342,6 +1367,7 @@ fn ix_create_match(c: &Ctx) -> Result<(), u32> {
     }
     wr32(s, S_MATCH, match_id);
     s[S_MODE] = mode;
+    s[S_TOTALS_ON] = 1;
     s[S_A..S_A + 32].copy_from_slice(player.key());
     store_name(s, S_NAME_A, ix, 3)?;
     wr64(s, S_CREATED, slot);
@@ -2021,6 +2047,33 @@ mod tests {
         assert_eq!(grade_for(-20), 2);
         assert_eq!(grade_for(20), 3);
         assert_eq!(grade_for(40), 4);
+    }
+
+    #[test]
+    fn match_totals_survive_super_overs() {
+        let mut s = [0u8; STATE_SIZE];
+        s[S_TOTALS_ON] = 1;
+        let side = |s: &[u8], k: usize| [0, 2, 4, 6].map(|f| rd16(s, S_TOTALS + k * 8 + f));
+        for r in [4, 6, 7, 1] {
+            count_totals(&mut s, r); // A bats first
+        }
+        s[S_INN] = 1;
+        for r in [6, 4, 0, 7, 7] {
+            count_totals(&mut s, r); // B
+        }
+        s[S_BATFIRST] = 1; // tied: a Super Over, B bats first
+        reset_innings(&mut s);
+        for r in [2, 7] {
+            count_totals(&mut s, r); // B
+        }
+        s[S_INN] = 1;
+        for r in [4, 4] {
+            count_totals(&mut s, r); // A
+        }
+        assert_eq!(side(&s, 0), [19, 3, 1, 1]); // A: runs, fours, sixes, wickets lost
+        assert_eq!(side(&s, 1), [12, 1, 1, 3]); // B
+        assert_eq!(s[S_TOTALS_ON], 1);
+        assert!(S_NAME_B + 24 <= S_TOTALS && S_TOTALS_ON < STATE_SIZE);
     }
 
     #[test]

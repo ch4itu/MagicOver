@@ -132,6 +132,9 @@ details p, details li { color: var(--muted); font-size: 14px; }
 .leaderboard-table td:not(:nth-child(2)), .leaderboard-table th:not(:nth-child(2)) { text-align: center; }
 .leaderboard-table small { display: block; color: var(--muted); font-size: 10px; margin-top: 4px; overflow-wrap: anywhere; }
 .leaderboard-table .you { background: rgba(22,194,184,.13); }
+.leaderboard-table .split { border-left: 1px solid var(--line); }
+.leaderboard-table .statline { display: none; }
+@media (max-width: 520px) { .leaderboard-table .stat { display: none; } .leaderboard-table .statline { display: block; } }
 @media (max-width: 640px) {
   #batPad { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #batPad button { padding: 12px 4px; }
@@ -237,8 +240,9 @@ details p, details li { color: var(--muted); font-size: 14px; }
     <p class="muted">Updates automatically every 5 seconds while open. Returns to the latest results when you switch back to this tab.</p>
     <p class="muted">Recorded friend-match totals stay when match tables are reused. They are shared across devices and saved back to Solana Devnet. Saving status is shown below.</p>
     <p class="muted">Win: 3 points · Draw: 1 · Loss: 0. Ties in points use wins, then player key. AI practice is separate. No entry fees or prizes.</p>
+    <p class="muted">Runs off the bat, 4s, 6s and wickets taken count friend matches from 7 November 2026. Earlier results show only in W, L and D.</p>
     <p id="leaderboardStatus" class="muted" role="status"></p>
-    <div class="leaderboard-scroll"><table class="leaderboard-table"><thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">W</th><th scope="col">L</th><th scope="col">D</th><th scope="col">Pts</th></tr></thead><tbody id="leaderboardRows"></tbody></table></div>
+    <div class="leaderboard-scroll"><table class="leaderboard-table"><thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">W</th><th scope="col">L</th><th scope="col">D</th><th scope="col">Pts</th><th scope="col" class="stat split" title="Runs off the bat">Runs</th><th scope="col" class="stat" title="Fours">4s</th><th scope="col" class="stat" title="Sixes">6s</th><th scope="col" class="stat" title="Wickets taken">Wkts</th></tr></thead><tbody id="leaderboardRows"></tbody></table></div>
     <div class="stack"><button id="leaderboardRefresh" class="teal" type="button">Refresh</button><button id="leaderboardBack" type="button">Back</button></div>
   </div>
 </section>
@@ -1056,21 +1060,23 @@ globalThis.SONet = (() => {
   }
   function parseLeaderboard(value,source='rollup',expectedBoard=0) {
     if(!value || !(value.owner===LEADERBOARD_PROGRAM || (source==='solana' && value.owner===S.DELEGATION_PROGRAM))) throw new Error('Unexpected leaderboard owner.');
-    const d=C.base64ToBytes(value.data[0]);
-    if(d.length!==10208 || td.decode(d.slice(0,8))!=='MOBOARD1' || d[8]!==1 || d[9]!==expectedBoard) throw new Error('Unexpected leaderboard format.');
+    const d=C.base64ToBytes(value.data[0]),version=d[8];
+    // version 1 rows: wins, losses, draws as u32; version 2: as u16, then runs off the bat, fours, sixes, wickets taken
+    if(d.length!==10208 || td.decode(d.slice(0,8))!=='MOBOARD1' || (version!==1&&version!==2) || d[9]!==expectedBoard) throw new Error('Unexpected leaderboard format.');
     const v=new DataView(d.buffer,d.byteOffset,d.byteLength),count=v.getUint16(10,true),matches=v.getUint32(12,true);
     if(count>140)throw new Error('Unexpected leaderboard capacity.');
     const entries=[],seen=new Set();let playedTotal=0,winsTotal=0,lossesTotal=0,drawsTotal=0;
     for(let i=0;i<count;i++){
       const o=128+i*72,key=S.b58encode(d.slice(o,o+32));
       if(d[o+32]>23 || seen.has(key) || key==='11111111111111111111111111111111')throw new Error('Unexpected leaderboard entry.');seen.add(key);
-      const wins=v.getUint32(o+56,true),losses=v.getUint32(o+60,true),draws=v.getUint32(o+64,true),played=wins+losses+draws;
+      const [wins,losses,draws]=version===1?[56,60,64].map(f=>v.getUint32(o+f,true)):[56,58,60].map(f=>v.getUint16(o+f,true)),played=wins+losses+draws;
+      const stats=version===1?null:{runs:v.getUint16(o+62,true),fours:v.getUint16(o+64,true),sixes:v.getUint16(o+66,true),wickets:v.getUint16(o+68,true)};
       playedTotal+=played;winsTotal+=wins;lossesTotal+=losses;drawsTotal+=draws;
-      entries.push({key,name:td.decode(d.slice(o+33,o+33+d[o+32])),wins,losses,draws,played,points:wins*3+draws});
+      entries.push({key,name:td.decode(d.slice(o+33,o+33+d[o+32])),wins,losses,draws,played,points:wins*3+draws,stats});
     }
     if(playedTotal!==matches*2 || winsTotal!==lossesTotal || drawsTotal%2)throw new Error('Inconsistent leaderboard totals.');
     entries.sort((a,b)=>b.points-a.points||b.wins-a.wins||(a.key<b.key?-1:a.key>b.key?1:0));
-    return {scope:'persistent',entries,matches,source,lastMatchIds:Array.from({length:8},(_,i)=>v.getUint32(48+i*4,true)),lamports:value.lamports};
+    return {scope:'persistent',version,entries,matches,source,lastMatchIds:Array.from({length:8},(_,i)=>v.getUint32(48+i*4,true)),lamports:value.lamports};
   }
   async function readRollupLeaderboard(){const r=await rpc('getAccountInfo',[LEADERBOARD_ADDRESS,{encoding:'base64',commitment:'processed'}]);return parseLeaderboard(r?.value);}
   async function readCommittedLeaderboard(){const r=await S.rpc(S.DEFAULT_BASE,'getAccountInfo',[LEADERBOARD_ADDRESS,{encoding:'base64',commitment:'confirmed'}]);return parseLeaderboard(r?.value,'solana');}
@@ -1960,19 +1966,12 @@ globalThis.SOSound = (() => {
   function swell(t, level, attack, hold, release, bright = 1) {
     const s = src(pink, true), g = gain(0);
     const f1 = filt('bandpass', 700, 0.7), f2 = filt('bandpass', 1300, 0.9), g2 = gain(0.6 * bright), lo = filt('lowshelf', 220, 1);
+    const warm = filt('lowpass', 2800, -3); // voices, not hiss: the noise above the voice range is rolled off
     lo.gain.value = 4;
     s.connect(f1); s.connect(f2); f2.connect(g2);
-    f1.connect(lo); g2.connect(lo); lo.connect(g); g.connect(master);
+    f1.connect(lo); g2.connect(lo); chain(lo, warm, g); g.connect(master);
     env(g, t, attack, level, hold, release);
     s.start(t, Math.random()); s.stop(t + attack + hold + release + 0.1);
-  }
-  function whistles(t, n) {
-    for (let i = 0; i < n; i++) {
-      const tt = t + R(0, 1.2), f = R(1900, 3100);
-      const o = tone(tt, { f0: f, f1: f * R(0.85, 1.15), peak: 0.03, a: 0.04, hold: R(0.2, 0.5), rel: 0.2 });
-      const lfo = ctx.createOscillator(), lg = gain(R(20, 60));
-      lfo.frequency.value = R(5, 9); chain(lfo, lg, o.frequency); lfo.start(tt); lfo.stop(tt + 1);
-    }
   }
   function hornBlast(t, level = 0.08) {
     const f = R(210, 260);
@@ -2042,8 +2041,9 @@ globalThis.SOSound = (() => {
   function stumps() {
     if (!ready()) return;
     const t = ctx.currentTime;
-    [660, 830, 1040].forEach((f, i) => { tone(t + i * 0.018, { f0: f * R(0.95, 1.05), f1: f * 0.9, peak: 0.32, rel: 0.14 }); burst(t + i * 0.018, { type: 'bandpass', freq: f * 2, q: 4, peak: 0.25, rel: 0.05 }); });
-    for (let i = 0; i < 4; i++) burst(t + R(0.03, 0.5), { type: 'highpass', freq: 4000, peak: 0.15, rel: 0.012 });
+    // wood, not a bell: each stump knocks briefly, then the bails clatter
+    [660, 830, 1040].forEach((f, i) => { tone(t + i * 0.018, { f0: f * R(0.95, 1.05), f1: f * 0.9, peak: 0.2, rel: 0.06 }); burst(t + i * 0.018, { type: 'bandpass', freq: f * 2, q: 4, peak: 0.25, rel: 0.05 }); });
+    for (let i = 0; i < 4; i++) burst(t + R(0.03, 0.5), { type: 'bandpass', freq: 3200, q: 1, peak: 0.09, rel: 0.012 });
   }
   function gloves() { if (!ready()) return; const t = ctx.currentTime; burst(t, { type: 'bandpass', freq: 900, q: 1.2, peak: 0.45, rel: 0.035 }); tone(t, { f0: 210, f1: 150, peak: 0.25, rel: 0.06 }); }
   function step(level = 1) { if (!ready()) return; burst(ctx.currentTime, { type: 'lowpass', freq: 380, peak: 0.16 * level, rel: 0.05 }); }
@@ -2054,9 +2054,9 @@ globalThis.SOSound = (() => {
     if (!ready()) return;
     const t = ctx.currentTime + 0.05;
     switch (event) {
-      case 'six': excite = 1; swell(t, 0.5, 0.2, 1.6, 3.2, 1.2); whistles(t + 0.2, 6); claps(t + 0.4, 3, 60, 0.12); hornBlast(t + 0.8, 0.09); dhol(t + 0.6, 3); break;
-      case 'four': excite = 0.8; swell(t, 0.36, 0.25, 1.0, 2.6); whistles(t + 0.2, 4); claps(t + 0.3, 2.5, 50, 0.1); hornBlast(t + 0.7, 0.08); break;
-      case 'wicket': excite = 1; swell(t, 0.55, 0.08, 1.3, 3.0, 1.3); whistles(t + 0.1, 5); claps(t + 0.4, 2.5, 55, 0.11); dhol(t + 0.8, 2); break;
+      case 'six': excite = 1; swell(t, 0.5, 0.2, 1.6, 3.2, 1.2); claps(t + 0.4, 3, 60, 0.12); hornBlast(t + 0.8, 0.09); dhol(t + 0.6, 3); break;
+      case 'four': excite = 0.8; swell(t, 0.36, 0.25, 1.0, 2.6); claps(t + 0.3, 2.5, 50, 0.1); hornBlast(t + 0.7, 0.08); break;
+      case 'wicket': excite = 1; swell(t, 0.55, 0.08, 1.3, 3.0, 1.3); claps(t + 0.4, 2.5, 55, 0.11); dhol(t + 0.8, 2); break;
       case 'runs': excite = Math.max(excite, 0.35); claps(t, 1.6, 26, 0.07); swell(t, 0.1, 0.2, 0.3, 1.0); break;
       case 'miss': { // the crowd's "ooooh"
         const s = src(pink), g = gain(0), f1 = filt('bandpass', 480, 4), f2 = filt('bandpass', 950, 5), g2 = gain(0.5);
@@ -2076,9 +2076,8 @@ globalThis.SOSound = (() => {
       case 'groan': // a deflated, falling "ohhh"
         voices(t, { f0: 200, f1: 130, spread: 0.16, n: 12, peak: 0.1, a: 0.12, hold: 0.5, rel: 1.4, formants: [[520, 3, 1], [880, 4, 0.35]] });
         break;
-      case 'boo': // a long low "boooo" with jeering whistles
+      case 'boo': // a long low "boooo"
         voices(t, { f0: 128, spread: 0.24, n: 14, peak: 0.12, a: 0.45, hold: 1.5, rel: 1.2, formants: [[300, 2.5, 1], [700, 4, 0.28]] });
-        whistles(t + 0.4, 3);
         break;
       case 'booSoft':
         voices(t, { f0: 132, spread: 0.22, n: 10, peak: 0.055, a: 0.35, hold: 0.7, rel: 0.9, formants: [[300, 2.5, 1], [700, 4, 0.25]] });
@@ -2269,19 +2268,32 @@ globalThis.SOScene = (() => {
   rope.rotation.x = Math.PI / 2;
   rope.position.set(0, 0.09, PITCH / 2);
   scene.add(rope);
-  const boardTex = canvasTexture(1024, 64, (g, w, h) => {
-    const grd = g.createLinearGradient(0, 0, w, 0);
-    grd.addColorStop(0, '#0d1b3d'); grd.addColorStop(0.5, '#172a5c'); grd.addColorStop(1, '#0d1b3d');
-    g.fillStyle = grd;
+  // The boards scroll like an LED ticker. The strip holds whole rounds of the words, spaced to fill it exactly,
+  // so the text runs round the ground with no seam. The words to show are this list.
+  const BOARD_WORDS = ['MAGIC OVER', '0 SOL TO PLAY', 'PLAY FIRST · SECURE LATER', 'PRIVATE ROLLUP CRICKET'];
+  const BOARD_SPEED = 2.5 / (2 * Math.PI * 66 / 3); // 2.5 m/s along boards 66 m out, in strips per second
+  const boardTex = canvasTexture(2048, 64, (g, w, h) => {
+    g.fillStyle = '#122350';
     g.fillRect(0, 0, w, h);
-    g.font = '800 38px "Barlow Condensed", Arial Narrow, sans-serif';
+    let size = 38;
+    const font = () => { g.font = `800 ${size}px "Barlow Condensed", Arial Narrow, sans-serif`; };
+    font();
+    let text = BOARD_WORDS.reduce((a, t) => a + g.measureText(t).width, 0);
+    const minGap = 46 * BOARD_WORDS.length;
+    if (text + minGap > w) { size = Math.floor(size * (w - minGap) / text); font(); text = BOARD_WORDS.reduce((a, t) => a + g.measureText(t).width, 0); }
+    const rounds = Math.max(1, Math.floor(w / (text + minGap)));
+    const gap = (w / rounds - text) / BOARD_WORDS.length;
     g.textBaseline = 'middle';
-    const words = ['MAGIC OVER', '0 SOL TO PLAY', 'PLAY FIRST · SECURE LATER', 'PRIVATE ROLLUP CRICKET'];
-    let x = 20, k = 0;
-    while (x < w) { g.fillStyle = k % 2 ? '#ffb15c' : '#7ff0e6'; g.fillText(words[k % words.length], x, h / 2 + 2); x += g.measureText(words[k % words.length]).width + 46; k++; }
+    let x = gap / 2;
+    for (let k = 0; k < rounds * BOARD_WORDS.length; k++) {
+      const t = BOARD_WORDS[k % BOARD_WORDS.length];
+      g.fillStyle = k % 2 ? '#ffb15c' : '#7ff0e6';
+      g.fillText(t, x, h / 2 + 2);
+      x += g.measureText(t).width + gap;
+    }
   });
   boardTex.wrapS = THREE.RepeatWrapping;
-  boardTex.repeat.set(-6, 1); // seen from inside the ring, so mirror it back
+  boardTex.repeat.set(-3, 1); // seen from inside the ring, so mirror it back; 3 strips of 2048 px keep the old text size
   const boards = new THREE.Mesh(new THREE.CylinderGeometry(66, 66, 1.0, 120, 1, true), new THREE.MeshBasicMaterial({ map: boardTex, side: THREE.BackSide, toneMapped: false }));
   boards.position.set(0, 0.5, PITCH / 2);
   scene.add(boards);
@@ -3576,6 +3588,7 @@ globalThis.SOScene = (() => {
       const w = (now - waveStart) / 7000;
       if (w >= 1) { waveStart = -1; cu.uWave.value = -10; } else cu.uWave.value = (Math.PI * 1.5 + w * Math.PI * 2) % (Math.PI * 2);
     } else cu.uWave.value = -10;
+    if (!reduceMotion) boardTex.offset.x = (now / 1000 * BOARD_SPEED) % 1; // the boards' text scrolls
     updateCamera(now, dt);
     if (draw) renderer.render(scene, camera);
   }
@@ -4385,6 +4398,9 @@ globalThis.SOCompetition = (() => {
         name.textContent = entry.name || short(entry.key); address.textContent = short(entry.key); address.title = entry.key;
         player.append(name, address); row.appendChild(player);
         for (const value of [entry.wins, entry.losses, entry.draws, entry.points]) { const cell = document.createElement('td'); cell.textContent = String(value); row.appendChild(cell); }
+        const st = entry.stats; // null until the board holds batting and bowling totals
+        for (const [k, value] of (st ? [st.runs, st.fours, st.sixes, st.wickets] : ['–', '–', '–', '–']).entries()) { const cell = document.createElement('td'); cell.textContent = String(value); cell.className = k ? 'stat' : 'stat split'; row.appendChild(cell); }
+        if (st) { const line = document.createElement('small'); line.className = 'statline'; line.textContent = `${st.runs} runs · ${st.fours} fours · ${st.sixes} sixes · ${st.wickets} wickets`; player.appendChild(line); } // phones: under the name
         rows.appendChild(row);
         if (entry.name) verifyName(entry.name, entry.key).then(ok => { if (session === leaderboardSession && generation === leaderboardGeneration) address.textContent = `${short(entry.key)} · ${ok ? '✓ verified name' : 'name not verified'}`; });
       }
