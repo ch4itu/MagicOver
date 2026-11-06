@@ -46,6 +46,11 @@ details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px
 summary { cursor: pointer; font: 700 14px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 details p, details li { color: var(--muted); font-size: 14px; }
 .badge { display: inline-block; font: 600 12px var(--body); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; margin-top: 12px; }
+.homeFoot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px; }
+.homeFoot .badge { margin-top: 0; }
+#home a { color: var(--teal); font-weight: 600; text-decoration: none; }
+#home a:hover, #home a:focus-visible { text-decoration: underline; }
+.homeFoot a { font-size: 13px; }
 .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 4px; }
 .tabs button.on { background: rgba(255, 138, 31, 0.18); border-color: var(--saffron); }
 .msg { min-height: 20px; color: var(--gold); font-size: 14px; margin-top: 10px; }
@@ -158,7 +163,16 @@ details p, details li { color: var(--muted); font-size: 14px; }
         <li>Each side bats one over with two wickets. A tie goes to another Super Over.</li>
       </ul>
     </details>
-    <span class="badge" id="netBadge">Checking the private rollup…</span>
+    <details>
+      <summary>About</summary>
+      <p>Magic Over shows that anyone can start using a Solana app with just a player name and a passphrase: no wallet, no seed phrase and no SOL. The sign-up is called <a href="smaran/">Smaran</a>, and other apps can use it too.</p>
+      <p>It runs on Solana Devnet, a test network, with MagicBlock's Ephemeral Rollups. There are no wagers, tokens or prizes.</p>
+      <p>Made by ch4itu with help from AI tools. Open source under the MIT licence.</p>
+    </details>
+    <div class="homeFoot">
+      <span class="badge" id="netBadge">Checking the private rollup…</span>
+      <a href="https://github.com/ch4itu/MagicOver" target="_blank" rel="noopener">Source code ↗</a>
+    </div>
   </div>
 </section>
 
