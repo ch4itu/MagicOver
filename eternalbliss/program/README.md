@@ -1,5 +1,18 @@
 # EternalBliss multiplayer (R13)
 
+## Character books (R13, third upgrade)
+
+Same program address, upgraded on Devnet. The map release and the world layout are unchanged, so R13 worlds carry over as they are.
+
+1. **Characters live in books.** Book b is the account at `["eb-book", b]` (b below 256, 9,104 bytes): a 64-byte header (magic `EBBOOK01`, revision at 40, saved revision and time at 52 and 56, number at 60), a place byte for each of its 80 records (0: in the book, w + 1: out to world w), then the records, laid out like seats. Instruction 40 creates a book and 41 delegates it; saves (29, 30) take a world or a book.
+2. **A seat is taken only while a player is in a world.** A join (18) passes the player's book as its fourth account. It fills a free seat from the player's record, or from a new record for a new character, and marks the record as out to that world. A leave (24) with the book writes the seat back to its record and frees the seat. A seat keeps its home book in the upper bits of its safe tile, so it always goes back to the book it came from (42 otherwise). A join is refused for a record that is out to another world (40), for a new character when the book is full (41) and for a new character without a book (43). A join without a book only resumes a seat.
+3. **A full world frees a seat whose player is away.** When no seat is free, byte 1 of the join names a seat whose player has been away 45 s or more (255 names none), and the join passes that player's book as a fifth account. The seat is written back to its record first, then filled. A present player's seat is never taken (30).
+4. **Characters from before books** keep their seat. The first time they leave with a book, or their seat is freed, they are written into a free record of the book passed.
+5. **Release (28) with a book** also removes the record of a fresh character.
+
+Verified locally: `check_books.py` 21/21 (books created once, at their own addresses, and the MagicBlock delegation program accepts one; a new player's record and seat; leaving writes the character back and frees the seat; coming back seats the same character with its progress; a character out to world 0 cannot join world 1 (40), and after leaving it joins world 1 with the same progress; 32 players fill world 0 with their records in two books; a full world refuses a newcomer while everyone is present (30); an away player's seat goes back only to its own book (42 for another) and with it is given to the newcomer, who comes back later with its record; a join without a book cannot make a character (43) but resumes a seat; a seat from before books is written into a free record with its progress; a fresh character removes its seat and record), `check_world.py` 19/19, `check_duel.py` 22/22, `check_capacity.py` 13/13 and `check_save.py` 16/16, each with the live delegation program where it uses one. A clean build gives sha256 `0a1ccaf1c9783671ad1d90afe9dd863e7bc38d5f28ac4068c007ba31951671dd` (81,952 bytes, no stack accesses above r10), the bytes deployed on Devnet in slot 520546006.
+Before the live upgrade the build ran on a separate test program on the live rollup, with the page pointed at it: a seat from before books was resumed, written into a book on leaving with the same progress and restored on the same tile; new characters got records; the page saved the book to Solana and the Solana copy matched the rollup's; a page from before books still resumed seats and was refused for a new name. With the page's reads edited, it chose worlds, books and seats to free as described in the page notes. On the live rollup, books 0 and 1 were created and delegated with `add_books.py`, each with rent plus a 0.05 SOL save reserve.
+
 ## More worlds (R13, second upgrade)
 
 Same program address, upgraded on Devnet. The map release is unchanged, so R13 pages and worlds still match.
@@ -74,7 +87,7 @@ On Devnet and the rollup: an admin save paid by the world reached Solana byte fo
 
 The R10 sBPF binary passed the world, duel, room collision and R4 migration checks in LiteSVM. In the local capacity check, 32 signed players each moved eight times and the 33rd new character was rejected. The previous release tested four live Devnet clients over six rounds of simultaneous moves. R10 was compared against R9 with two live clients on isolated moves and a continuous walking route. The live duel check covered proximity, accepting and declining an invitation, resuming a match and seeing its result. It also passed with the receiving client limited to HTTP. Full-capacity live latency remains unmeasured.
 
-Rebuild using the pinned Rust toolchain and sbpf-linker 0.2.5. Run these commands from this directory with solders available for the checks (R11 used 0.29.0). A clean build of this folder gives sha256 `ad998ffced3e81cbdc2c8465ab194cdc11046a88a24d8e75be7e0ca9ba883954`, the bytes deployed on Devnet (R13, second upgrade).
+Rebuild using the pinned Rust toolchain and sbpf-linker 0.2.5. Run these commands from this directory with solders available for the checks (R11 used 0.29.0). A clean build of this folder gives sha256 `0a1ccaf1c9783671ad1d90afe9dd863e7bc38d5f28ac4068c007ba31951671dd`, the bytes deployed on Devnet (R13, third upgrade).
 
     cargo install --locked sbpf-linker --version 0.2.5
     cargo build-bpf

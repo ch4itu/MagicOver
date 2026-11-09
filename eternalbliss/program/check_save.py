@@ -199,7 +199,7 @@ WORLD1 = Pubkey.find_program_address([b"eb-land", b"\x01"], w.PROGRAM)[0]
 w.tx(w.operator, [w.meta(w.operator.pubkey(), True, True), w.meta(WORLD1, writable=True), w.meta(w.SYSTEM)],
      struct.pack("<BBQ", 16, 1, RENT + 5_000_000))
 shard1 = w.registered("save-ash", w.ash)
-w.tx(w.ash, [w.meta(w.ash.pubkey(), True, True), w.meta(WORLD1, writable=True), w.meta(shard1)],
+w.tx(w.ash, [w.meta(w.ash.pubkey(), True, True), w.meta(WORLD1, writable=True), w.meta(shard1), w.book_account()],
      struct.pack("<BI", 18, 0) + b"save-ash")
 before0 = header()
 w.tick(7000)

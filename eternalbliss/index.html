@@ -6236,7 +6236,7 @@ body { height: 100dvh; }
             </section>
             <section class="help-section">
                 <h3>Playing together and saving</h3>
-                <p>Choose Shared world to sign in. You can use your Magic Over name and passphrase here. In the shared world, use Duel to invite another player or join with a code. A shared world holds 32 players; once it is full, new players start in the next one, and you always return to the world where your character lives. Solo adventures save automatically on this device.</p>
+                <p>Choose Shared world to sign in. You can use your Magic Over name and passphrase here. In the shared world, use Duel to invite another player or join with a code. A shared world holds 32 players at a time. Your character is kept safe in a character book whenever you leave, so everyone online plays in the same world until 32 are there together; then the next world opens. Solo adventures save automatically on this device.</p>
             </section>
             <button type="button" class="btn btn-primary help-close" onclick="closeHelp()">Back to the world</button>
         </div>
@@ -9993,6 +9993,14 @@ globalThis.Smaran = (() => {
 <script data-source="duel.js">
 // Enabled in builds configured for an EternalBliss duel program on MagicBlock Devnet.
 const duelProgramId = '6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb';
+// The program's error from a refused transaction. Solana's preflight carries it in error.data.err; MagicBlock's rollup
+// sends only a message ("... custom program error: 0x1e"), so the code is read from that.
+function rollupFailure(error) {
+    const failure = error?.rpc?.data?.err;
+    if (failure) return failure;
+    const code = /custom program error: 0x([0-9a-f]+)/i.exec(error?.rpc?.message ?? '')?.[1];
+    return code ? { InstructionError:[0,{ Custom:parseInt(code,16) }] } : null;
+}
 function setupDuel(getPlayer) {
     if (!duelProgramId) return;
 
@@ -10331,7 +10339,7 @@ function setupDuel(getPlayer) {
                 encoding: 'base64', preflightCommitment: commitment
             }], 12000);
         } catch (error) {
-            if (error.rpc?.data?.err?.InstructionError?.[1]?.Custom === 37) throw new Error('Enter the shared world to duel.');
+            if (rollupFailure(error)?.InstructionError?.[1]?.Custom === 37) throw new Error('Enter the shared world to duel.');
             throw error;
         }
 
@@ -10630,7 +10638,11 @@ const ebRank = (() => {
         const dialog = get('eb-rank');
         get('eb-rank-open').addEventListener('click', () => {
             releaseMovement();
-            if (typeof sharedWorld !== 'undefined' && sharedWorld.active()) show(sharedWorld.ranks(), true);
+            if (typeof sharedWorld !== 'undefined' && sharedWorld.active()) {
+                show(sharedWorld.ranks(), true);
+                // then every character, including the ones who are not in a world right now
+                sharedWorld.rankings().then(rows => { if (dialog.open && sharedWorld.active()) show(rows, true); }).catch(() => {});
+            }
             else { record(); show(read().sort(compare), false); }
             dialog.showModal();
         });
@@ -11804,8 +11816,17 @@ const sharedWorld = (() => {
         30: 'This world has reached capacity.', 31: 'Move closer first.',
         32: 'This spot is recharging.', 33: 'You need more supplies or gold.',
         34: 'That action is still cooling down.', 35: 'Your player name is unavailable in the shared world.',
-        36: 'The path is blocked.'
+        36: 'The path is blocked.', 40: 'Your character is in another shared world. Enter again to go there.',
+        41: 'The character book is full. Enter again to use another.', 42: 'Enter the shared world again.',
+        43: 'Reload this page to make a new character.'
     };
+    // Character books hold every character's lasting record: ['eb-book', b], a 64-byte header, then where each of its 80
+    // records is (0: in the book, w + 1: seated in world w), then the records, laid out like seats. A seat is taken
+    // only while its player is in a world; leaving writes the character back to its record and frees the seat, and a
+    // seat whose player has been away 45 s can go to someone else (written back to that player's book first).
+    const book = { size:9104, places:64, records:144, count:80 };
+    const awaySeconds = 45;
+    const seatLost = 'This tab lost its seat in the shared world (away too long, or you left in another tab). Leave and enter again.';
     const get = id => document.getElementById(id);
     let accountKey, programKey, getPlayer, signIn, duelObserver;
     let session = null;
@@ -11827,7 +11848,7 @@ const sharedWorld = (() => {
     const patrols = new WeakMap();
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
     let classicFrame = 0;
-    let saving = false;
+    let saving = false, savingKey = null;
     let saveTimer = 0;
     let saveRetryAt = 0;
     let saveSentAt = 0; // rollup time of this page's last accepted save request
@@ -11857,25 +11878,84 @@ const sharedWorld = (() => {
         return solanaWeb3.PublicKey.findProgramAddressSync([encoder.encode('eb-land'),Uint8Array.of(number)],programKey)[0].toBase58();
     }
 
-    // The world to join: the first one that has this player's character, otherwise the first one with a free slot (null
-    // when every world is full). Reads eight worlds at a time and stops at the first that does not exist yet.
-    async function findWorld(owner) {
-        let open = null;
-        for (let first = 0; first < worldCount; first += 8) {
-            const numbers = Array.from({ length:Math.min(8,worldCount-first) },(_,i) => first+i);
-            const reply = await rpc('getMultipleAccounts',[numbers.map(worldKey),{encoding:'base64',commitment:'confirmed'}],10000);
-            for (const [i,account] of reply.value.entries()) {
-                if (!account) return open;
-                const bytes = worldBytes(account);
-                for (let index = 0; index < layout.players; index++) {
-                    const at = layout.header + index * layout.playerSize;
-                    const key = SabhaSol.b58encode(bytes.subarray(at, at+32));
-                    if (key === owner) return numbers[i];
-                    if (key === emptyKey && open === null) open = numbers[i];
-                }
+    function bookKey(number) {
+        return solanaWeb3.PublicKey.findProgramAddressSync([encoder.encode('eb-book'),Uint8Array.of(number)],programKey)[0].toBase58();
+    }
+
+    // Reads accounts eight at a time, from number 0 until the first that does not exist yet (worlds and books are
+    // created in order). `extra` keys ride along with each read (the clock).
+    async function readNumbered(keyOf, limit, extra = []) {
+        const found = [];
+        let tail = null;
+        for (let first = 0; first < limit; first += 8) {
+            const numbers = Array.from({ length:Math.min(8,limit-first) },(_,i) => first+i);
+            const reply = await rpc('getMultipleAccounts',[[...numbers.map(keyOf),...extra],{encoding:'base64',commitment:'confirmed'}],10000);
+            tail = reply.value.slice(numbers.length);
+            for (const [i,account] of reply.value.slice(0,numbers.length).entries()) {
+                if (!account) return { found,tail };
+                found.push({ number:numbers[i],key:keyOf(numbers[i]),account });
             }
         }
-        return open;
+        return { found,tail };
+    }
+
+    function bookBytes(account) {
+        if (account?.owner !== sharedWorldProgramId || account.data?.[1] !== 'base64') throw new Error('The character books are unavailable on Devnet.');
+        const bytes = SabhaChainKey.base64ToBytes(account.data[0]);
+        if (bytes.length !== book.size || decoder.decode(bytes.subarray(0,8)) !== 'EBBOOK01') throw new Error('The character books are unavailable on Devnet.');
+        return bytes;
+    }
+
+    function recordIn(bytes, owner) {
+        for (let r = 0; r < book.count; r++) {
+            const at = book.records + r * layout.playerSize;
+            if (SabhaSol.b58encode(bytes.subarray(at,at+32)) === owner) return { index:r,place:bytes[book.places+r] };
+        }
+        return null;
+    }
+
+    const freeRecords = bytes => Array.from({ length:book.count },(_,r) => book.records + r * layout.playerSize)
+        .filter(at => bytes.subarray(at,at+layout.playerSize).every(b => b === 0)).length;
+
+    // Where to join. The character's record is found in the books (or a book with room is chosen for a new one). Then:
+    // the world where the character has a seat (or its record says it is seated); otherwise, in world order, the first
+    // world with a free seat, or with a seat whose player has been away 45 s, which is freed by writing it back to that
+    // player's own book (a seat from before books goes into a free record of this player's book). Null when no world
+    // has room.
+    async function findWorld(owner) {
+        const books = (await readNumbered(bookKey,256)).found.map(entry => ({ ...entry,bytes:bookBytes(entry.account) }));
+        let home = null, place = 0;
+        for (const entry of books) {
+            const record = recordIn(entry.bytes,owner);
+            if (record) { home = entry; place = record.place; break; }
+        }
+        home ??= books.find(entry => freeRecords(entry.bytes) > 0) ?? null;
+        if (!home) throw new Error(books.length ? 'Every character book is full.' : 'The character books are unavailable on Devnet.');
+        const { found, tail } = await readNumbered(worldKey,worldCount,[clockId]);
+        const clockBytes = tail?.[0]?.data?.[1] === 'base64' ? SabhaChainKey.base64ToBytes(tail[0].data[0]) : null;
+        const now = clockBytes?.length === 40 ? Number(new DataView(clockBytes.buffer,clockBytes.byteOffset,40).getBigInt64(32,true)) : null;
+        const worlds = found.map(entry => ({ ...entry,bytes:worldBytes(entry.account) }));
+        const seats = bytes => Array.from({ length:layout.players },(_,index) => {
+            const at = layout.header + index * layout.playerSize;
+            const view = new DataView(bytes.buffer,bytes.byteOffset+at,layout.playerSize);
+            return { index,owner:SabhaSol.b58encode(bytes.subarray(at,at+32)),seen:view.getUint32(88,true) };
+        });
+        for (const world of worlds) {
+            if (seats(world.bytes).some(seat => seat.owner === owner)) return { number:world.number,home:home.key };
+        }
+        if (place > 0 && worlds.some(world => world.number === place-1)) return { number:place-1,home:home.key };
+        for (const world of worlds) {
+            const list = seats(world.bytes);
+            if (list.some(seat => seat.owner === emptyKey)) return { number:world.number,home:home.key };
+            const away = now === null ? [] : list.filter(seat => seat.owner !== owner && (seat.seen === 0 || now-seat.seen >= awaySeconds))
+                .sort((a,b) => a.seen-b.seen);
+            for (const seat of away) {
+                const theirs = books.find(entry => recordIn(entry.bytes,seat.owner)?.place === world.number+1);
+                const target = theirs ?? (freeRecords(home.bytes) > (recordIn(home.bytes,owner) ? 0 : 1) ? home : null);
+                if (target) return { number:world.number,home:home.key,evict:{ seat:seat.index,book:target.key } };
+            }
+        }
+        return null;
     }
 
     function useWorld(connection,number) {
@@ -11924,6 +12004,11 @@ const sharedWorld = (() => {
         };
         connection.onWrite?.();
         if (connection.entered) {
+            if (!me() && previousOwnSeq !== undefined && !connection.leaving) {
+                pending = [];
+                releaseMovement();
+                showStatus(seatLost);
+            }
             if (me()?.seq !== previousOwnSeq) applyPlayer();
             samplePlayers();
             if (!connection.presentationFrame) connection.presentationFrame = requestAnimationFrame(() => {
@@ -12240,7 +12325,9 @@ const sharedWorld = (() => {
 
     function rejected(error,message) {
         const code = error?.InstructionError?.[1]?.Custom;
-        return Object.assign(new Error(errors[code] || message),{worldCode:code});
+        // during play, "no character here" means this tab's seat was freed (taken while away, or left in another tab)
+        const text = code === 35 && session?.entered ? seatLost : errors[code] || message;
+        return Object.assign(new Error(text),{worldCode:code});
     }
 
     async function confirm(id,watch) {
@@ -12278,7 +12365,7 @@ const sharedWorld = (() => {
         return { result, stop() { if (connection.onWrite===notice) connection.onWrite=null; } };
     }
 
-    async function send(op, sequence, payload = [], registry = null, expected = null) {
+    async function send(op, sequence, payload = [], registry = null, expected = null, books = []) {
         const connection = session;
         const actor = connection.player;
         const data = new Uint8Array(5+payload.length);
@@ -12294,6 +12381,7 @@ const sharedWorld = (() => {
             { pk:SabhaSol.b58decode(accountKey), signer:false, writable:true }
         ];
         if (registry) keys.push({ pk:SabhaSol.b58decode(registry), signer:false, writable:false });
+        for (const key of books) keys.push({ pk:SabhaSol.b58decode(key), signer:false, writable:true });
         const message = SabhaSol.compileMessage(signer,[{ programId:programKey.toBytes(),keys,data }],recent);
         const signature = actor.sign(message);
         const wire = SabhaChainKey.concat(Uint8Array.of(1),signature,message);
@@ -12314,7 +12402,7 @@ const sharedWorld = (() => {
                     if (receipt) return;
                 } else await submitted;
             } catch (error) {
-                const failure = error.rpc?.data?.err;
+                const failure = rollupFailure(error);
                 if (failure) throw rejected(failure,error.message);
                 blockhash = null;
                 throw error;
@@ -12333,8 +12421,13 @@ const sharedWorld = (() => {
     }
 
     async function saveWorld(world = accountKey) {
-        if (saving || !programKey || !world) return;
+        if (!programKey || !world) return false;
+        // one save at a time: another save of the same account is dropped, another account's waits its turn (a
+        // character book's save right after leaving, the world's soon after)
+        for (let wait = 0; saving && savingKey !== world && wait < 24; wait++) await pause(250);
+        if (saving) return false;
         saving = true;
+        savingKey = world;
         const signer = SabhaChainKey.generateAccount();
         try {
             await SabhaSol.assertEr(Smaran.rollup);
@@ -12351,16 +12444,52 @@ const sharedWorld = (() => {
             const signature = nacl.sign.detached(message,signer.sk);
             await rpc('sendTransaction',[SabhaChainKey.bytesToBase64(SabhaChainKey.concat(Uint8Array.of(1),signature,message)),
                 {encoding:'base64',preflightCommitment:'confirmed'}],12000);
-            console.info('EternalBliss: shared world save sent to Solana',SabhaSol.b58encode(signature));
+            console.info('EternalBliss: shared save sent to Solana',SabhaSol.b58encode(signature));
+            if (world !== accountKey) return true;
             saveRetryAt = performance.now()+10000; // until the saved revision shows up in the next reads
             if (clockSample) saveSentAt = presenceTime();
+            return true;
         } catch {
             // another player saved first or the rollup is busy: ask again in a while
-            saveRetryAt = performance.now()+30000;
+            if (world === accountKey) saveRetryAt = performance.now()+30000;
+            return false;
         } finally {
             SabhaChainKey.wipeAccount(signer);
             saving = false;
+            savingKey = null;
         }
+    }
+
+    const rankOrder = (a,b) => b.xp-a.xp || b.victories-a.victories || b.finds-a.finds || a.name.localeCompare(b.name);
+
+    // Rankings of every character, not only the ones in a world now: the records in the books, with the newer state of
+    // seated characters from their seats.
+    async function rankings() {
+        const [books, worlds] = await Promise.all([readNumbered(bookKey,256),readNumbered(worldKey,worldCount)]);
+        const rows = new Map();
+        const add = (bytes, at) => {
+            const owner = SabhaSol.b58encode(bytes.subarray(at,at+32));
+            if (owner === emptyKey) return;
+            const view = new DataView(bytes.buffer,bytes.byteOffset+at,layout.playerSize);
+            const xp = view.getUint32(80,true);
+            rows.set(owner,{ owner,name:decoder.decode(bytes.subarray(at+32,at+64)).split('\0')[0],xp,
+                level:Math.min(50,1+Math.floor(xp/100)),victories:view.getUint16(100,true),finds:view.getUint16(102,true) });
+        };
+        for (const entry of books.found) {
+            const bytes = bookBytes(entry.account);
+            for (let r = 0; r < book.count; r++) add(bytes,book.records + r * layout.playerSize);
+        }
+        for (const entry of worlds.found) {
+            const bytes = worldBytes(entry.account);
+            for (let index = 0; index < layout.players; index++) add(bytes,layout.header + index * layout.playerSize);
+        }
+        return [...rows.values()].sort(rankOrder);
+    }
+
+    function saveBook(key) {
+        setTimeout(async () => {
+            if (!(await saveWorld(key))) setTimeout(() => saveWorld(key),125000);
+        },2500);
     }
 
     function scheduleSend(delay = 0) {
@@ -12453,6 +12582,7 @@ const sharedWorld = (() => {
         const connection = session;
         try {
             if (!refreshed) await refresh();
+            if (!me()) throw new Error(seatLost);
             const sequence = me().seq;
             await send(op,sequence,data);
             await observeWrite(sequence);
@@ -12465,6 +12595,26 @@ const sharedWorld = (() => {
     }
 
     const indexBytes = (id, option) => option === undefined ? [id&255,id>>8] : [id&255,id>>8,option];
+
+    // Leaving with the book: the program writes the character back to its record and frees the seat. True once that is
+    // confirmed, null when the seat was already gone (left in another tab, or taken while away), false on failure.
+    async function leaveSeat() {
+        if (!session?.entered || busy || sending || pending.length) return false;
+        busy = true;
+        const connection = session;
+        try {
+            await refresh();
+            const saved = me();
+            if (!saved) return null;
+            await send(24,saved.seq,[],null,null,[connection.book]);
+            // confirmed: the character is back in its record. One more read, for the save that follows.
+            if (session === connection) await refresh().catch(() => {});
+            return true;
+        } catch (error) {
+            if (session === connection) showStatus(error.message);
+            return false;
+        } finally { busy = false; }
+    }
 
     async function toggleRoom(building) {
         const connection = session;
@@ -12487,11 +12637,11 @@ const sharedWorld = (() => {
     async function fight(name) {
         if (name === 'flee') { endBattle(false); return; }
         const id = gameState.currentEnemy?.sharedId;
-        if (id === undefined || busy) return;
+        if (id === undefined || busy || !me()) return;
         const option = { attack:1, magic:2, heal:3 }[name];
         if (!option) return;
         const before = me().victories;
-        if (await action(21,indexBytes(id,option))) {
+        if (await action(21,indexBytes(id,option)) && me()) {
             ebSound.play(name);
             if (me().victories > before) { ebSound.play('victory'); endBattle(true); }
             else if (me().hp === Math.floor(gameState.player.maxHp*.3) &&
@@ -12567,9 +12717,12 @@ const sharedWorld = (() => {
                 throw new Error('Your player name is unavailable in the shared world.');
             }
             for (let attempt = 1; ; attempt++) {
-                const number = await findWorld(actor.publicKey);
+                const place = await findWorld(actor.publicKey);
                 if (session !== connection) return;
-                if (number === null) throw new Error('Every shared world is full.');
+                if (place === null) throw new Error('Every shared world is full.');
+                const number = place.number;
+                connection.book = place.home;
+                connection.freed = place.evict?.book ?? null;
                 useWorld(connection,number);
                 await refresh();
                 if (session !== connection) return;
@@ -12577,14 +12730,17 @@ const sharedWorld = (() => {
                 // a join is the same instruction every time, so it gets a fresh blockhash (a cached one could repeat the
                 // last join's transaction exactly, which the rollup refuses as already processed)
                 blockhash = null;
+                const books = [place.home,...(place.evict && place.evict.book !== place.home ? [place.evict.book] : [])];
                 try {
-                    await send(18,0,encoder.encode(actor.name),match.shard);
+                    await send(18,place.evict?.seat ?? 255,encoder.encode(actor.name),match.shard,null,books);
                 } catch (error) {
-                    // another new player took this world's last free slot first: look again
-                    if (error.worldCode === 30 && attempt < 3) continue;
+                    // someone else took the seat, or the record moved, first: look again
+                    if ([30,40,41,42].includes(error.worldCode) && attempt < 3) continue;
                     throw error;
                 }
                 await observeWrite(previous);
+                // the player whose seat was freed has a changed record: ask for its book to be saved too
+                if (connection.freed) saveBook(connection.freed);
                 break;
             }
             if (session !== connection) return;
@@ -12641,9 +12797,12 @@ const sharedWorld = (() => {
         releaseMovement();
         const solo = session.solo;
         try {
-            await action(24);
+            const home = session.book;
+            session.leaving = true;
+            const written = home ? await leaveSeat() : await action(24);
             // Ask for a save of this visit's changes now, or once the two minutes since the last save have passed,
-            // while the page stays open.
+            // while the page stays open. The character's book changed too.
+            if (home && written) saveBook(home);
             if (saveDue(presenceTime(),0)) saveWorld();
             else if (snapshot && clockSample && snapshot.revision !== snapshot.savedRevision) {
                 clearTimeout(saveTimer);
@@ -12711,7 +12870,8 @@ const sharedWorld = (() => {
         remote:() => remote,
         clock:() => session?.entered && snapshot ? serverTime() : null,
         collect: item => action(20,indexBytes(item.sharedId)),
-        ranks:() => [...(snapshot?.players || [])].sort((a,b)=>b.xp-a.xp || b.victories-a.victories || b.finds-a.finds || a.name.localeCompare(b.name))
+        ranks:() => [...(snapshot?.players || [])].sort(rankOrder),
+        rankings
     };
 })();
 

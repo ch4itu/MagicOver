@@ -23,6 +23,23 @@ const BLOCKED: u32 = 36;
 pub(super) const NO_CHARACTER: u32 = 37;
 const NOT_ADMIN: u32 = 38;
 const UNCHANGED: u32 = 39;
+const CHECKED_OUT: u32 = 40; // the character is seated in another world
+const BOOK_FULL: u32 = 41;
+const WRONG_BOOK: u32 = 42; // the seat belongs to another book
+const BOOK_NEEDED: u32 = 43; // a new character is made in a book
+const AWAY_SECONDS: u32 = 45; // a seat whose player has been away this long can be given to someone else
+
+// Character books (option 3). A character's lasting record lives in a book, ["eb-book", b], 80 records of the seat
+// layout. While the character is in a world, its seat there is the live copy and the book marks the record as out
+// (place = world number + 1); leaving writes the seat back and frees it. A seat whose player has been away 45 s can
+// be written back by whoever needs the seat. The header uses the world's offsets: revision 40, saved revision 52,
+// saved time 56, book number 60.
+pub(super) const BOOK_SEED: &[u8] = b"eb-book";
+const BOOK_MAGIC: &[u8; 8] = b"EBBOOK01";
+const BOOK_RECORDS: usize = 80;
+const BOOK_PLACES: usize = 64;
+const BOOK_RECORD_AT: usize = BOOK_PLACES + BOOK_RECORDS;
+pub(super) const BOOK_SIZE: usize = BOOK_RECORD_AT + BOOK_RECORDS * PLAYER_SIZE;
 // Header bytes 52..60: the revision and the time of the last save scheduled to Solana.
 const SAVED_REVISION: usize = 52;
 const SAVED_AT: usize = 56;
@@ -85,6 +102,26 @@ fn position(p: &[u8]) -> (u16, u16) {
 fn set_position(p: &mut [u8], x: u16, y: u16) {
     write16(p, PX, x);
     write16(p, PY, y);
+}
+
+// The safe tile's coordinates are the lower nine bits of SAFE_X and SAFE_Y. Their upper seven bits each hold the
+// seat's home book (book number + 1; 0 for a character without one), so a seat is written back only to its own book.
+fn safe_tile(p: &[u8]) -> (u16, u16) {
+    (read16(p, SAFE_X) & WORLD_COORD_MASK, read16(p, SAFE_Y) & WORLD_COORD_MASK)
+}
+
+fn set_safe_tile(p: &mut [u8], x: u16, y: u16) {
+    write16(p, SAFE_X, (read16(p, SAFE_X) & !WORLD_COORD_MASK) | (x & WORLD_COORD_MASK));
+    write16(p, SAFE_Y, (read16(p, SAFE_Y) & !WORLD_COORD_MASK) | (y & WORLD_COORD_MASK));
+}
+
+fn home_book(p: &[u8]) -> u16 {
+    (read16(p, SAFE_X) >> 9) | ((read16(p, SAFE_Y) >> 9) << 7)
+}
+
+fn set_home_book(p: &mut [u8], home: u16) {
+    write16(p, SAFE_X, (read16(p, SAFE_X) & WORLD_COORD_MASK) | ((home & 0x7f) << 9));
+    write16(p, SAFE_Y, (read16(p, SAFE_Y) & WORLD_COORD_MASK) | (((home >> 7) & 0x7f) << 9));
 }
 
 // Keep the exterior return tile in the lower nine bits of each coordinate.
@@ -151,8 +188,7 @@ fn fresh_player(p: &mut [u8], owner: &[u8; 32], name: &[u8]) {
     p[..32].copy_from_slice(owner);
     p[32..32 + name.len()].copy_from_slice(name);
     set_position(p, SPAWN.0, SPAWN.1);
-    write16(p, SAFE_X, SPAWN.0);
-    write16(p, SAFE_Y, SPAWN.1);
+    set_safe_tile(p, SPAWN.0, SPAWN.1);
     wr32(p, GOLD, 100);
     p[HEALS] = 3;
     p[MANA] = 2;
@@ -292,11 +328,10 @@ fn restore_safe_tile(state: &[u8], p: &mut [u8]) {
         !building_at(x,y) && get_tile(state,x,y).1 == 1) {
         return;
     }
-    let old_safe = (read16(p,SAFE_X), read16(p,SAFE_Y));
+    let old_safe = safe_tile(p);
     let (x,y) = if safe(old_safe.0,old_safe.1) { old_safe } else { SPAWN };
     set_position(p,x,y);
-    write16(p,SAFE_X,x);
-    write16(p,SAFE_Y,y);
+    set_safe_tile(p,x,y);
     p[SAIL] = 0;
 }
 
@@ -412,8 +447,7 @@ fn move_steps(
                 } else {
                     p[SAIL] -= 1;
                     if p[SAIL] == 0 {
-                        let x = read16(p, SAFE_X);
-                        let y = read16(p, SAFE_Y);
+                        let (x, y) = safe_tile(p);
                         let hp = read16(p, HP).saturating_sub(20).max(10);
                         let gold = rd32(p, GOLD).saturating_sub(10);
                         set_position(p, x, y);
@@ -436,8 +470,7 @@ fn move_steps(
         }
         if kind != 1 {
             p[SAIL] = 0;
-            write16(p, SAFE_X, nx);
-            write16(p, SAFE_Y, ny);
+            set_safe_tile(p, nx, ny);
         }
         set_position(p, nx, ny);
         p[MOVES] += 1;
@@ -512,8 +545,7 @@ fn fight(
         write16(p, HP, hp);
         if hp == 0 {
             set_position(p, SPAWN.0, SPAWN.1);
-            write16(p, SAFE_X, SPAWN.0);
-            write16(p, SAFE_Y, SPAWN.1);
+            set_safe_tile(p, SPAWN.0, SPAWN.1);
             let hp = max_health(p) * 3 / 10;
             let gold = (rd32(p, GOLD) as u64 * 85 / 100) as u32;
             write16(p, HP, hp);
@@ -583,7 +615,19 @@ fn service(
 pub(super) fn play_world(c: &Ctx) -> Result<(), u32> {
     let ix = c.ix;
     let op = ix[0];
-    if c.n != (if op == 18 { 3 } else { 2 }) || ix.len() < 5 {
+    // join: [player s, world w, registry (, home book w (, book of the seat being freed w))];
+    // leave and release: [player s, world w (, home book w)]; everything else: [player s, world w]
+    let booked = match op {
+        18 => c.n == 4 || c.n == 5,
+        LEAVE | RELEASE_FRESH => c.n == 3,
+        _ => false,
+    };
+    let accounts_ok = match op {
+        18 => (3..=5).contains(&c.n),
+        LEAVE | RELEASE_FRESH => c.n == 2 || c.n == 3,
+        _ => c.n == 2,
+    };
+    if !accounts_ok || ix.len() < 5 {
         return Err(ERR_ACCOUNTS);
     }
     let signer = &c.accs[0];
@@ -628,19 +672,31 @@ pub(super) fn play_world(c: &Ctx) -> Result<(), u32> {
             empty = Some(at);
         }
     }
+    let mut p = [0u8; PLAYER_SIZE];
     let at = if op == 18 {
         authorize_name(&c.accs[2], signer.key(), &ix[5..])?;
-        existing.or(empty).ok_or(WORLD_FULL)?
+        match existing {
+            Some(at) => {
+                p.copy_from_slice(&state[at..at + PLAYER_SIZE]);
+                at
+            }
+            None if booked => {
+                let (at, from_book) = seat_from_book(c, state, empty.unwrap_or(usize::MAX), now)?;
+                p = from_book;
+                at
+            }
+            // Without a book, a join can only resume a seat (an older page). A new character needs a book: a seat
+            // made without one could later overwrite the player's real record.
+            None => return Err(BOOK_NEEDED),
+        }
     } else {
-        existing.ok_or(NOT_REGISTERED)?
+        let at = existing.ok_or(NOT_REGISTERED)?;
+        p.copy_from_slice(&state[at..at + PLAYER_SIZE]);
+        at
     };
-    let mut p = [0u8; PLAYER_SIZE];
-    p.copy_from_slice(&state[at..at + PLAYER_SIZE]);
     if op == 18 {
-        if existing.is_none() {
-            fresh_player(&mut p, signer.key(), &ix[5..]);
-        } else if &p[32..32 + ix.len() - 5] != &ix[5..]
-            || p[32 + ix.len() - 5..64].iter().any(|&b| b != 0)
+        if existing.is_some() && (&p[32..32 + ix.len() - 5] != &ix[5..]
+            || p[32 + ix.len() - 5..64].iter().any(|&b| b != 0))
         {
             return Err(NOT_REGISTERED);
         }
@@ -655,6 +711,16 @@ pub(super) fn play_world(c: &Ctx) -> Result<(), u32> {
                 read16(&p,WINS) != 0 || read16(&p,FINDS) != 0 || p[HEALS] != 3 || p[MANA] != 2 ||
                 p[BOATS..=SAIL].iter().any(|&value| value != 0) || p[COMMISSION] != 0 {
                 return Err(ERR_PHASE);
+            }
+            if booked {
+                // the character's record goes too, if it has one
+                let book = book_state(&c.accs[2], c.program_id)?;
+                if let Some(r) = record_of(book, signer.key()) {
+                    let rec = BOOK_RECORD_AT + r * PLAYER_SIZE;
+                    book[rec..rec + PLAYER_SIZE].fill(0);
+                    book[BOOK_PLACES + r] = 0;
+                    gain32(book, 40, 1);
+                }
             }
             state[at..at + PLAYER_SIZE].fill(0);
             gain32(state,40,1);
@@ -683,6 +749,12 @@ pub(super) fn play_world(c: &Ctx) -> Result<(), u32> {
     let seq = rd32(&p, SEQ).checked_add(1).ok_or(ERR_RANGE)?;
     wr32(&mut p, SEQ, seq);
     state[at..at + PLAYER_SIZE].copy_from_slice(&p);
+    if op == LEAVE && booked {
+        // leaving with a book: the character goes back to its record and the seat is free for someone else
+        let number = state[WORLD_INDEX];
+        let book = book_state(&c.accs[2], c.program_id)?;
+        write_back(state, at, book, number)?;
+    }
     gain32(state, 40, 1);
     Ok(())
 }
@@ -742,11 +814,19 @@ pub(super) fn save(c: &Ctx, undelegate: bool) -> Result<(), u32> {
     if !eq32(c.accs[2].key(), &MAGIC_PROGRAM) || !eq32(c.accs[3].key(), &MAGIC_CONTEXT) {
         return Err(ERR_ACCOUNTS);
     }
-    let (state, bump) = world_state(world, c.program_id)?;
+    // a world or a character book (the same header offsets)
+    let (state, bump, seed, size) = if world.len() == BOOK_SIZE {
+        let state: &mut [u8] = &mut book_state(world, c.program_id)?[..];
+        let (_, bump) = find_pda(&[BOOK_SEED, &[state[WORLD_INDEX]]], c.program_id);
+        (state, bump, BOOK_SEED, BOOK_SIZE)
+    } else {
+        let (state, bump) = world_state(world, c.program_id)?;
+        (state, bump, SEED, WORLD_SIZE)
+    };
     let number = [state[WORLD_INDEX]];
     let admin = eq32(caller.key(), &ADMIN);
     let lamports = unsafe { *world.lamports };
-    if undelegate && !admin && lamports >= rent_minimum(WORLD_SIZE) + LOW_RESERVE {
+    if undelegate && !admin && lamports >= rent_minimum(size) + LOW_RESERVE {
         return Err(NOT_ADMIN);
     }
     let now = now_seconds()?.min(u32::MAX as u64) as u32;
@@ -764,7 +844,7 @@ pub(super) fn save(c: &Ctx, undelegate: bool) -> Result<(), u32> {
     wr32(state, SAVED_REVISION, revision);
     wr32(state, SAVED_AT, now);
     let (vault, _) = find_pda(&[b"magic-fee-vault", &ER_VALIDATOR], &DELEGATION_PROGRAM);
-    let paid = lamports >= rent_minimum(WORLD_SIZE) + LIVE_COMMIT_FEE;
+    let paid = lamports >= rent_minimum(size) + LIVE_COMMIT_FEE;
     if !undelegate && c.n >= 5 && eq32(c.accs[4].key(), &vault) && paid {
         // the world is the delegated fee payer: any save fee comes from its own reserve, never from the player
         invoke(
@@ -773,7 +853,7 @@ pub(super) fn save(c: &Ctx, undelegate: bool) -> Result<(), u32> {
                 program: &MAGIC_PROGRAM,
                 metas: &[(1, true, true), (3, true, false), (4, true, false), (1, true, false)],
                 data: &[1, 0, 0, 0],
-                seeds: &[&[SEED, &number, &[bump]]],
+                seeds: &[&[seed, &number, &[bump]]],
             },
         )?;
         log("eb: save scheduled, paid by the world");
@@ -791,5 +871,144 @@ pub(super) fn save(c: &Ctx, undelegate: bool) -> Result<(), u32> {
         },
     )?;
     log(if undelegate { "eb: handed back to Solana" } else { "eb: save scheduled" });
+    Ok(())
+}
+
+fn book_state<'a>(book: &'a Acc, program_id: &[u8; 32]) -> Result<&'a mut [u8; BOOK_SIZE], u32> {
+    if !eq32(book.owner(), program_id) || book.len() != BOOK_SIZE || !book.is_writable {
+        return Err(ERR_OWNER);
+    }
+    let state = book.data();
+    if &state[..8] != BOOK_MAGIC {
+        return Err(ERR_DATA);
+    }
+    let (key, _) = find_pda(&[BOOK_SEED, &[state[WORLD_INDEX]]], program_id);
+    if !eq32(book.key(), &key) {
+        return Err(ERR_PDA);
+    }
+    state.try_into().map_err(|_| ERR_DATA)
+}
+
+fn record_of(book: &[u8], owner: &[u8]) -> Option<usize> {
+    (0..BOOK_RECORDS).find(|&r| eq32(&book[BOOK_RECORD_AT + r * PLAYER_SIZE..BOOK_RECORD_AT + r * PLAYER_SIZE + 32], owner))
+}
+
+fn free_record(book: &[u8]) -> Option<usize> {
+    (0..BOOK_RECORDS).find(|&r| book[BOOK_RECORD_AT + r * PLAYER_SIZE..BOOK_RECORD_AT + (r + 1) * PLAYER_SIZE].iter().all(|&b| b == 0))
+}
+
+/// Writes the seat at `at` back to its record in `book` (or a free record, for a seat that never had one) and frees it.
+#[inline(never)]
+fn write_back(state: &mut [u8; WORLD_SIZE], at: usize, book: &mut [u8; BOOK_SIZE], number: u8) -> Result<(), u32> {
+    let home = home_book(&state[at..at + PLAYER_SIZE]);
+    let found = record_of(book, &state[at..at + 32]).filter(|&r| book[BOOK_PLACES + r] == 0 || book[BOOK_PLACES + r] == number + 1);
+    let r = if home != 0 {
+        // a seat from a book goes back only to its own record there
+        if home != book[WORLD_INDEX] as u16 + 1 {
+            return Err(WRONG_BOOK);
+        }
+        found.ok_or(ERR_DATA)?
+    } else {
+        // a seat from before books: its record, if it somehow has one here, else a free record
+        match found {
+            Some(r) => r,
+            None => free_record(book).ok_or(BOOK_FULL)?,
+        }
+    };
+    let rec = BOOK_RECORD_AT + r * PLAYER_SIZE;
+    book[rec..rec + PLAYER_SIZE].copy_from_slice(&state[at..at + PLAYER_SIZE]);
+    set_home_book(&mut book[rec..rec + PLAYER_SIZE], 0);
+    wr32(book, rec + SEEN, 0);
+    book[BOOK_PLACES + r] = 0;
+    gain32(book, 40, 1);
+    state[at..at + PLAYER_SIZE].fill(0);
+    Ok(())
+}
+
+/// A seat for the signer from its book (join with a book): its record, or a new one in a free record; a free seat, or
+/// the seat named by ix[1] if that player has been away 45 s (written back first to the fifth account's book, or to
+/// the home book). Returns the seat's offset and the character to put there.
+#[inline(never)]
+fn seat_from_book(c: &Ctx, state: &mut [u8; WORLD_SIZE], empty: usize, now: u32) -> Result<(usize, [u8; PLAYER_SIZE]), u32> {
+    let number = state[WORLD_INDEX];
+    let signer = c.accs[0].key();
+    let at = match empty {
+        at if at != usize::MAX => at,
+        _ => {
+            let seat = c.ix[1] as usize;
+            if seat >= PLAYERS {
+                return Err(WORLD_FULL);
+            }
+            let at = HEADER + seat * PLAYER_SIZE;
+            let seen = rd32(state, at + SEEN);
+            if state[at..at + 32].iter().all(|&b| b == 0) || eq32(&state[at..at + 32], signer) ||
+                (seen != 0 && now.saturating_sub(seen) < AWAY_SECONDS) {
+                return Err(WORLD_FULL);
+            }
+            let other = c.n == 5 && !eq32(c.accs[4].key(), c.accs[3].key());
+            let book = book_state(&c.accs[if other { 4 } else { 3 }], c.program_id)?;
+            write_back(state, at, book, number)?;
+            at
+        }
+    };
+    let book = book_state(&c.accs[3], c.program_id)?;
+    let mut p = [0u8; PLAYER_SIZE];
+    let r = match record_of(book, signer) {
+        Some(r) => {
+            let place = book[BOOK_PLACES + r];
+            if place != 0 && place != number + 1 {
+                return Err(CHECKED_OUT);
+            }
+            r
+        }
+        None => {
+            let r = free_record(book).ok_or(BOOK_FULL)?;
+            let rec = BOOK_RECORD_AT + r * PLAYER_SIZE;
+            fresh_player(&mut book[rec..rec + PLAYER_SIZE], signer, &c.ix[5..]);
+            r
+        }
+    };
+    let rec = BOOK_RECORD_AT + r * PLAYER_SIZE;
+    if &book[rec + 32..rec + 32 + c.ix.len() - 5] != &c.ix[5..] || book[rec + 32 + c.ix.len() - 5..rec + 64].iter().any(|&b| b != 0) {
+        return Err(NOT_REGISTERED);
+    }
+    p.copy_from_slice(&book[rec..rec + PLAYER_SIZE]);
+    set_home_book(&mut p, book[WORLD_INDEX] as u16 + 1);
+    book[BOOK_PLACES + r] = number + 1;
+    gain32(book, 40, 1);
+    Ok((at, p))
+}
+
+/// 40: create a character book. [payer s w, book w, system]; data [40, book number, lamports u64]
+#[inline(never)]
+pub(super) fn initialize_book(c: &Ctx) -> Result<(), u32> {
+    if c.n != 3 || c.ix.len() != 10 {
+        return Err(ERR_ACCOUNTS);
+    }
+    let (payer, book, system) = (&c.accs[0], &c.accs[1], &c.accs[2]);
+    if !payer.is_signer || !book.is_writable || !eq32(system.key(), &SYSTEM_PROGRAM) {
+        return Err(ERR_ACCOUNTS);
+    }
+    let number = [c.ix[1]];
+    let (expected, bump) = find_pda(&[BOOK_SEED, &number], c.program_id);
+    if !eq32(book.key(), &expected) {
+        return Err(ERR_PDA);
+    }
+    let mut data = [0u8; 52];
+    data[4..12].copy_from_slice(&c.ix[2..10]);
+    data[12..20].copy_from_slice(&(BOOK_SIZE as u64).to_le_bytes());
+    data[20..52].copy_from_slice(c.program_id);
+    invoke(
+        c.accs,
+        &Cpi {
+            program: &SYSTEM_PROGRAM,
+            metas: &[(0, true, true), (1, true, true)],
+            data: &data,
+            seeds: &[&[BOOK_SEED, &number, &[bump]]],
+        },
+    )?;
+    let state = book.data();
+    state[..8].copy_from_slice(BOOK_MAGIC);
+    state[WORLD_INDEX] = number[0];
     Ok(())
 }

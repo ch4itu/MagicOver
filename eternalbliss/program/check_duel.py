@@ -87,10 +87,22 @@ def registered(name, key):
     return SHARDS[index]
 
 
+BOOK = Pubkey.find_program_address([b"eb-book", b"\0"], PROGRAM)[0]
+
+
+def book_account():
+    """Book 0, where new characters are made (instruction 40), created on first use."""
+    if not svm.get_account(BOOK):
+        assert isinstance(svm.airdrop(operator.pubkey(), 1_000_000_000), TransactionMetadata)  # a book's rent
+        invoke(operator, [account(operator.pubkey(), True, True), account(BOOK, writable=True), account(SYSTEM)],
+               pack("<BBQ", 40, 0, svm.minimum_balance_for_rent_exemption(64 + 80 + 80 * 112)))
+    return account(BOOK, writable=True)
+
+
 def join_world(player, name):
     """Create the player's character in the shared world (instruction 18), as the page does after sign-in."""
-    invoke(player, [account(player.pubkey(), True, True), account(WORLD, writable=True), account(registered(name, player))],
-           pack("<BI", 18, 0) + name.encode())
+    invoke(player, [account(player.pubkey(), True, True), account(WORLD, writable=True), account(registered(name, player)),
+                    book_account()], pack("<BI", 18, 0) + name.encode())
 
 
 def code(result):
@@ -193,8 +205,8 @@ invoke(operator, [account(operator.pubkey(), True, True), account(WORLD1, writab
 far_host, far_guest = Keypair(), Keypair()
 for player, name in ((far_host, "far-host"), (far_guest, "far-guest")):
     assert isinstance(svm.airdrop(player.pubkey(), 100_000_000), TransactionMetadata)
-    invoke(player, [account(player.pubkey(), True, True), account(WORLD1, writable=True), account(registered(name, player))],
-           pack("<BI", 18, 0) + name.encode())
+    invoke(player, [account(player.pubkey(), True, True), account(WORLD1, writable=True), account(registered(name, player)),
+                    book_account()], pack("<BI", 18, 0) + name.encode())
 initialize(4)
 initialize(255)
 expect("Tables 4 and 255 exist: four for each of the 64 worlds", state(4)[8] == 4 and state(255)[8] == 255)

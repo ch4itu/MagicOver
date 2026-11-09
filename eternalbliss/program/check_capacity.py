@@ -55,6 +55,8 @@ def act_in(number, key, op, args=b"", *, shard=None, seq=0, ok=True):
     keys = [w.meta(key.pubkey(), True, True), w.meta(world_key(number), writable=True)]
     if shard is not None:
         keys.append(w.meta(shard))
+        if op == 18:
+            keys.append(w.book_account())
     return w.tx(key, keys, struct.pack("<BI", op, seq) + args, ok)
 
 def slot_in(number, key):

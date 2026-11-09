@@ -31,6 +31,8 @@ def array(name):
 SHARDS = [Pubkey.from_bytes(bytes(row)) for row in array("REGISTRY_SHARDS")]
 WORLD = Pubkey.find_program_address([b"eb-land", b"\0"], PROGRAM)[0]
 SIZE = constant("WORLD_SIZE")
+BOOK = Pubkey.find_program_address([b"eb-book", b"\0"], PROGRAM)[0]
+BOOK_SIZE = 64 + 80 + 80 * 112
 P_SIZE = constant("PLAYER_SIZE")
 H = constant("HEADER")
 ITEM_OFFSET = constant("ITEM_OFFSET")
@@ -126,12 +128,22 @@ def registered(name, key):
     return shard
 
 
+def book_account():
+    """Book 0, where new characters are made (instruction 40), created on first use."""
+    if not svm.get_account(BOOK):
+        tx(operator, [meta(operator.pubkey(), True, True), meta(BOOK, writable=True), meta(SYSTEM)],
+           struct.pack("<BBQ", 40, 0, svm.minimum_balance_for_rent_exemption(BOOK_SIZE)))
+    return meta(BOOK, writable=True)
+
+
 def action(key, op, args=b"", *, shard=None, seq=None, ok=True):
     own = player(key)
     nonce = (u32(own,84) if own else 0) if seq is None else seq
     keys = [meta(key.pubkey(),True,True),meta(WORLD,writable=True)]
     if shard is not None:
         keys.append(meta(shard))
+        if op == 18:
+            keys.append(book_account())
     return tx(key, keys, struct.pack("<BI", op,nonce)+args, ok)
 
 

@@ -409,20 +409,19 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
     if !eq32(accs[2].key(), program_id) || !eq32(accs[6].key(), &DELEGATION_PROGRAM) {
         return Err(ERR_ACCOUNTS);
     }
-    let is_world = ix[0] == 17;
-    let size = if is_world {
-        shared::WORLD_SIZE
-    } else {
-        STATE_SIZE
+    let idx = ix[1];
+    // 17: a world, 41: a character book, 1: a duel table
+    let (seed, size, exists) = match ix[0] {
+        17 => (shared::SEED, shared::WORLD_SIZE, idx < shared::WORLDS),
+        41 => (shared::BOOK_SEED, shared::BOOK_SIZE, true),
+        _ => (TABLE_SEED, STATE_SIZE, table_exists(idx)),
     };
     if !pda.is_writable || !eq32(pda.owner(), program_id) || pda.len() != size {
         return Err(ERR_OWNER);
     }
-    let idx = ix[1];
-    if (is_world && idx >= shared::WORLDS) || (!is_world && !table_exists(idx)) {
+    if !exists {
         return Err(ERR_RANGE);
     }
-    let seed = if is_world { shared::SEED } else { TABLE_SEED };
     let idx_b = [idx];
     let (key, bump) = find_pda(&[seed, &idx_b], program_id);
     if !eq32(&key, pda.key()) {
@@ -538,7 +537,7 @@ fn ix_undelegate_callback(c: &Ctx) -> Result<(), u32> {
         return Err(ERR_DATA);
     }
     let seed = &a[8..8 + l0];
-    if seed != TABLE_SEED && seed != shared::SEED {
+    if seed != TABLE_SEED && seed != shared::SEED && seed != shared::BOOK_SEED {
         return Err(ERR_DATA);
     }
     let idx_b = [a[a.len() - 1]];
@@ -550,6 +549,8 @@ fn ix_undelegate_callback(c: &Ctx) -> Result<(), u32> {
     let space = buffer.len();
     let valid = if seed == shared::SEED {
         idx_b[0] < shared::WORLDS && space == shared::WORLD_SIZE
+    } else if seed == shared::BOOK_SEED {
+        space == shared::BOOK_SIZE
     } else {
         table_exists(idx_b[0]) && space == STATE_SIZE
     };
@@ -851,6 +852,8 @@ pub unsafe extern "C" fn entrypoint(input: *mut u8) -> u64 {
             Some(18..=28) => shared::play_world(&c),
             Some(29) => shared::save(&c, false),
             Some(30) => shared::save(&c, true),
+            Some(40) => shared::initialize_book(&c),
+            Some(41) => ix_delegate(&c),
             _ => Err(ERR_TAG),
         }
     };
