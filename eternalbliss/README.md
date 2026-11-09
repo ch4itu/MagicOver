@@ -5,7 +5,7 @@
 EternalBliss is an RPG in 3D or 2D. Its shared world and its duels run on Solana Devnet through MagicBlock's public Ephemeral Rollup, and players sign in with Smaran: the same player name and passphrase as Magic Over.
 
 - **Solo adventure**: no sign-in; progress saves on your device. There are two maps. The Eternal Kingdom is 300 × 300 tiles. The Farlands is a 10,000 × 10,000 realm with nine regions, nine waystations and 28 named places, made as you walk. Its Atlas pins a place or takes a caravan or ferry between waystations, and the First Survey sends you to three landmarks near the start. Both maps share one character and inventory.
-- **Shared world**: the Eternal Kingdom, up to 32 characters. Enemies, treasure and shops are shared, and everyone sees the same season and time of day, set by the rollup's clock. A character keeps its slot and progress when it leaves.
+- **Shared worlds**: the Eternal Kingdom, 32 characters in each world. When a world is full, new players start in the next one, and you always return to the world where your character lives. Five worlds are open (the program allows 64), and players in different worlds don't see each other. In a world, enemies, treasure and shops are shared, and everyone sees the same season and time of day, set by the rollup's clock. A character keeps its slot and progress when it leaves.
 - **Buildings** cover tiles by what they are: castles 3×3 (the island castle 3×2), temples and inns 2×2, shops and houses 2×1. In the Farlands the same sizes apply, and landmarks such as the mill and the beacons cover 2×2. Stand up to two tiles from a building and press Space or click it.
 - **Trees** stand well above the heroes in 3D.
 - **Duels**: walk up to another player and challenge them. Turn based, no stakes: attack, magic or a healing potion.
@@ -16,16 +16,20 @@ EternalBliss is an RPG in 3D or 2D. Its shared world and its duels run on Solana
 | | Address |
 | --- | --- |
 | Program | [`6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb`](https://explorer.solana.com/address/6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb?cluster=devnet) |
-| Shared world | `GjYsCcq2r5KkVab7suzvStwYkAcJ3nTe9yXN8EcC5T9E` |
-| Duel tables 0 to 3 | `HEy1reJephj1xp9WbFqbDFyb961AYeja1k3hKYAqexob`, `9vHQe2dvjcj6zyCPTWzuJyQZZpBeapJMe8uWcSmT9yh7`, `8yVx1guQXr2GnapNagQtftSq3JZyTvZ5tDZwkwXaRWkx`, `5ZzANFsX5B65rWQXVKmXjVgR23wEjYXPUTm2rLtGFfRg` |
+| Shared world 0 | `GjYsCcq2r5KkVab7suzvStwYkAcJ3nTe9yXN8EcC5T9E` |
+| Shared worlds 1 to 4 | `4BjzEs6z9hyN8bLFFS72D1xAX6QmrBdpCaHiM17PcNGt`, `4HWDd69H9QFJF7XbafHb9iCdqFefJwvARtyrgAtJJcm9`, `DA2v98URwgZtJgnxtkbk5NdyeJ9domyAur9KCSD4NE8p`, `4fKyyYJWpux3KLoEAe4o9PM2FwxnZwYgneeqZzN2vh5Z` |
+| World 0's duel tables 0 to 3 | `HEy1reJephj1xp9WbFqbDFyb961AYeja1k3hKYAqexob`, `9vHQe2dvjcj6zyCPTWzuJyQZZpBeapJMe8uWcSmT9yh7`, `8yVx1guQXr2GnapNagQtftSq3JZyTvZ5tDZwkwXaRWkx`, `5ZzANFsX5B65rWQXVKmXjVgR23wEjYXPUTm2rLtGFfRg` |
+
+World n is the account at `["eb-land", n]`. World w's duel tables are 4w to 4w+3, each at `["eb-duel", table]`; [program/README.md](program/README.md) lists them all.
 
 ## Files
 
 - `index.html`: the whole game in one file.
-- `program/`: the Rust program, its local checks and the deployed build. A clean build gives sha256 `1b7e2b455449e1bea1319bf3d9a21e3a91eda92da7abaa79f6e8da68449aca3a`, the bytes on Devnet. [program/README.md](program/README.md) lists what changed in each release and what was tested.
+- `program/`: the Rust program, its local checks and the deployed build. A clean build gives sha256 `ad998ffced3e81cbdc2c8465ab194cdc11046a88a24d8e75be7e0ca9ba883954`, the bytes on Devnet. [program/README.md](program/README.md) lists what changed in each release and what was tested.
 
 ## Changes in R13
 
+- **More worlds.** A world holds 32 characters, and each one keeps its slot after leaving, so the first world fills for good. The program now allows up to 64 worlds, each with its own four duel tables, and five are open. The page puts you in the world that has your character, or, if you're new, in the first world with room. If someone takes the last slot just before you, the page looks again. The badge reads "Shared world 2" and so on in later worlds. A duel code from another world says so.
 - **Entering buildings.** Reach is measured from the nearest tile a building covers, not from its own tile. After you click a button (Menu, zoom, Atlas) the keyboard goes back to the game, so Space reaches the building beside you instead of pressing that button again. Space uses the nearest building or NPC in reach.
 - **The Farlands**, the second solo map described above.
 - **Bigger houses, taller trees.** Houses cover 2×1 tiles. Trees are taller and fuller, and no tree, rock or lantern grows through a building any more.

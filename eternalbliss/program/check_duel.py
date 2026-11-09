@@ -185,6 +185,28 @@ tick(1315)
 move(guest, 3, accepted=False, index=1)
 expect("Expired invite is rejected and can be replaced", move(stranger, 2, index=1)[9] == 1)
 
+# Every world has its own four duel tables (world 1 uses tables 4 to 7); a host or guest needs a character in the world
+# they pass, and the world is checked by its own address.
+WORLD1 = Pubkey.find_program_address([b"eb-land", b"\1"], PROGRAM)[0]
+invoke(operator, [account(operator.pubkey(), True, True), account(WORLD1, writable=True), account(SYSTEM)],
+       pack("<BBQ", 16, 1, svm.minimum_balance_for_rent_exemption(WORLD_SIZE)))
+far_host, far_guest = Keypair(), Keypair()
+for player, name in ((far_host, "far-host"), (far_guest, "far-guest")):
+    assert isinstance(svm.airdrop(player.pubkey(), 100_000_000), TransactionMetadata)
+    invoke(player, [account(player.pubkey(), True, True), account(WORLD1, writable=True), account(registered(name, player))],
+           pack("<BI", 18, 0) + name.encode())
+initialize(4)
+initialize(255)
+expect("Tables 4 and 255 exist: four for each of the 64 worlds", state(4)[8] == 4 and state(255)[8] == 255)
+move(far_host, 2, accepted=False, index=4, error=37)
+move(host, 2, accepted=False, index=4, world=WORLD1, error=37)
+expect("A player is checked against the world passed: world 1 players have no character in world 0, and the reverse",
+       state(4)[9] == 0)
+far_open = move(far_host, 2, index=4, world=WORLD1)
+far_match = move(far_guest, 3, index=4, world=WORLD1)
+expect("Two world 1 players open and join a duel at world 1's first table",
+       far_open[9] == 1 and far_match[9:11] == bytes([2, 0]) and state(0) == ended)
+
 if len(sys.argv) > 1:
     svm.add_program_from_file(DELEGATION, Path(sys.argv[1]).resolve())
     initialize(2)
@@ -198,3 +220,14 @@ if len(sys.argv) > 1:
         account(DELEGATION), account(SYSTEM),
     ], bytes([1, 2]))
     expect("Public MagicBlock program delegates the table", svm.get_account(key).owner == DELEGATION)
+    initialize(7)
+    key = table(7)
+    buffer = Pubkey.find_program_address([b"buffer", bytes(key)], PROGRAM)[0]
+    record = Pubkey.find_program_address([b"delegation", bytes(key)], DELEGATION)[0]
+    metadata = Pubkey.find_program_address([b"delegation-metadata", bytes(key)], DELEGATION)[0]
+    invoke(operator, [
+        account(operator.pubkey(), True, True), account(key, writable=True), account(PROGRAM),
+        account(buffer, writable=True), account(record, writable=True), account(metadata, writable=True),
+        account(DELEGATION), account(SYSTEM),
+    ], bytes([1, 7]))
+    expect("It delegates world 1's last table too", svm.get_account(key).owner == DELEGATION)

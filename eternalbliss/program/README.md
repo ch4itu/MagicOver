@@ -1,5 +1,16 @@
 # EternalBliss multiplayer (R13)
 
+## More worlds (R13, second upgrade)
+
+Same program address, upgraded on Devnet. The map release is unchanged, so R13 pages and worlds still match.
+
+1. **Up to 64 worlds of 32 characters each.** World n is the account at `["eb-land", n]`. Its number is kept in header byte 60 (unused before, so world 0 reads 0), and every instruction checks the account against the address of its own number, so play instructions take no new argument. Initialize (16) takes the number; saves (29, 30) and delegation (17) work for any world. A character stays in the world where it was created.
+2. **Four duel tables for each world.** World w uses tables 4w to 4w+3, a convention of the page. The program accepts tables 0 to 255 and checks a host or guest against the world they pass.
+3. **The page chooses the world.** It joins the first world that has your character, otherwise the first world with a free slot, and looks again if another player takes the last slot first. Players in different worlds do not see each other. Worlds 0 to 4 are open on Devnet; `add_worlds.py` creates and delegates more, with their tables.
+
+Verified: `check_world.py` 19/19, `check_duel.py` 22/22 (new: two world 1 players duel at table 4, and table 7 delegates), `check_capacity.py` 13/13 (new: world 1 is created at its own address with its number, only once, and 64 is refused; with world 0 full, a newcomer joins world 1 and acts there, world 0 does not know it, and world 0's 32 characters are untouched) and `check_save.py` 16/16 (new: world 1 pays for its own save, recorded in world 1's header only), each with the live delegation program where it uses one. A clean build gives sha256 `ad998ffced3e81cbdc2c8465ab194cdc11046a88a24d8e75be7e0ca9ba883954` (73,368 bytes, no stack accesses above r10), the bytes deployed on Devnet in slot 520395880.
+On the live rollup, worlds 1 to 4 were created and delegated with `add_worlds.py`, each with rent plus a 0.1 SOL save reserve and its four tables (0.59 test SOL in all, with the upgrade). In world 0 the page's tests still pass: building entry 22/22, four players 13/13, two browsers 22/24 (this machine's usual two misses), the Farlands round trip 11/11, solo entry 18/18 and the Farlands 37/37. Choosing a world, with the page's reads edited to show worlds as full (17/17): with every world full the page says so and joins nothing; with world 0 full a new player joins world 1, the badge reads "Shared world 2" and the duel window reads tables 4 to 7; a join answered "world full" makes the page look again and join world 1; signing in again goes back to world 1 although world 0 has room. In world 1: building entry 22/22, and two browsers 22/24 with a duel on table 4 and the page's saves of world 1 reaching Solana. Single steps reached the other player as quickly in world 1 as in world 0 (median 554 and 602 ms, from a machine about 350 ms from the rollup).
+
 ## What changed in R13
 
 Same program address, upgraded on Devnet, with a new map release for the shared world.
@@ -63,7 +74,7 @@ On Devnet and the rollup: an admin save paid by the world reached Solana byte fo
 
 The R10 sBPF binary passed the world, duel, room collision and R4 migration checks in LiteSVM. In the local capacity check, 32 signed players each moved eight times and the 33rd new character was rejected. The previous release tested four live Devnet clients over six rounds of simultaneous moves. R10 was compared against R9 with two live clients on isolated moves and a continuous walking route. The live duel check covered proximity, accepting and declining an invitation, resuming a match and seeing its result. It also passed with the receiving client limited to HTTP. Full-capacity live latency remains unmeasured.
 
-Rebuild using the pinned Rust toolchain and sbpf-linker 0.2.5. Run these commands from this directory with solders available for the checks (R11 used 0.29.0). A clean build of this folder gives sha256 `1b7e2b455449e1bea1319bf3d9a21e3a91eda92da7abaa79f6e8da68449aca3a`, the bytes deployed on Devnet (R13).
+Rebuild using the pinned Rust toolchain and sbpf-linker 0.2.5. Run these commands from this directory with solders available for the checks (R11 used 0.29.0). A clean build of this folder gives sha256 `ad998ffced3e81cbdc2c8465ab194cdc11046a88a24d8e75be7e0ca9ba883954`, the bytes deployed on Devnet (R13, second upgrade).
 
     cargo install --locked sbpf-linker --version 0.2.5
     cargo build-bpf
@@ -86,6 +97,14 @@ The R11 page uses program `6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb` on Sola
 | Duel table 1 | `9vHQe2dvjcj6zyCPTWzuJyQZZpBeapJMe8uWcSmT9yh7` |
 | Duel table 2 | `8yVx1guQXr2GnapNagQtftSq3JZyTvZ5tDZwkwXaRWkx` |
 | Duel table 3 | `5ZzANFsX5B65rWQXVKmXjVgR23wEjYXPUTm2rLtGFfRg` |
+| World 1 | `4BjzEs6z9hyN8bLFFS72D1xAX6QmrBdpCaHiM17PcNGt` (rent + 0.1 SOL save reserve; tables 4 to 7) |
+| World 2 | `4HWDd69H9QFJF7XbafHb9iCdqFefJwvARtyrgAtJJcm9` (rent + 0.1 SOL; tables 8 to 11) |
+| World 3 | `DA2v98URwgZtJgnxtkbk5NdyeJ9domyAur9KCSD4NE8p` (rent + 0.1 SOL; tables 12 to 15) |
+| World 4 | `4fKyyYJWpux3KLoEAe4o9PM2FwxnZwYgneeqZzN2vh5Z` (rent + 0.1 SOL; tables 16 to 19) |
+
+Table n is the account at `["eb-duel", n]`. To open more worlds, with their tables, on the same program:
+
+    python add_worlds.py PROGRAM_ID PAYER.json LAST_WORLD [RESERVE_LAMPORTS]
 
 R10 used program `qaVThKeU6aoVfNz5egb5CPKchXS4XGksNsh93XwjpB6`, whose upgrade key is lost; it is left as it was.
 

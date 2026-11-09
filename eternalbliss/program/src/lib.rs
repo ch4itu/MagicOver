@@ -419,7 +419,7 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
         return Err(ERR_OWNER);
     }
     let idx = ix[1];
-    if (is_world && idx != 0) || (!is_world && idx >= NTABLES) {
+    if (is_world && idx >= shared::WORLDS) || (!is_world && !table_exists(idx)) {
         return Err(ERR_RANGE);
     }
     let seed = if is_world { shared::SEED } else { TABLE_SEED };
@@ -549,9 +549,9 @@ fn ix_undelegate_callback(c: &Ctx) -> Result<(), u32> {
     let bump_b = [bump];
     let space = buffer.len();
     let valid = if seed == shared::SEED {
-        idx_b[0] == 0 && space == shared::WORLD_SIZE
+        idx_b[0] < shared::WORLDS && space == shared::WORLD_SIZE
     } else {
-        idx_b[0] < NTABLES && space == STATE_SIZE
+        table_exists(idx_b[0]) && space == STATE_SIZE
     };
     if !valid {
         return Err(ERR_DATA);
@@ -576,7 +576,12 @@ fn ix_undelegate_callback(c: &Ctx) -> Result<(), u32> {
 
 // Table offsets shared with the browser client.
 const STATE_SIZE: usize = 112;
-const NTABLES: u8 = 4;
+/// Each world has four duel tables: world w uses tables 4w to 4w+3 (the page's convention). The program accepts any
+/// table, and a host or guest needs a character in the world they pass.
+const TABLES_PER_WORLD: u8 = 4;
+fn table_exists(idx: u8) -> bool {
+    (idx / TABLES_PER_WORLD) < shared::WORLDS
+}
 const MAGIC: &[u8; 8] = b"EBDUEL01";
 const IDX: usize = 8;
 const PHASE: usize = 9;
@@ -618,7 +623,7 @@ fn init(c: &Ctx) -> Result<(), u32> {
         return Err(ERR_ACCOUNTS);
     }
     let idx = c.ix[1];
-    if idx >= NTABLES {
+    if !table_exists(idx) {
         return Err(ERR_RANGE);
     }
     let (key, bump) = find_pda(&[TABLE_SEED, &[idx]], c.program_id);
@@ -796,7 +801,7 @@ fn duel_action(s: &mut [u8], who: &[u8; 32], data: &[u8], now: u64) -> Result<()
 #[inline(never)]
 fn play(c: &Ctx) -> Result<(), u32> {
     // [player s, table w, world]: hosting or joining a duel needs a character in the shared world
-    if c.n != 3 || c.ix.len() != 11 || c.ix[1] >= NTABLES {
+    if c.n != 3 || c.ix.len() != 11 || !table_exists(c.ix[1]) {
         return Err(ERR_ACCOUNTS);
     }
     let player = c.accs[0];

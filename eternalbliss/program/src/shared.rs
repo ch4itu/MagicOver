@@ -6,6 +6,10 @@ pub(super) use manifest::WORLD_SIZE;
 use manifest::*;
 
 pub(super) const SEED: &[u8] = b"eb-land";
+/// Worlds are numbered 0..WORLDS, each its own account at [SEED, number] with room for PLAYERS characters. The number is
+/// kept in the world's header, so instructions need not carry it: the account must sit at its own number's address.
+pub(super) const WORLDS: u8 = 64;
+const WORLD_INDEX: usize = 60;
 const WORLD_MAGIC: &[u8; 8] = b"EBWRLD01";
 const TILES: &[u8] = include_bytes!("map.bin");
 const NAME_DOMAIN: &[u8] = b"SABHA-CHAINKEY-NAME-V1\0";
@@ -157,14 +161,15 @@ fn fresh_player(p: &mut [u8], owner: &[u8; 32], name: &[u8]) {
 
 #[inline(never)]
 pub(super) fn initialize(c: &Ctx) -> Result<(), u32> {
-    if c.n != 3 || c.ix.len() != 10 || c.ix[1] != 0 {
+    if c.n != 3 || c.ix.len() != 10 || c.ix[1] >= WORLDS {
         return Err(ERR_ACCOUNTS);
     }
     let (payer, state, system) = (&c.accs[0], &c.accs[1], &c.accs[2]);
     if !payer.is_signer || !state.is_writable || !eq32(system.key(), &SYSTEM_PROGRAM) {
         return Err(ERR_ACCOUNTS);
     }
-    let (expected, bump) = find_pda(&[SEED, &[0]], c.program_id);
+    let number = [c.ix[1]];
+    let (expected, bump) = find_pda(&[SEED, &number], c.program_id);
     if !eq32(state.key(), &expected) {
         return Err(ERR_PDA);
     }
@@ -178,12 +183,13 @@ pub(super) fn initialize(c: &Ctx) -> Result<(), u32> {
             program: &SYSTEM_PROGRAM,
             metas: &[(0, true, true), (1, true, true)],
             data: &data,
-            seeds: &[&[SEED, &[0], &[bump]]],
+            seeds: &[&[SEED, &number, &[bump]]],
         },
     )?;
     let state = state.data();
     state[..8].copy_from_slice(WORLD_MAGIC);
     state[8..40].copy_from_slice(&MAP_HASH);
+    state[WORLD_INDEX] = number[0];
     Ok(())
 }
 
@@ -589,7 +595,7 @@ pub(super) fn play_world(c: &Ctx) -> Result<(), u32> {
     {
         return Err(ERR_OWNER);
     }
-    let (key, _) = find_pda(&[SEED, &[0]], c.program_id);
+    let (key, _) = world_address(account.data(), c.program_id)?;
     if !eq32(account.key(), &key) || eq32(signer.key(), &key) {
         return Err(ERR_PDA);
     }
@@ -681,12 +687,21 @@ pub(super) fn play_world(c: &Ctx) -> Result<(), u32> {
     Ok(())
 }
 
+/// The address a world account must have, from the world number in its header, and that address's bump.
+fn world_address(state: &[u8], program_id: &[u8; 32]) -> Result<([u8; 32], u8), u32> {
+    let number = state[WORLD_INDEX];
+    if number >= WORLDS {
+        return Err(ERR_DATA);
+    }
+    Ok(find_pda(&[SEED, &[number]], program_id))
+}
+
 /// The world account, checked: program-owned, the right size and address, and this release's world.
 fn world_state<'a>(world: &'a Acc, program_id: &[u8; 32]) -> Result<(&'a mut [u8], u8), u32> {
     if !eq32(world.owner(), program_id) || world.len() != WORLD_SIZE {
         return Err(ERR_OWNER);
     }
-    let (key, bump) = find_pda(&[SEED, &[0]], program_id);
+    let (key, bump) = world_address(world.data(), program_id)?;
     if !eq32(world.key(), &key) {
         return Err(ERR_PDA);
     }
@@ -728,6 +743,7 @@ pub(super) fn save(c: &Ctx, undelegate: bool) -> Result<(), u32> {
         return Err(ERR_ACCOUNTS);
     }
     let (state, bump) = world_state(world, c.program_id)?;
+    let number = [state[WORLD_INDEX]];
     let admin = eq32(caller.key(), &ADMIN);
     let lamports = unsafe { *world.lamports };
     if undelegate && !admin && lamports >= rent_minimum(WORLD_SIZE) + LOW_RESERVE {
@@ -757,7 +773,7 @@ pub(super) fn save(c: &Ctx, undelegate: bool) -> Result<(), u32> {
                 program: &MAGIC_PROGRAM,
                 metas: &[(1, true, true), (3, true, false), (4, true, false), (1, true, false)],
                 data: &[1, 0, 0, 0],
-                seeds: &[&[SEED, &[0], &[bump]]],
+                seeds: &[&[SEED, &number, &[bump]]],
             },
         )?;
         log("eb: save scheduled, paid by the world");

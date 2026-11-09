@@ -192,3 +192,20 @@ save(outsider, payer=w.ash, error=2)
 ok("Wrong accounts, extra data and an unsigned caller are refused and change nothing", True)
 save(outsider)
 ok("After all that, a normal save still works", header()[2] == 6000)
+
+# Another world saves the same way: world 1 signs its paid save with its own address, and the save is recorded in its
+# own header, leaving world 0 alone.
+WORLD1 = Pubkey.find_program_address([b"eb-land", b"\x01"], w.PROGRAM)[0]
+w.tx(w.operator, [w.meta(w.operator.pubkey(), True, True), w.meta(WORLD1, writable=True), w.meta(w.SYSTEM)],
+     struct.pack("<BBQ", 16, 1, RENT + 5_000_000))
+shard1 = w.registered("save-ash", w.ash)
+w.tx(w.ash, [w.meta(w.ash.pubkey(), True, True), w.meta(WORLD1, writable=True), w.meta(shard1)],
+     struct.pack("<BI", 18, 0) + b"save-ash")
+before0 = header()
+w.tick(7000)
+saw, word = stand_in_saw(save(outsider, world=WORLD1))
+one = svm.get_account(WORLD1).data
+ok("World 1 pays for its own save: it signs with its own address, with the fee vault, data [1,0,0,0]",
+   saw == [(str(WORLD1), 1, 1), (str(CONTEXT), 0, 1), (str(VAULT), 0, 1), ("same as", 0)] and word == (4, 1))
+ok("The save is recorded in world 1's header, and world 0's header is unchanged",
+   w.u32(one, 52) == w.u32(one, 40) and w.u32(one, 56) == 7000 and header() == before0)

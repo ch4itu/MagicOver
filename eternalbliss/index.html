@@ -6236,7 +6236,7 @@ body { height: 100dvh; }
             </section>
             <section class="help-section">
                 <h3>Playing together and saving</h3>
-                <p>Choose Shared world to sign in. You can use your Magic Over name and passphrase here. In the shared world, use Duel to invite another player or join with a code. Solo adventures save automatically on this device.</p>
+                <p>Choose Shared world to sign in. You can use your Magic Over name and passphrase here. In the shared world, use Duel to invite another player or join with a code. A shared world holds 32 players; once it is full, new players start in the next one, and you always return to the world where your character lives. Solo adventures save automatically on this device.</p>
             </section>
             <button type="button" class="btn btn-primary help-close" onclick="closeHelp()">Back to the world</button>
         </div>
@@ -10019,10 +10019,13 @@ function setupDuel(getPlayer) {
     const publicKey = id => new solanaWeb3.PublicKey(id);
     const program = publicKey(duelProgramId);
     const seed = new TextEncoder().encode('eb-duel');
-    const keys = Array.from({ length: 4 }, (_, index) =>
-        solanaWeb3.PublicKey.findProgramAddressSync([seed, Uint8Array.of(index)], program)[0]);
-    // The program reads the shared world to check that hosts and guests have a character there.
-    const world = solanaWeb3.PublicKey.findProgramAddressSync([new TextEncoder().encode('eb-land'), Uint8Array.of(0)], program)[0];
+    const address = (label, number) => solanaWeb3.PublicKey.findProgramAddressSync([new TextEncoder().encode(label), Uint8Array.of(number)], program)[0];
+    // Each shared world has four duel tables: world w uses tables 4w to 4w+3. Within this module a table's index is 0 to
+    // 3, and base turns it into the table's number. The program reads the world to check that hosts and guests have a
+    // character there.
+    let base = 0;
+    let keys = [0, 1, 2, 3].map(index => address('eb-duel', index));
+    let world = address('eb-land', 0);
     const er = Smaran.rollup;
     const commitment = 'confirmed';
     const clockKey = 'SysvarC1ock11111111111111111111111111111111';
@@ -10042,7 +10045,7 @@ function setupDuel(getPlayer) {
         if (account?.owner !== duelProgramId || account.data?.[1] !== 'base64') return null;
         const bytes = SabhaChainKey.base64ToBytes(account.data[0]);
         if (bytes.length !== 112 || new TextDecoder().decode(bytes.slice(0, 8)) !== 'EBDUEL01' ||
-            bytes[8] !== index || bytes[9] > 3 || bytes[10] > 1) return null;
+            bytes[8] !== base + index || bytes[9] > 3 || bytes[10] > 1) return null;
         const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.length);
         return {
             index, phase: bytes[9], turn: bytes[10], winner: bytes[11], hp: bytes.slice(12, 14),
@@ -10089,7 +10092,7 @@ function setupDuel(getPlayer) {
         invitation.showModal();
     }
 
-    const accounts = keys.map((key,index) => ({key:key.toBase58(),accept(account,slot) {
+    const watch = () => keys.map((key,index) => ({key:key.toBase58(),accept(account,slot) {
         if (!Number.isSafeInteger(slot)) return;
         const table = decode(account,index);
         const prior = watched[index];
@@ -10097,6 +10100,20 @@ function setupDuel(getPlayer) {
         watched[index] = { ...table,slot };
         offer();
     }}));
+    let accounts = watch();
+
+    // The shared world calls this when the player joins a world, before it starts listening for that world's tables.
+    function useWorld(number) {
+        base = number * 4;
+        keys = [0, 1, 2, 3].map(index => address('eb-duel', base + index));
+        world = address('eb-land', number);
+        accounts = watch();
+        ++readRevision;
+        tables = [];
+        current = attached = null;
+        closeInvitation();
+        watched.length = dismissed.length = 0;
+    }
 
     async function acceptNearby(table) {
         const fresh = tables[table.index];
@@ -10235,7 +10252,7 @@ function setupDuel(getPlayer) {
             playing ? (table.turn === me ? 'You move first.' : names[table.turn] + ' moves first.') :
             table.phase === 3 && me >= 0 && !pastDue ? 'Rematch within a minute if you both want one.' : '';
         codeLine.hidden = !(table.phase === 1 && me === 0 && !pastDue);
-        code.textContent = (table.index + 1) + '-' + table.id;
+        code.textContent = (base + table.index + 1) + '-' + table.id;
         actions.hidden = !playing || me < 0 || pastDue;
         for (const button of actions.querySelectorAll('[data-action]')) {
             const action = Number(button.dataset.action);
@@ -10293,7 +10310,7 @@ function setupDuel(getPlayer) {
         const signer = publicKey(player.publicKey).toBytes();
         const data = new Uint8Array(11);
         data[0] = opcode;
-        data[1] = table.index;
+        data[1] = base + table.index;
         const view = new DataView(data.buffer);
         view.setUint32(2, table.id, true);
         view.setUint32(6, table.seq, true);
@@ -10393,9 +10410,11 @@ function setupDuel(getPlayer) {
         attached = { index:table.index,id:table.id };
     }
     join.addEventListener('click', () => perform(async () => {
-        const matchCode = /^([1-4])-([1-9][0-9]{0,9})$/.exec(get('eb-duel-invite').value.trim());
-        if (!matchCode) throw new Error('Enter a duel code, such as 1-24.');
-        const table = tables[Number(matchCode[1]) - 1];
+        const matchCode = /^([1-9][0-9]{0,2})-([1-9][0-9]{0,9})$/.exec(get('eb-duel-invite').value.trim());
+        if (!matchCode || Number(matchCode[1]) > 256) throw new Error('Enter a duel code, such as 1-24.');
+        const index = Number(matchCode[1]) - 1 - base;
+        if (index < 0 || index > 3) throw new Error('That duel code is for a player in another shared world.');
+        const table = tables[index];
         if (!table || table.id !== Number(matchCode[2]) || !table.phase) throw new Error('That duel code has expired.');
         await attach(table);
     }));
@@ -10433,7 +10452,7 @@ function setupDuel(getPlayer) {
         codeToggle.setAttribute('aria-expanded', 'false');
     });
     document.addEventListener('visibilitychange', schedule);
-    return { accounts,offer,reset() {
+    return { get accounts() { return accounts; },offer,useWorld,reset() {
         closeInvitation();
         watched.length = dismissed.length = 0;
     } };
@@ -11768,6 +11787,9 @@ const sharedWorld = (() => {
     const pause = ms => new Promise(resolve => setTimeout(resolve,ms));
     const rpc = (method,params,timeout) => SabhaSol.rpc(Smaran.rollup,method,params,timeout,{simple:true});
     const emptyKey = '11111111111111111111111111111111';
+    // Worlds are numbered from 0, each its own account at ['eb-land', number] with room for 32 characters; the program
+    // allows 64. A character stays in the world where it was created. Worlds are created in order.
+    const worldCount = 64;
     const errors = {
         5: 'Re-enter the shared world to resume.', 7: 'State advanced. Please try again.',
         30: 'This world has reached capacity.', 31: 'Move closer first.',
@@ -11805,20 +11827,59 @@ const sharedWorld = (() => {
         const detail = get('eb-shared-detail');
         if (detail.textContent !== text) detail.textContent = text;
         const badge = get('eb-shared-badge');
-        const message = session?.entered ? text || 'Shared world · ' + activeCount + ' online' :
+        const world = session?.world ? 'Shared world ' + (session.world+1) : 'Shared world';
+        const message = session?.entered ? text || world + ' · ' + activeCount + ' online' :
             session ? 'Joining shared world…' : text ? 'Solo · Could not join' : ebFarlands.inRealm() ? 'Farlands · Solo' : 'Solo adventure';
         if (badge.textContent !== message) badge.textContent = message;
         badge.title = text;
     }
 
-    function acceptWorld(connection,account,slot) {
-        if (connection !== session) return;
-        if (!Number.isSafeInteger(slot) || account?.owner !== sharedWorldProgramId || account.data?.[1] !== 'base64') {
+    function worldBytes(account) {
+        if (account?.owner !== sharedWorldProgramId || account.data?.[1] !== 'base64') {
             throw new Error('The shared world is unavailable on Devnet.');
         }
         const bytes = SabhaChainKey.base64ToBytes(account.data[0]);
         if (bytes.length !== layout.size || decoder.decode(bytes.subarray(0,8)) !== 'EBWRLD01' ||
             !spec.hash.every((n,i) => bytes[i+8] === n)) throw new Error('This world uses a different map release.');
+        return bytes;
+    }
+
+    function worldKey(number) {
+        return solanaWeb3.PublicKey.findProgramAddressSync([encoder.encode('eb-land'),Uint8Array.of(number)],programKey)[0].toBase58();
+    }
+
+    // The world to join: the first one that has this player's character, otherwise the first one with a free slot (null
+    // when every world is full). Reads eight worlds at a time and stops at the first that does not exist yet.
+    async function findWorld(owner) {
+        let open = null;
+        for (let first = 0; first < worldCount; first += 8) {
+            const numbers = Array.from({ length:Math.min(8,worldCount-first) },(_,i) => first+i);
+            const reply = await rpc('getMultipleAccounts',[numbers.map(worldKey),{encoding:'base64',commitment:'confirmed'}],10000);
+            for (const [i,account] of reply.value.entries()) {
+                if (!account) return open;
+                const bytes = worldBytes(account);
+                for (let index = 0; index < layout.players; index++) {
+                    const at = layout.header + index * layout.playerSize;
+                    const key = SabhaSol.b58encode(bytes.subarray(at, at+32));
+                    if (key === owner) return numbers[i];
+                    if (key === emptyKey && open === null) open = numbers[i];
+                }
+            }
+        }
+        return open;
+    }
+
+    function useWorld(connection,number) {
+        connection.world = number;
+        accountKey = worldKey(number);
+        snapshot = null;
+        duelObserver?.useWorld(number);
+    }
+
+    function acceptWorld(connection,account,slot) {
+        if (connection !== session) return;
+        if (!Number.isSafeInteger(slot)) throw new Error('The shared world is unavailable on Devnet.');
+        const bytes = worldBytes(account);
         const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.length);
         const u16 = at => view.getUint16(at, true);
         const u32 = at => view.getUint32(at, true);
@@ -12262,8 +12323,8 @@ const sharedWorld = (() => {
             now >= snapshot.savedAt+saveSeconds+delay && performance.now() >= saveRetryAt;
     }
 
-    async function saveWorld() {
-        if (saving || !programKey) return;
+    async function saveWorld(world = accountKey) {
+        if (saving || !programKey || !world) return;
         saving = true;
         const signer = SabhaChainKey.generateAccount();
         try {
@@ -12272,7 +12333,7 @@ const sharedWorld = (() => {
             const payer = SabhaSol.b58decode(signer.addr);
             const keys = [
                 { pk:payer, signer:true, writable:true },
-                { pk:SabhaSol.b58decode(accountKey), signer:false, writable:true },
+                { pk:SabhaSol.b58decode(world), signer:false, writable:true },
                 { pk:SabhaSol.b58decode(magicProgram), signer:false, writable:false },
                 { pk:SabhaSol.b58decode(magicContext), signer:false, writable:true },
                 { pk:SabhaSol.b58decode(feeVault), signer:false, writable:true }
@@ -12496,14 +12557,27 @@ const sharedWorld = (() => {
             if (!match.entry || SabhaSol.b58encode(match.entry.owner) !== actor.publicKey) {
                 throw new Error('Your player name is unavailable in the shared world.');
             }
-            await refresh();
-            if (session !== connection) return;
-            const previous = me()?.seq ?? -1;
-            // a join is the same instruction every time, so it gets a fresh blockhash (a cached one could repeat the
-            // last join's transaction exactly, which the rollup refuses as already processed)
-            blockhash = null;
-            await send(18,0,encoder.encode(actor.name),match.shard);
-            await observeWrite(previous);
+            for (let attempt = 1; ; attempt++) {
+                const number = await findWorld(actor.publicKey);
+                if (session !== connection) return;
+                if (number === null) throw new Error('Every shared world is full.');
+                useWorld(connection,number);
+                await refresh();
+                if (session !== connection) return;
+                const previous = me()?.seq ?? -1;
+                // a join is the same instruction every time, so it gets a fresh blockhash (a cached one could repeat the
+                // last join's transaction exactly, which the rollup refuses as already processed)
+                blockhash = null;
+                try {
+                    await send(18,0,encoder.encode(actor.name),match.shard);
+                } catch (error) {
+                    // another new player took this world's last free slot first: look again
+                    if (error.worldCode === 30 && attempt < 3) continue;
+                    throw error;
+                }
+                await observeWrite(previous);
+                break;
+            }
             if (session !== connection) return;
             if (!me()) throw new Error('The shared world has not confirmed your player yet.');
             if (gameState.inBattle) throw new Error('Finish your adventure battle, then re-enter the shared world.');
@@ -12565,7 +12639,8 @@ const sharedWorld = (() => {
             else if (snapshot && clockSample && snapshot.revision !== snapshot.savedRevision) {
                 clearTimeout(saveTimer);
                 const last = Math.max(snapshot.savedAt,saveSentAt);
-                saveTimer = setTimeout(saveWorld,Math.max(0,last+saveSeconds-presenceTime())*1000+1500);
+                const world = accountKey;
+                saveTimer = setTimeout(() => saveWorld(world),Math.max(0,last+saveSeconds-presenceTime())*1000+1500);
             }
         }
         finally {
@@ -12603,7 +12678,6 @@ const sharedWorld = (() => {
         signIn = openProfile;
         duelObserver = duels;
         programKey = new solanaWeb3.PublicKey(sharedWorldProgramId);
-        accountKey = solanaWeb3.PublicKey.findProgramAddressSync([encoder.encode('eb-land'),Uint8Array.of(0)],programKey)[0].toBase58();
         const button = get('eb-shared-open');
         button.hidden = false;
         button.addEventListener('click', async () => {
