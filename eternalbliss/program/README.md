@@ -40,7 +40,7 @@ An in-game day takes eight real minutes. The season changes every four in-game d
 
 ## Verified for R12
 
-Local: `check_world.py` 18/18 (new: an inn covers 2x2 tiles, a footprint tile blocks walking, a castle is entered from two steps beside its footprint and not three), `check_duel.py` 18/18 (both with the live delegation program loaded), `check_save.py` 14/14. Solo page: walking into a footprint tile is blocked, the tile beside it is open, a castle is used from two tiles away and not three.
+Local: `check_world.py` 18/18 (new: an inn covers 2x2 tiles, a footprint tile blocks walking, a castle is entered from two steps beside its footprint and not three), `check_duel.py` 18/18 (both with the live delegation program loaded), `check_save.py` 14/14, `check_capacity.py` 4/4 (32 players join and act, a 33rd new character is refused with 30 until a player leaves and frees an unused slot). Solo page: walking into a footprint tile is blocked, the tile beside it is open, a castle is used from two tiles away and not three.
 
 On Devnet: upgraded in place (build sha256 `f689375a8797370a9872a05d935705e6393d5a9849bd815132df463b12bdfd99`, 73,712 bytes; the CLI extended the program data to 82,952 bytes); the rollup picked up the new code in under a minute; instruction 27 moved the empty world to the new map release and the save reached Solana. Four Smaran players in the shared world at once (four browsers): all saw each other, the season matched and the time of day agreed within 6 game minutes (2 real seconds) in three rounds, all four walked at the same time and every page showed every player where the rollup had them. Two players: a duel through the new window, declined and accepted, on desktop and phone sizes.
 
@@ -62,6 +62,7 @@ Rebuild using the pinned Rust toolchain and sbpf-linker 0.2.5. Run these command
     python check_duel.py
     (cd stub && cargo build-bpf)
     python check_save.py stub/target/bpfel-unknown-none/release/libmagic_stub.so
+    python check_capacity.py
 
 The checks accept an optional path to the public MagicBlock delegation program ELF to exercise the delegation CPI locally.
 
