@@ -10,6 +10,8 @@ To show this working in a real-time app, it comes with a 3D cricket game on Magi
 
 [Play it](https://ch4itu.github.io/MagicOver/) · [Onboarding demo, 37 s](https://ch4itu.github.io/MagicOver/media/onboarding.mp4) · [Pitch and gameplay](https://cdn.jsdelivr.net/gh/ch4itu/MagicOver@main/media/pitch.mp4)
 
+Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this repository with a shared world and duels on the same rollup.
+
 <p align="center"><img src="media/preview-play.gif" width="640" alt="Magic Over's 3D scene: a drive for four, then a pull for six"></p>
 
 <p align="center">
@@ -81,12 +83,14 @@ The leaderboard refreshes every five seconds while it is open and catches up whe
 | Cricket game | [`HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT`](https://explorer.solana.com/address/HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT?cluster=devnet) |
 | Player registry | [`CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P`](https://explorer.solana.com/address/CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P?cluster=devnet) |
 | Result register | [`BcS2Gb1Gihfzqs1UkViNnbQzjGcCGyvXu81VhwsFrUzU`](https://explorer.solana.com/address/BcS2Gb1Gihfzqs1UkViNnbQzjGcCGyvXu81VhwsFrUzU?cluster=devnet) |
+| EternalBliss world and duels | [`6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb`](https://explorer.solana.com/address/6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb?cluster=devnet) |
 
 ## Files and building
 
 - `index.html`: the whole game in one file. Open it in a modern browser with internet access, or serve it from any static host.
 - `smaran/`: the sign-up for other apps: a sign-in window (`signin.html`, opened with `connect.js`) and one file (`smaran.js`, built from this page by `smaran/build.py`), with a [demo page](https://ch4itu.github.io/MagicOver/smaran/) and a short guide.
 - `programs/`: source for the game, the player registry and the result register, with a shared pinned build setup.
+- `eternalbliss/`: EternalBliss in one file, with its program's source, checks and deployed build in `eternalbliss/program/` (its own pinned build setup).
 - `media/onboarding.mp4`: 37-second recording on the live site. A player is created in one browser and recovered in a second browser with nothing saved.
 - `media/pitch.mp4`: narrated, captioned pitch with desktop and mobile gameplay.
 - `media/preview-*`: the pictures in these guides, taken from the live site on 5 and 6 November 2026.
