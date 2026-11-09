@@ -9521,9 +9521,18 @@ const SabhaSol = (() => {
   const guardCache = new Map();
   async function cachedGuard(key, check) {
     const hit = guardCache.get(key);
-    if (hit && Date.now() - hit < 20000) return;
+    const age = hit ? Date.now() - hit.at : Infinity;
+    if (age < 20000) {
+      // Still within its 20 seconds. From 15 seconds the check runs again in the background, so a caller seldom waits
+      // for it; if that check fails, the entry is dropped and the next caller runs the check itself and gets the error.
+      if (age >= 15000 && !hit.renewing) {
+        hit.renewing = true;
+        check().then(() => guardCache.set(key, { at: Date.now() }), () => guardCache.delete(key));
+      }
+      return;
+    }
     await check();
-    guardCache.set(key, Date.now());
+    guardCache.set(key, { at: Date.now() });
   }
   function assertDevnet(baseUrl) {
     return cachedGuard('base:' + cleanUrl(baseUrl), async () => {
@@ -12136,13 +12145,17 @@ const sharedWorld = (() => {
     }
 
     async function freshBlockhash() {
-        if (blockhash && performance.now()-blockhash.at < 12000) return blockhash.hash;
-        if (!blockhashRead) {
+        const age = blockhash ? performance.now()-blockhash.at : Infinity;
+        // A step should not wait for a new blockhash: from 8 s old it is renewed in the background while it is still
+        // used, so it seldom reaches the 12 s limit (measured: otherwise about one step in eight waited a round trip).
+        if (age >= 8000 && !blockhashRead) {
             blockhashRead = rpc('getLatestBlockhash',[{commitment:'confirmed'}],10000).then(reply => {
                 blockhash = { hash:reply.value.blockhash,at:performance.now() };
                 return blockhash.hash;
             }).finally(() => { blockhashRead = null; });
+            blockhashRead.catch(() => {});
         }
+        if (age < 12000) return blockhash.hash;
         return blockhashRead;
     }
 
