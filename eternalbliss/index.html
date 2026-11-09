@@ -9521,18 +9521,19 @@ const SabhaSol = (() => {
   const guardCache = new Map();
   async function cachedGuard(key, check) {
     const hit = guardCache.get(key);
-    const age = hit ? Date.now() - hit.at : Infinity;
-    if (age < 20000) {
-      // Still within its 20 seconds. From 15 seconds the check runs again in the background, so a caller seldom waits
-      // for it; if that check fails, the entry is dropped and the next caller runs the check itself and gets the error.
-      if (age >= 15000 && !hit.renewing) {
-        hit.renewing = true;
-        check().then(() => guardCache.set(key, { at: Date.now() }), () => guardCache.delete(key));
-      }
-      return;
-    }
+    if (hit && Date.now() - hit.at < 20000) return;
     await check();
-    guardCache.set(key, { at: Date.now() });
+    guardCache.set(key, { at: Date.now(), check });
+  }
+  // Runs again, in the background, any check that has used 15 of its 20 seconds, so a caller does not have to wait for
+  // it. A check that fails is dropped, and the next caller runs it again and gets the error. (Added for EternalBliss,
+  // which calls it from its poll so the renewal never goes out alongside a step.)
+  function renewGuards() {
+    for (const [key, hit] of guardCache) {
+      if (hit.renewing || Date.now() - hit.at < 15000) continue;
+      hit.renewing = true;
+      hit.check().then(() => guardCache.set(key, { at: Date.now(), check: hit.check }), () => guardCache.delete(key));
+    }
   }
   function assertDevnet(baseUrl) {
     return cachedGuard('base:' + cleanUrl(baseUrl), async () => {
@@ -9897,7 +9898,7 @@ const SabhaSol = (() => {
   const api = Object.freeze({
     PROGRAM_ID, DEVNET_GENESIS, ER_VALIDATOR, DELEGATION_PROGRAM, SHARDS, DEFAULT_ER, DEFAULT_BASE, NSHARDS, SLOTS, POW_BITS, MAX_GEN,
     stepSize, stepIndex, groupAddress,
-    b58encode, b58decode, rpc, assertDevnet, assertEr, lookup, registryStatus, solveProof, compileMessage,
+    b58encode, b58decode, rpc, assertDevnet, assertEr, renewGuards, lookup, registryStatus, solveProof, compileMessage,
     createPlayer, restorePlayer, changePassword, proveSigning, commitShard, waitForSolana, solanaAddress, erTxUrl, devnetAddressUrl
   });
   globalThis.SabhaSol = api;
@@ -12145,18 +12146,26 @@ const sharedWorld = (() => {
     }
 
     async function freshBlockhash() {
-        const age = blockhash ? performance.now()-blockhash.at : Infinity;
-        // A step should not wait for a new blockhash: from 8 s old it is renewed in the background while it is still
-        // used, so it seldom reaches the 12 s limit (measured: otherwise about one step in eight waited a round trip).
-        if (age >= 8000 && !blockhashRead) {
+        if (blockhash && performance.now()-blockhash.at < 12000) return blockhash.hash;
+        return readBlockhash();
+    }
+
+    function readBlockhash() {
+        if (!blockhashRead) {
             blockhashRead = rpc('getLatestBlockhash',[{commitment:'confirmed'}],10000).then(reply => {
                 blockhash = { hash:reply.value.blockhash,at:performance.now() };
                 return blockhash.hash;
             }).finally(() => { blockhashRead = null; });
-            blockhashRead.catch(() => {});
         }
-        if (age < 12000) return blockhash.hash;
         return blockhashRead;
+    }
+
+    // From the poll: renew the blockhash (from 8 of its 12 s) and the rollup check (from 15 of its 20 s) before they run
+    // out. Measured live, a step that found either one out of date waited a round trip for it (one step in four), and a
+    // renewal started alongside a step could slow that step instead, so renewals happen here and not in send().
+    function renewBeforeExpiry() {
+        if (!blockhash || performance.now()-blockhash.at >= 8000) readBlockhash().catch(() => {});
+        SabhaSol.renewGuards();
     }
 
     function rejected(error,message) {
@@ -12450,7 +12459,7 @@ const sharedWorld = (() => {
             await refresh(connection);
             if (connection !== session || document.hidden) return;
             if (get('eb-shared-detail').textContent === 'Reconnecting to the shared world…') showStatus('');
-            freshBlockhash().catch(() => {});
+            renewBeforeExpiry();
             const saved = me();
             if (!busy && !sending && !pending.length && !connection.changingRoom && saved?.seen > 0 && presenceTime()-saved.seen >= heartbeatSeconds) {
                 await action(25,[],true);
