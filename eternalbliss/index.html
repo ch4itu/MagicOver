@@ -11694,15 +11694,27 @@ function openWorldStream(endpoint, accountKey, accept, disconnected, additionalA
 
 </script>
 <script data-source="world-motion.js">
-// Start playback as soon as a confirmed position arrives. Timing follows the update cadence.
+// Start playback as soon as a confirmed position arrives. Each confirmed tile is reached a short buffer after the update
+// that brings it, and the walk between two updates fills the time between their arrivals, so a walker keeps moving while
+// the next update is on its way. The buffer follows that walker's own rhythm: 1.25 times the median gap between its
+// recent moving updates, kept between 150 and 800 ms (400 ms until three gaps are known). Measured live from a machine
+// about 350 ms from the rollup (updates every ~520 ms), the earlier rule left the remote walker standing still in about
+// half of the frames while it walked, and this one in about one in fifteen, with each tile shown about 0.3 s later.
 class ConfirmedPositionTrack {
     constructor(x,y,now) {
         this.points = [{ x,y,at:now }];
         this.received = now;
+        this.gaps = [];
+    }
+
+    delay() {
+        if (this.gaps.length < 3) return 400;
+        const sorted = [...this.gaps].sort((a,b) => a-b);
+        return Math.max(150,Math.min(800,sorted[Math.floor(sorted.length/2)]*1.25));
     }
 
     record(x,y,now) {
-        let last = this.points.at(-1);
+        const last = this.points.at(-1);
         if (last.x === x && last.y === y) return;
         const gap = now-this.received;
         this.received = now;
@@ -11712,20 +11724,17 @@ class ConfirmedPositionTrack {
             this.points = [{ x,y,at:now }];
             return;
         }
-        const current = this.read(now);
-        if (last.at > now+180) {
-            // Drop an old backlog from the pose already visible, keeping playback continuous.
-            last = { x:current.x,y:current.y,at:now };
-            this.points = [last];
+        // a gap of a second or more is a stop, not the walker's rhythm
+        if (gap < 1000) {
+            this.gaps.push(gap);
+            if (this.gaps.length > 16) this.gaps.shift();
         }
-        const travel = Math.abs(last.x-x)+Math.abs(last.y-y);
-        // Play each confirmed step over the time until the next one arrives, so a walking player keeps moving between
-        // updates. Measured live, a walker's updates arrive about every 380 ms (one move in flight at a time).
-        const cadence = distance>=.8 && gap<500 ? gap : 0;
-        const duration = Math.min(400,Math.max(65,travel*80,cadence));
-        const start = Math.max(now,last.at);
-        if (start > last.at) this.points.push({ x:last.x,y:last.y,at:start });
-        this.points.push({ x,y,at:start+duration });
+        // Continue from the last tile's time; once it has been reached, start from the pose on screen now.
+        if (last.at < now) {
+            const pose = this.read(now);
+            this.points = [{ x:pose.x,y:pose.y,at:now }];
+        }
+        this.points.push({ x,y,at:Math.max(now+this.delay(),this.points.at(-1).at+40) });
     }
 
     read(now) {
