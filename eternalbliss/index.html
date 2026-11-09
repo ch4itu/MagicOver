@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
-    <title>EternalBliss · R10</title>
+    <title>EternalBliss · R13</title>
     <style data-source="styles.css">
 /* ============================================
    ⚔️ ETERNALBLISS RPG - ENHANCED STYLES
@@ -2044,6 +2044,13 @@ function zoomMinimap(direction) {
 }
 
 function initializeMinimap() {
+    if (ebFarlands.surface()) {
+        mapTexture.width=mapTexture.height=0;
+        minimapTerrainRevision++;
+        updateMinimapControls();
+        updateMinimapOptimized();
+        return;
+    }
     if (!worldMap.length) return;
     const { width, height } = gameState.world;
     mapTexture.width = width;
@@ -2069,7 +2076,8 @@ function updateMinimapOptimized() {
 
 function drawMinimap() {
     mapFrame = 0;
-    if (!worldMap.length || !mapTexture.width) return;
+    const streamed=ebFarlands.surface();
+    if (!streamed && (!worldMap.length || !mapTexture.width)) return;
     const canvas = document.getElementById('eb-minimap-canvas');
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
@@ -2090,7 +2098,8 @@ function drawMinimap() {
     const scale = Math.min(width / mapWidth, height / mapHeight);
     const left = (width - mapWidth * scale) / 2;
     const top = (height - mapHeight * scale) / 2;
-    ctx.drawImage(mapTexture, x, y, mapWidth, mapHeight, left, top, mapWidth * scale, mapHeight * scale);
+    if (streamed) ebFarlands.drawTerrain(ctx,{x,y,width:mapWidth,height:mapHeight},left,top,scale);
+    else ctx.drawImage(mapTexture, x, y, mapWidth, mapHeight, left, top, mapWidth * scale, mapHeight * scale);
 
     ctx.save();
     ctx.beginPath();
@@ -2250,7 +2259,7 @@ function renderChunk(chunkX, chunkY) {
             const tileKey = `${x},${y}`;
             if (tileCache.has(tileKey)) continue;
             
-            const terrainType = worldMap[y][x];
+            const terrainType = adventureTile(x,y);
             const tile = document.createElement('div');
             tile.className = `tile ${terrainType}`;
             tile.style.left = `${x * 32}px`;
@@ -2260,6 +2269,10 @@ function renderChunk(chunkX, chunkY) {
             tile.style.background = '';
             tile.style.backgroundImage = '';
             tile.style.backgroundColor = '';
+            if (worldMap.tileAt && ['grass','forest'].includes(terrainType)) {
+                const biome=Farlands.regions[Farlands.regionAt(x,y)];
+                tile.style.setProperty('--eb-farlands-ground','#'+biome[terrainType==='grass' ? 'color' : 'forest'].toString(16).padStart(6,'0'));
+            }
             fragment.appendChild(tile);
             tileCache.set(tileKey, tile);
         }
@@ -2295,6 +2308,15 @@ let buildings = [];
 let npcs = [];
 let enemies = [];
 let items = [];
+
+function adventureTile(x,y) {
+    return worldMap.tileAt ? worldMap.tileAt(x,y) : worldMap[y]?.[x];
+}
+
+function changeAdventureTile(x,y,tile) {
+    if (worldMap.setTile) worldMap.setTile(x,y,tile);
+    else worldMap[y][x]=tile;
+}
 
 let entityMovementInterval = null;
 
@@ -2495,8 +2517,9 @@ function canEntityMoveTo(x, y) {
         return false;
     }
     
-    const tileType = worldMap[tileY][tileX];
-    return !solidStructure(tileX,tileY) && tileType !== 'water' && tileType !== 'mountain' && tileType !== 'door';
+    const tileType = adventureTile(tileX,tileY);
+    return !solidStructure(tileX,tileY) && tileType !== 'water' && tileType !== 'mountain' && tileType !== 'door' &&
+        !(worldMap.tileAt && tileType==='lava');
 }
 
 const classicSprites = { npc: [], enemy: [] };
@@ -2644,10 +2667,11 @@ function initGame() {
 }
 
 let buildingFootprints = new Set();
-// Larger buildings cover several tiles on the Eternal Kingdom map: castles 3x3, temples and inns 2x2, shops 2x1, houses
-// one tile. Keyed by the building's own tile and type; x0, y0, width, height. The shared-world program blocks the same
-// tiles. A footprint applies only where all its tiles are open ground on the current map, so other maps keep one tile.
-const BUILDING_FOOTPRINTS = new Map([["12,38,temple",[11,37,2,2]],["92,90,castle",[92,90,3,3]],["67,100,shop",[66,100,2,1]],["105,99,temple",[105,98,2,2]],["68,65,inn",[67,64,2,2]],["96,116,inn",[95,115,2,2]],["58,121,inn",[57,120,2,2]],["46,121,shop",[45,121,2,1]],["66,52,temple",[65,51,2,2]],["44,95,castle",[43,93,3,3]],["105,62,temple",[104,61,2,2]],["180,81,inn",[179,80,2,2]],["187,80,shop",[186,80,2,1]],["222,100,inn",[221,99,2,2]],["229,99,shop",[228,99,2,1]],["227,106,temple",[226,105,2,2]],["96,178,inn",[95,177,2,2]],["103,177,shop",[102,177,2,1]],["46,192,inn",[45,191,2,2]],["53,191,shop",[52,191,2,1]],["181,185,inn",[180,184,2,2]],["188,184,shop",[187,184,2,1]],["186,191,temple",[185,190,2,2]],["223,222,inn",[222,221,2,2]],["230,221,shop",[229,221,2,1]],["228,228,temple",[227,227,2,2]]]);
+let buildingFootprintRevision = 0; // changes when the blocked tiles change, so the 3D ground is drawn again
+// Buildings cover several tiles on the Eternal Kingdom map: castles 3x3 (the island castle 3x2), temples and inns 2x2, shops and houses 2x1. Keyed by the building's own tile and type; x0, y0, width, height. The shared-world program blocks the same
+// tiles. Farlands buildings carry a footprint fitted by the realm when it places them (same sizes by kind). A footprint
+// applies only where all its tiles are open ground on the current map, so other maps keep one tile.
+const BUILDING_FOOTPRINTS = new Map([["12,38,temple",[11,37,2,2]],["92,90,castle",[92,90,3,2]],["67,100,shop",[66,100,2,1]],["105,99,temple",[105,98,2,2]],["68,65,inn",[67,64,2,2]],["96,116,inn",[95,115,2,2]],["58,121,inn",[57,120,2,2]],["46,121,shop",[45,121,2,1]],["21,125,house",[20,125,2,1]],["13,129,house",[12,129,2,1]],["14,118,house",[13,118,2,1]],["24,116,house",[23,116,2,1]],["95,80,house",[94,80,2,1]],["103,84,house",[102,84,2,1]],["86,83,house",[85,83,2,1]],["94,76,house",[93,76,2,1]],["88,74,house",[88,74,2,1]],["112,73,house",[111,73,2,1]],["77,84,house",[76,84,2,1]],["78,90,house",[77,90,2,1]],["64,88,house",[63,88,2,1]],["69,82,house",[68,82,2,1]],["85,90,house",[84,90,2,1]],["111,108,house",[110,108,2,1]],["98,107,house",[97,107,2,1]],["78,110,house",[77,110,2,1]],["85,102,house",[84,102,2,1]],["90,112,house",[89,112,2,1]],["66,52,temple",[65,51,2,2]],["44,95,castle",[43,93,3,3]],["105,62,temple",[104,61,2,2]],["180,81,inn",[179,80,2,2]],["187,80,shop",[186,80,2,1]],["185,87,house",[184,87,2,1]],["222,100,inn",[221,99,2,2]],["229,99,shop",[228,99,2,1]],["227,106,temple",[226,105,2,2]],["96,178,inn",[95,177,2,2]],["103,177,shop",[102,177,2,1]],["101,184,house",[100,184,2,1]],["46,192,inn",[45,191,2,2]],["53,191,shop",[52,191,2,1]],["51,198,house",[50,198,2,1]],["181,185,inn",[180,184,2,2]],["188,184,shop",[187,184,2,1]],["186,191,temple",[185,190,2,2]],["223,222,inn",[222,221,2,2]],["230,221,shop",[229,221,2,1]],["228,228,temple",[227,227,2,2]]]);
 const buildingFootprintOf = new WeakMap();
 
 function buildingFootprint(building) {
@@ -2672,18 +2696,19 @@ function captureAdventureMap() {
 
 function updateBuildingFootprints() {
     const { width, height } = gameState.world;
+    const before = buildingFootprints;
     buildingFootprints = new Set();
     const own = new Set(buildings.map(({x,y}) => Math.floor(y)*width+Math.floor(x)));
     for (const building of buildings) {
         const x = Math.floor(building.x), y = Math.floor(building.y);
-        const known = BUILDING_FOOTPRINTS.get(x + ',' + y + ',' + building.type);
+        const known = building.realmId ? building.footprint : BUILDING_FOOTPRINTS.get(x + ',' + y + ',' + building.type);
         let area = { x0:x, y0:y, w:1, h:1 };
         if (known) {
             const [x0,y0,w,h] = known;
             let open = true;
             for (let ty = y0; ty < y0+h && open; ty++) for (let tx = x0; tx < x0+w && open; tx++) {
-                const tile = worldMap[ty]?.[tx];
-                open = (tx === x && ty === y) || (tile !== undefined && !['water','mountain','door','wall'].includes(tile) &&
+                const tile = adventureTile(tx,ty);
+                open = (tx === x && ty === y) || (tile !== undefined && !['water','mountain','door','wall','lava'].includes(tile) &&
                     !own.has(ty*width+tx) && !buildingFootprints.has(ty*width+tx));
             }
             if (open) area = { x0, y0, w, h };
@@ -2693,15 +2718,16 @@ function updateBuildingFootprints() {
             if (tx >= 0 && tx < width && ty >= 0 && ty < height) buildingFootprints.add(ty*width+tx);
         }
     }
+    if (before.size !== buildingFootprints.size || [...buildingFootprints].some(tile => !before.has(tile))) buildingFootprintRevision++;
 }
 
 function solidStructure(x,y) {
-    return worldMap[y]?.[x] === 'wall' || buildingFootprints.has(y*gameState.world.width+x);
+    return adventureTile(x,y) === 'wall' || buildingFootprints.has(y*gameState.world.width+x);
 }
 
 function keepPlayerOnWalkableTile(terrainChanged) {
     const { x,y } = gameState.player;
-    const tile = worldMap[y]?.[x];
+    const tile = adventureTile(x,y);
     if (!solidStructure(x,y) && (!terrainChanged || canEntityMoveTo(x,y) ||
         (tile === 'water' && gameState.sailingMoves > 0))) return;
     for (let radius=1; radius<=8; radius++) {
@@ -2741,7 +2767,6 @@ function applyAdventureMap(mapData, savedPlayer = null, terrainChanged = false) 
     };
     worldMap = mapData.terrain;
     buildings = mapData.buildings || [];
-    updateBuildingFootprints();
     npcs = mapData.npcs || [];
     enemies = mapData.enemies || [];
     items = mapData.items || [];
@@ -2753,6 +2778,7 @@ function applyAdventureMap(mapData, savedPlayer = null, terrainChanged = false) 
         gameState.player.y = Math.floor(height / 2);
         gameState.sailingMoves = 0;
     }
+    if (!ebFarlands.refreshScene(true)) updateBuildingFootprints();
     keepPlayerOnWalkableTile(terrainChanged);
     gameState.player.isMoving = false;
     const grid = document.getElementById('worldGrid');
@@ -2767,6 +2793,7 @@ function applyAdventureMap(mapData, savedPlayer = null, terrainChanged = false) 
     checkLocation();
     updateUI();
     updatePositionDisplay();
+    ebFarlands.updateControls();
 }
 
 function setupEventListeners() {
@@ -2849,6 +2876,7 @@ function renderAllEntities() {
     buildings.forEach(building => {
         const buildingEl = document.createElement('div');
         buildingEl.className = building.class;
+        if (building.realmId) buildingEl.dataset.farlandsBuilding=building.landmark ?? building.type;
         const { x0, y0, w, h } = buildingFootprint(building);
         buildingEl.style.left = `${x0 * 32}px`;
         buildingEl.style.top = `${y0 * 32}px`;
@@ -2868,6 +2896,7 @@ function renderAllEntities() {
         npcEl.style.top = `${npc.y * 32}px`;
         
         npcEl.setAttribute('data-npc-type', getNPCType(npc.class));
+        if (npc.fauna) npcEl.dataset.fauna = npc.glyph;
         
         const nameOverlay = document.createElement('div');
         nameOverlay.className = 'character-name-overlay';
@@ -3001,6 +3030,7 @@ function movePlayer(dx, dy) {
         gameState.player.isMoving = true;
         gameState.player.moveCount++;
         
+        if (ebFarlands.refreshScene()) renderWorld();
         updatePlayerPositionOnly();
         centerCameraOnPlayerOptimized();
         checkLocationQuick();
@@ -3011,20 +3041,20 @@ function movePlayer(dx, dy) {
             return true;
         }
         
-        if ((gameState.player.x + gameState.player.y) % 5 === 0) {
+        if (!ebFarlands.surface() && (gameState.player.x + gameState.player.y) % 5 === 0) {
             gameState.player.mp = Math.max(0, gameState.player.mp - 1);
             updateUI();
         }
         
-        if (Math.random() < 0.005) {
-            const tileType = worldMap[Math.floor(newY)][Math.floor(newX)];
+        if (!ebFarlands.surface() && Math.random() < 0.005) {
+            const tileType = adventureTile(Math.floor(newX),Math.floor(newY));
             const encounterChance = tileType === 'road' ? 0.005 : 0.01;
             if (Math.random() < encounterChance) {
                 randomEncounter();
             }
         }
         
-        ebSound.step(worldMap[Math.floor(newY)][Math.floor(newX)]);
+        ebSound.step(adventureTile(Math.floor(newX),Math.floor(newY)));
         checkItemCollectionOptimized();
         return true;
         
@@ -3110,7 +3140,8 @@ function canMoveTo(x, y) {
     }
     
     if (solidStructure(tileX,tileY)) return false;
-    const tileType = worldMap[tileY][tileX];
+    const tileType = adventureTile(tileX,tileY);
+    if (worldMap.tileAt && tileType==='lava') return false;
     
     if (tileType === 'water') {
         if (gameState.sailingMoves && gameState.sailingMoves > 0) {
@@ -3155,7 +3186,7 @@ function canMoveTo(x, y) {
         if (gameState.inventory.pickaxe > 0) {
             gameState.inventory.pickaxe--;
             
-            worldMap[tileY][tileX] = 'grass';
+            changeAdventureTile(tileX,tileY,'grass');
             initializeMinimap();
 
             tileCache.get(`${tileX},${tileY}`)?.remove();
@@ -3190,7 +3221,7 @@ function canMoveTo(x, y) {
     if (tileType === 'door') {
         if (gameState.inventory.keys > 0) {
             gameState.inventory.keys--;
-            worldMap[tileY][tileX] = 'road';
+            changeAdventureTile(tileX,tileY,'road');
             initializeMinimap();
 
             tileCache.get(`${tileX},${tileY}`)?.remove();
@@ -3255,11 +3286,11 @@ function canMoveTo(x, y) {
 }
 
 function rescueFromWater() {
-    if (gameState.sailingMoves === 0 && worldMap[Math.floor(gameState.player.y)]?.[Math.floor(gameState.player.x)] === 'water') {
-        let nearestLand = null;
+    if (gameState.sailingMoves === 0 && adventureTile(Math.floor(gameState.player.x),Math.floor(gameState.player.y)) === 'water') {
+        let nearestLand = ebFarlands.surface() ? ebFarlands.shore() : null;
         let minDistance = Infinity;
         
-        for (let y = 0; y < gameState.world.height; y++) {
+        if (!ebFarlands.surface()) for (let y = 0; y < gameState.world.height; y++) {
             for (let x = 0; x < gameState.world.width; x++) {
                 if (canEntityMoveTo(x,y)) {
                     const distance = Math.sqrt(
@@ -3277,6 +3308,12 @@ function rescueFromWater() {
         if (nearestLand) {
             gameState.player.x = nearestLand.x;
             gameState.player.y = nearestLand.y;
+            if (ebFarlands.surface()) {
+                releaseMovement();
+                ebFarlands.refreshScene();
+                checkLocationQuick(false);
+                updatePositionDisplay();
+            }
             
             gameState.player.hp = Math.max(10, gameState.player.hp - 20);
             gameState.inventory.gold = Math.max(0, gameState.inventory.gold - 10);
@@ -3295,7 +3332,7 @@ function rescueFromWater() {
 }
 
 function checkLocationQuick(announce = true) {
-    let locationName = "Wilderness";
+    let locationName = ebFarlands.surface() ? ebFarlands.location(announce) : 'Wilderness';
     
     if (gameState.world.areas && gameState.world.areas.length > 0) {
         for (const area of gameState.world.areas) {
@@ -3366,6 +3403,7 @@ function checkItemCollectionOptimized() {
 
 function collectItem(index) {
     const item = items[index];
+    ebFarlands.consume(item);
     
     switch(item.type) {
         case 'gold':
@@ -3431,8 +3469,14 @@ function interact() {
         if (here) { sharedWorld.collect(here); return; }
     }
     for (const [kind, actors, range] of [['npc', npcs, 1.5], ['building', buildings, 2], ['enemy', enemies, 1.5]]) {
-        const nearby = actors.find(actor => (kind === 'building' ? buildingDistance(actor, gameState.player.x, gameState.player.y) :
-            Math.hypot(gameState.player.x - actor.x, gameState.player.y - actor.y)) <= range);
+        const distance = actor => kind === 'building' ? buildingDistance(actor, gameState.player.x, gameState.player.y) :
+            Math.hypot(gameState.player.x - actor.x, gameState.player.y - actor.y);
+        // the nearest in reach, so the building or NPC beside the hero wins over one two steps away
+        let nearby = null, nearest = Infinity;
+        for (const actor of actors) {
+            const d = distance(actor);
+            if (d <= range && d < nearest) { nearby = actor; nearest = d; }
+        }
         if (nearby) {
             useWorldActor(kind, nearby);
             return;
@@ -3450,7 +3494,7 @@ function escapeMapText(value) {
 function talkToNPC(npc) {
     document.getElementById('modalTitle').textContent = npc.name;
     document.getElementById('modalContent').innerHTML = `
-        <div style="font-size: 24px; margin-bottom: 20px;">💬</div>
+        <div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>
         <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(npc.dialogue)}"</div>
         <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
             Press ESC or click Close to continue your journey
@@ -3466,6 +3510,7 @@ function interactWithBuilding(building) {
     document.getElementById('modalTitle').textContent = building.name;
     
     let content = `<div style="font-size: 32px; margin-bottom: 20px;">🏛️</div>`;
+    if (building.realmId) content += `<p style="margin-bottom: 12px;">${escapeMapText(building.description)}</p>`;
     
     switch (building.type) {
         case 'inn':
@@ -3516,6 +3561,10 @@ function interactWithBuilding(building) {
             `;
             break;
         case 'castle':
+            if (building.realmId) {
+                content += `<p>The local surveyors keep trail notes here. Read their chart in the Atlas.</p>`;
+                break;
+            }
             content += `
                 <p style="margin-bottom: 20px;">Sealed notices line the walls. The castle is looking for adventurers.</p>
                 <div style="background: rgba(147, 51, 234, 0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
@@ -3525,6 +3574,7 @@ function interactWithBuilding(building) {
             `;
             break;
         default:
+            if (building.realmId) break;
             content += `
                 <p style="margin-bottom: 20px;">A modest dwelling with a welcome light in the window.</p>
                 <div style="background: rgba(107, 114, 128, 0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
@@ -3803,6 +3853,7 @@ function enemyTurn() {
 
 function enemyDefeated() {
     const enemy = gameState.currentEnemy;
+    ebFarlands.consume(enemy);
     gameState.player.xp += enemy.xpReward;
     gameState.inventory.gold += enemy.goldReward;
     gameState.stats.enemiesDefeated++;
@@ -3816,7 +3867,7 @@ function enemyDefeated() {
     checkLevelUp();
     ebRank.record();
 
-    if (Math.random() < 0.4) {
+    if (!enemy.realmId && Math.random() < 0.4) {
         const dropValue = Math.floor(Math.random() * 30) + 15;
         items.push({x: enemy.x, y: enemy.y, type: 'gold', value: dropValue});
         addBattleLog(`✨ Enemy dropped treasure!`, 'log-heal');
@@ -3832,10 +3883,19 @@ function playerDefeated() {
     gameState.inventory.gold = Math.max(0, Math.floor(gameState.inventory.gold * 0.85));
 
     setTimeout(() => {
-        gameState.player.x = 15;
-        gameState.player.y = 10;
+        const realm=ebFarlands.surface();
+        const point=realm ? ebFarlands.rescuePoint() : {x:15,y:10};
+        gameState.player.x = point.x;
+        gameState.player.y = point.y;
+        if (realm) {
+            gameState.sailingMoves=0;
+            ebFarlands.refreshScene();
+            checkLocationQuick(false);
+        }
         endBattle(false);
-        showFloatingText('Revived in Starter Village', gameState.player.x * 32 + 16, gameState.player.y * 32 - 25, '#fbbf24');
+        if (realm) updatePositionDisplay();
+        showFloatingText(realm ? 'Revived at '+gameState.currentLocation : 'Revived in Starter Village',
+            gameState.player.x * 32 + 16, gameState.player.y * 32 - 25, '#fbbf24');
     }, 2500);
 }
 
@@ -4182,35 +4242,40 @@ function findWalkRoute(targetX, targetY) {
     const startY = Math.floor(gameState.player.y);
     const start = startY * width + startX;
     const end = targetY * width + targetX;
-    if (!worldMap[targetY]?.[targetX] || start === end) return [];
+    if (!adventureTile(targetX,targetY) || start === end) return [];
+    const streamed = ebFarlands.surface();
     const obstacles = new Set(enemies.map(enemy => Math.floor(enemy.y) * width + Math.floor(enemy.x)));
     const walkable = (x, y) => {
-        const terrain = worldMap[y]?.[x];
-        return terrain && !solidStructure(x,y) && !['water', 'mountain', 'door'].includes(terrain) && !obstacles.has(y * width + x);
+        const terrain = adventureTile(x,y);
+        return terrain && !solidStructure(x,y) && !['water', 'mountain', 'door'].includes(terrain) &&
+            !(streamed && terrain==='lava') && !obstacles.has(y * width + x);
     };
     if (!walkable(targetX, targetY)) return [];
 
     // A visible destination rarely needs more than a few dozen steps. Bound work on imported maps.
     const limit = Math.min(12000, width * height);
-    const parents = new Int32Array(width * height);
+    const parents = streamed ? new Map() : new Int32Array(width * height);
+    const parentAt = streamed ? id => parents.get(id) : id => parents[id];
+    const remember = streamed ? (id,parent) => parents.set(id,parent) : (id,parent) => { parents[id]=parent; };
     const queue = new Int32Array(limit);
     queue[0] = start;
-    parents[start] = start + 1;
+    remember(start,start+1);
     let size = 1;
+    const directions = Object.values(moveDirections);
     for (let head = 0; head < size; head++) {
         const current = queue[head];
         if (current === end) {
             const steps = [];
-            for (let p = end; p !== start; p = parents[p] - 1) steps.push([p % width, Math.floor(p / width)]);
+            for (let p = end; p !== start; p = parentAt(p) - 1) steps.push([p % width, Math.floor(p / width)]);
             return steps.reverse();
         }
         const x = current % width;
         const y = Math.floor(current / width);
-        for (const [dx, dy] of Object.values(moveDirections)) {
+        for (const [dx, dy] of directions) {
             const nextX = x + dx, nextY = y + dy;
             const next = nextY * width + nextX;
-            if (size < limit && !parents[next] && walkable(nextX, nextY)) {
-                parents[next] = current + 1;
+            if (size < limit && !parentAt(next) && walkable(nextX, nextY)) {
+                remember(next,current+1);
                 queue[size++] = next;
             }
         }
@@ -4358,7 +4423,7 @@ function saveAdventure(slot) {
         map,
         room: buildingInterior ? { index:map.buildings.indexOf(buildingInterior.building), x:player.x, y:player.y } : undefined
     };
-    localStorage.setItem(slot, JSON.stringify(state, (key, value) => key === 'walkingUntil' ? undefined : value));
+    localStorage.setItem(slot, JSON.stringify(ebFarlands.pack(state), (key, value) => key === 'walkingUntil' ? undefined : value));
 }
 
 function expandR2Save(map) {
@@ -4431,6 +4496,7 @@ function loadAdventure(slot) {
         const building = map.buildings?.[save.room.index];
         if (roomLayout(building)) openBuildingInterior(building,{ x:save.room.x, y:save.room.y });
     }
+    ebFarlands.restore(save.farlands);
     return true;
 }
 
@@ -4471,6 +4537,7 @@ const soloSaves = (() => {
             player:gameState.player, inventory:gameState.inventory, stats:gameState.stats,
             sailing:gameState.sailingMoves, map:captureAdventureMap()
         });
+        ebFarlands.reset();
         slot = next;
         loading = true;
         dirty = available = blocked = false;
@@ -5676,6 +5743,166 @@ body { height: 100dvh; }
     .ui-panel .stat-block #quickInfo1, .ui-panel .stat-block #quickInfo2 { font-size: 9px !important; }
 }
 
+/* The Farlands chart uses the same ink and brass colors as the existing menu. */
+.eb-menu-options #eb-farlands-option {
+    border-color: #9c8059;
+    background: linear-gradient(110deg,#253c32,#304638 55%,#57492e);
+}
+.eb-menu-options #eb-farlands-option strong { color: #f3daa0; }
+.eb-menu-options #eb-farlands-option small { color: #e3decb; }
+.eb-atlas-button { color:#ffdda4; border-color:#9c8059; }
+#eb-farlands-hint {
+    margin: 3px 0 0;
+    color: #f1d294;
+    font-size: .74rem;
+    overflow-wrap: anywhere;
+}
+.eb-dialog.eb-atlas {
+    width: min(850px, calc(100vw - 24px));
+    max-width: none;
+    max-height: min(92vh, 840px);
+    max-height: min(92dvh, 840px);
+    padding: clamp(12px, 2.5vw, 24px);
+    background: radial-gradient(ellipse at 20% 0%,#30483e,#182b27 65%);
+}
+.eb-atlas-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.eb-atlas-header h2 { margin: 3px 0 0; font-size: clamp(24px, 5vw, 34px); }
+.eb-atlas-header button { min-height: 40px; }
+.eb-atlas .eb-atlas-kicker {
+    margin: 0;
+    color: #d9bb82;
+    font-size: .71rem;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+.eb-atlas-body {
+    display: grid;
+    grid-template-columns: minmax(0,1.4fr) minmax(230px,1fr);
+    align-items: start;
+    gap: clamp(12px, 2vw, 23px);
+}
+.eb-atlas-map { margin: 0; }
+.eb-atlas-map canvas {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid #977e57;
+    border-radius: 8px;
+    background: #397d85;
+    cursor: pointer;
+}
+.eb-atlas-map figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 5px 10px;
+    color: #e5c88d;
+    font-size: .72rem;
+    margin-top: 8px;
+}
+.eb-atlas-guide {
+    min-width: 0;
+    padding: 13px 15px;
+    background: #0e211dcc;
+    border: 1px solid #64735b;
+    border-radius: 9px;
+}
+.eb-atlas-guide select {
+    width: 100%;
+    min-height: 44px;
+    margin: 5px 0 13px;
+    background: #142c25;
+    border: 1px solid #8c8c6c;
+    border-radius: 6px;
+    color: #f4ead8;
+    padding: 6px;
+    font: inherit;
+}
+.eb-atlas-guide h3 {
+    margin: 4px 0 6px;
+    font: 700 21px/1.2 Georgia,serif;
+    color: #f1d6a0;
+}
+.eb-atlas-guide p { line-height: 1.35; }
+.eb-atlas .eb-atlas-count {
+    margin: 0;
+    color: #bcd8a5;
+    font-size: .8rem;
+    font-weight: 750;
+}
+.eb-atlas .eb-atlas-note { margin: 9px 0 0; font-size: .78rem; color: #c3d5c9; }
+.eb-atlas .eb-atlas-survey {
+    margin: 11px 0 0;
+    padding-top: 9px;
+    border-top: 1px solid #62705b;
+    color: #f1d294;
+    font-size: .84rem;
+}
+.npc-avatar[data-fauna]::before {
+    content: attr(data-fauna);
+    width: 100%;
+    height: 100%;
+    background: none;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+}
+@media (max-width: 620px) {
+    .eb-atlas-body { grid-template-columns: minmax(0,1fr); }
+    .eb-atlas-map { width: min(100%,420px); margin-inline: auto; }
+    .eb-atlas-map canvas { max-height: 43dvh; width: auto; max-width: 100%; margin-inline: auto; }
+}
+[data-eb-farlands] #teleportButton,
+[data-eb-farlands] #mapImporterTrigger { display: none; }
+[data-eb-farlands] .tile[style*="--eb-farlands-ground"] { background-color: var(--eb-farlands-ground); }
+[data-eb-farlands] .building[data-farlands-building] {
+    --roof:#6b4838;
+    --front:#bfaa7d;
+    width: 32px;
+    height: 32px;
+    background: none;
+    border: 0;
+    box-shadow: none;
+}
+[data-eb-farlands] .building[data-farlands-building]::before {
+    content: '';
+    position: absolute;
+    inset: 9.375% 3.125% 50%;
+    width: auto;
+    height: auto;
+    border: 0;
+    background: linear-gradient(160deg,#ffdfac36,transparent),var(--roof);
+    clip-path: polygon(50% 0,100% 84%,98% 100%,2% 100%,0 84%);
+    transform: none;
+    z-index: 1;
+}
+[data-eb-farlands] .building[data-farlands-building]::after {
+    content: '';
+    position: absolute;
+    inset: 43.75% 12.5% 6.25%;
+    width: auto;
+    height: auto;
+    background: linear-gradient(#e7bd6f,#ad8244) 15.8% 27.3%/20.8% 31.25% no-repeat,
+        linear-gradient(#e7bd6f,#ad8244) 78.9% 27.3%/20.8% 31.25% no-repeat,
+        linear-gradient(#553b2c,#634937) center bottom/25% 56.25% no-repeat,var(--front);
+    border: 1px solid #766144;
+    box-shadow: 1px 2px 1px #2833277d;
+    transform: none;
+}
+[data-eb-farlands] .building[data-farlands-building="shop"] { --roof:#395f56; }
+[data-eb-farlands] .building[data-farlands-building="temple"] { --roof:#a0884b; --front:#c9bca1; }
+[data-eb-farlands] .building[data-farlands-building="castle"],
+[data-eb-farlands] .building[data-farlands-building="beacon"],
+[data-eb-farlands] .building[data-farlands-building="observatory"] { --roof:#405c60; --front:#a7a18c; }
+[data-eb-farlands] .building[data-farlands-building="wreck"] { --roof:#685541; --front:#8b7152; }
+
 </style>
 </head>
 <body>
@@ -5791,7 +6018,9 @@ body { height: 100dvh; }
                     <span id="eb-shared-badge" aria-live="polite">Solo adventure</span>
                     <button type="button" class="eb-panel-button" id="eb-shared-open" hidden>Play Together</button>
                     <button type="button" class="eb-panel-button" id="eb-duel-nearby" aria-haspopup="dialog" hidden>Duel</button>
+                    <button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-atlas-open" aria-haspopup="dialog" hidden>Atlas</button>
                 </div>
+                <p id="eb-farlands-hint" hidden></p>
                 <button type="button" class="eb-panel-button" id="eb-room-exit" hidden>Exit building</button>
                 <div class="desktop-controls-hint" style="font-size: 11px; opacity: 0.8; margin-top: 4px;">WASD/Arrows: Move | Space: Interact</div>
             </div>
@@ -6036,6 +6265,37 @@ body { height: 100dvh; }
             <button type="button" id="eb-menu-world" hidden>
                 <strong>Shared world</strong><small>Explore with other players.</small>
             </button>
+            <button type="button" id="eb-farlands-option">
+                <strong id="eb-farlands-option-title">Explore the Farlands</strong>
+                <small id="eb-farlands-option-copy">A 10,000 × 10,000 solo realm with nine regions to explore.</small>
+            </button>
+        </div>
+    </dialog>
+
+    <dialog id="eb-farlands-atlas" class="eb-dialog eb-atlas" aria-labelledby="eb-farlands-atlas-title">
+        <header class="eb-atlas-header">
+            <div><p class="eb-atlas-kicker">EternalBliss · 10,000 × 10,000 tiles</p><h2 id="eb-farlands-atlas-title">The Farlands Atlas</h2></div>
+            <button type="button" class="eb-panel-button" id="eb-farlands-atlas-close" aria-label="Close Atlas" autofocus>Close</button>
+        </header>
+        <div class="eb-atlas-body">
+            <figure class="eb-atlas-map">
+                <canvas id="eb-farlands-chart" width="560" height="560" role="img" aria-label="Chart of the Farlands, with waystations, roads, ferries and your position. North is up."></canvas>
+                <figcaption><span>↑ North</span><span>● Waystation</span><span>◌ You</span><span>┈ Ferry</span></figcaption>
+            </figure>
+            <section class="eb-atlas-guide" aria-label="Farlands guide">
+                <p class="eb-atlas-count" id="eb-farlands-discovery"></p>
+                <label for="eb-farlands-destination">Choose a place</label>
+                <select id="eb-farlands-destination"></select>
+                <p class="eb-atlas-kicker" id="eb-farlands-region"></p>
+                <h3 id="eb-farlands-detail-title"></h3>
+                <p id="eb-farlands-detail"></p>
+                <div class="eb-dialog-actions">
+                    <button type="button" class="btn" id="eb-farlands-pin">Pin this place</button>
+                    <button type="button" class="btn btn-primary" id="eb-farlands-travel">Take caravan</button>
+                </div>
+                <p class="eb-atlas-note" id="eb-farlands-travel-note"></p>
+                <p class="eb-atlas-survey" id="eb-farlands-survey"></p>
+            </section>
         </div>
     </dialog>
 
@@ -7644,11 +7904,13 @@ const EternalBlissArt = (() => {
         box(group, .23, .035, .085, 0xb69a6c, x, y - .105, z + .016);
     }
 
-    function building(kind, variant, footprint = null) {
+    function building(kind, variant, footprint = null, region) {
         const group = new T.Group();
-        const slate = 0x294e50;
+        const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
+            amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
+        const slate = roofColors[region] ?? 0x294e50;
         const brass = 0xc5a367;
-        const limestone = 0xc8b18a;
+        const limestone = region==='salt' ? 0xd4ae78 : region==='iron' || region==='rime' ? 0xb9b9aa : 0xc8b18a;
         const dark = 0x51463c;
 
         if (kind === 'temple') {
@@ -7692,12 +7954,12 @@ const EternalBlissArt = (() => {
             cylinder(group, .015, .02, .36, 6, brass, 0, 1.70);
             box(group, .30, .14, .025, 0x983f36, .15, 1.83);
         } else {
-            const broad = kind === 'inn' || kind === 'shop';
+            const broad = kind === 'inn' || kind === 'shop' || (kind === 'house' && (footprint?.w ?? 1) > 1);
             const width = broad ? 1.22 : .92;
-            const roofColor = kind === 'shop' ? 0x28615e :
-                [0x814f3d, 0x8f5037, 0x454e56][variant % 3];
+            const roofColor = roofColors[region] ?? (kind === 'shop' ? 0x28615e :
+                [0x814f3d, 0x8f5037, 0x454e56][variant % 3]);
             box(group, width + .15, .13, .98, 0x80786a, 0, .065);
-            box(group, width, .79, .81, 0xd5bb91, 0, .525);
+            box(group, width, .79, .81, region ? limestone : 0xd5bb91, 0, .525);
             box(group, width + .05, .07, .86, 0x725543, 0, .90);
             box(group, .29, .68, .065, 0x543a30, 0, .47, .425);
             box(group, .36, .065, .078, 0x8b6448, 0, .82, .433);
@@ -7711,7 +7973,7 @@ const EternalBlissArt = (() => {
             box(group, .046, .052, .82, roofColor, 0, 1.26);
             box(group, .14, .35, .15, 0x765749, width * .30, 1.11, -.25);
             box(group, .18, .05, .19, 0xa18066, width * .30, 1.30, -.25);
-            if (broad) {
+            if (broad && kind !== 'house') {
                 box(group, .43, .11, .06, kind === 'shop' ? 0x416c51 : 0x833e31, 0, .895, .465);
                 box(group, .19, .021, .022, brass, 0, .895, .507);
             }
@@ -7719,7 +7981,7 @@ const EternalBlissArt = (() => {
         const [width,depth,height] = {
             castle:[1.56,1.46,1.92], temple:[1.31,1.42,1.63],
             inn:[1.41,1.06,1.33], shop:[1.41,1.06,1.33]
-        }[kind] ?? [1.11,1.06,1.33];
+        }[kind === 'house' && (footprint?.w ?? 1) > 1 ? 'shop' : kind] ?? [1.11,1.06,1.33];
         const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
         if (across === 1 && deep === 1) {
             // Extend eaves within the clearance of adjacent walkable tile centers.
@@ -7731,6 +7993,56 @@ const EternalBlissArt = (() => {
             group.scale.set(sx,Math.sqrt(sx*sz),sz);
         }
         return { group,height,width,depth };
+    }
+
+    function landmark(kind, footprint = null) {
+        const group = new T.Group();
+        const wood=0x806448,stoneColor=0xa0967d;
+        let height=1.15;
+        let wheel;
+        box(group,.96,.10,.91,0x746f60,0,.05);
+        if (kind==='mill') {
+            box(group,.78,.74,.66,0xc2a987,-.08,.46,-.08);
+            roof(group,.94,.79,.85,.28,0x794731);
+            windowPane(group,-.15,.48,.263);
+            wheel=new T.Group();
+            wheel.position.set(.39,.39,.39);
+            group.add(wheel);
+            for (let i=0;i<8;i++) {
+                const angle=i*Math.PI/4;
+                const paddle=box(wheel,.12,.32,.07,wood,Math.sin(angle)*.17,Math.cos(angle)*.17,0);
+                paddle.rotation.z=-angle;
+            }
+            cylinder(group,.064,.064,.28,7,0x514535,.39,.39,.37).rotation.x=Math.PI/2;
+        } else if (kind==='beacon' || kind==='observatory') {
+            cylinder(group,.27,.39,1.03,8,stoneColor,0,.61);
+            cylinder(group,.32,.32,.12,8,0x706c5e,0,1.14);
+            cylinder(group,.22,.22,.25,7,kind==='beacon' ? 0xf5c985 : 0x92babc,0,1.29,0,0xce913b);
+            cylinder(group,0,.32,.32,8,0x46756f,0,1.55);
+            height=1.72;
+        } else if (kind==='mine' || kind==='ruin') {
+            box(group,.93,.61,.60,stoneColor,0,.39,-.09);
+            box(group,.37,.55,.08,0x302a28,0,.37,.26);
+            box(group,.55,.11,.15,wood,0,.69,.30);
+            for (const x of [-.24,.24]) box(group,.09,.66,.14,wood,x,.39,.29);
+            stone(group,.26,0x908976,.29,.76,-.18,1,.6,1.15);
+            stone(group,.19,0x84796a,-.31,.19,.37,1,.7,1.14);
+        } else if (kind==='wreck') {
+            stone(group,.45,0x765c42,0,.30,0,.77,.45,1.08);
+            box(group,.065,.80,.063,0x8c7658,0,.60,-.08).rotation.z=.28;
+            box(group,.46,.057,.06,0x907558,.08,.77,-.06).rotation.z=-.24;
+        } else {
+            box(group,.67,.11,.64,0xb3a489,0,.14);
+            for (const x of [-.22,.22]) {
+                cylinder(group,.12,.17,.68,5,stoneColor,x,.50,-.10);
+                cylinder(group,0,.13,.20,5,0xc3b498,x,.93,-.10);
+            }
+            box(group,.39,.11,.29,0x6e8a7d,0,.23,.23);
+        }
+        // Over several tiles the model grows evenly (round towers and wheels keep their shape), no taller than a castle.
+        const across=footprint?.w ?? 1, deep=footprint?.h ?? 1;
+        if (across>1 || deep>1) group.scale.setScalar(Math.min(.98*(across+.22)/1.02,.96*(deep+.22)/.96,4/height));
+        return {group,height,width:1.02,depth:.96,wheel};
     }
 
     function roomProp(kind) {
@@ -7922,6 +8234,55 @@ const EternalBlissArt = (() => {
         return { group, body, legs, arms: [], height: .94, width: dragon ? 1.35 : .75 };
     }
 
+    function fauna(name) {
+        const group=new T.Group(), body=new T.Group();
+        group.add(body);
+        const hare=/hare|marmot|badger/i.test(name);
+        const fox=/fox|fennec/i.test(name);
+        const fur=/snow|whitehorn/i.test(name) ? 0xe2e4d7 : fox ? 0xba7445 : 0x977452;
+        const legs=[];
+        const bodyY=hare ? .31 : .58;
+        stone(body,.27,fur,0,bodyY,-.03,.78,.77,1.29);
+        stone(body,.16,fur,0,bodyY+(hare ? .12 : .23),.30,.90,1.12,1.13);
+        stone(body,.085,0xcdbb96,0,bodyY+.11,.43,1.04,.75,1.16);
+        stone(body,.16,fur,0,bodyY-.065,-.37,.67,.54,fox ? 1.58 : .56);
+        for (const side of [-1,1]) {
+            const x=side*.135;
+            const earY=bodyY+(hare ? .30 : .43);
+            const ear=cylinder(body,.015,.046,hare ? .19 : .15,4,fur,side*.076,earY,.28);
+            ear.rotation.z=side*.35;
+            if (!hare && !fox) {
+                cylinder(body,.014,.024,.22,5,0xdfc9a5,side*.1,earY+.09,.24).rotation.z=side*.38;
+                cylinder(body,.009,.017,.14,5,0xdfc9a5,side*.14,earY+.13,.31).rotation.x=.62;
+            }
+            stone(body,.023,0x332e25,side*.126,bodyY+(hare ? .16 : .27),.365);
+            for (const z of [-.19,.18]) {
+                const leg=makeLimb(body,x,bodyY-.06,z);
+                box(leg,hare ? .095 : .074,bodyY-.09,.095,0x72583e,0,-(bodyY-.09)/2);
+                legs.push(leg);
+            }
+        }
+        return {group,body,legs,arms:[],height:hare ? .72 : 1.18,width:.57};
+    }
+
+    function crawler(region) {
+        const group=new T.Group(), body=new T.Group(), legs=[];
+        group.add(body);
+        const shell=region==='salt' ? 0xa46f39 : 0x665453;
+        stone(body,.28,shell,0,.26,-.04,.94,.68,1.29);
+        for (const side of [-1,1]) {
+            stone(body,.14,shell,side*.30,.24,.32,1.14,.72,1.3);
+            for (const z of [-.23,-.07,.10,.23]) {
+                const leg=makeLimb(body,side*.19,.26,z);
+                box(leg,.22,.045,.048,shell,side*.12,-.04).rotation.z=side*-.49;
+                legs.push(leg);
+            }
+        }
+        for (let i=0;i<5;i++) stone(body,.105,shell,0,.30+i*.102,-.32-Math.sin(i*.6)*.15,1.05,1.15,1.06);
+        cylinder(body,0,.055,.18,5,0xd19e64,0,.77,-.34).rotation.x=1.42;
+        return {group,body,legs,arms:[],height:.88,width:.87};
+    }
+
     function item(type) {
         const group = new T.Group();
         if (type === 'treasure') {
@@ -7957,7 +8318,7 @@ const EternalBlissArt = (() => {
         return group;
     }
 
-    return { building, roomProp, humanoid, beast, item, boat };
+    return { building, landmark, roomProp, humanoid, beast, fauna, crawler, item, boat };
 })();
 
 </script>
@@ -8283,7 +8644,7 @@ window.addEventListener('load', () => {
         }
 
         terrainAt(x, z) {
-            return worldMap[z]?.[x];
+            return adventureTile(x,z);
         }
 
         updateTerrain() {
@@ -8307,7 +8668,7 @@ window.addEventListener('load', () => {
             const top = Math.max(0, z0);
             const right = Math.min(width, x0 + radius * 2 + chunkSize);
             const bottom = Math.min(height, z0 + radius * 2 + chunkSize);
-            const signature = [left, top, right, bottom, minimapTerrainRevision, worldClimate.season].join(',');
+            const signature = [left, top, right, bottom, minimapTerrainRevision, buildingFootprintRevision, worldClimate.season].join(',');
             if (signature === this.terrainSignature) return;
 
             this.terrainSignature = signature;
@@ -8327,6 +8688,7 @@ window.addEventListener('load', () => {
             const shoreColor = new T.Color(season.shore);
             const surfColor = new T.Color(0x8dc6ac);
             const cliff = new T.Color(0x81735c);
+            const streamed=ebFarlands.surface();
             for (let z = top; z < bottom; z++) {
                 for (let x = left; x < right; x++) {
                     const type = this.terrainAt(x, z);
@@ -8335,7 +8697,9 @@ window.addEventListener('load', () => {
                     const shore = edges.map(([dx, dz]) => !this.room && (!this.terrainAt(x + dx, z + dz) ||
                         this.terrainAt(x + dx, z + dz) === 'water'));
                     const light = .97 + .075 * Math.sin(x * .24 + z * .13) + .09 * hash(x, z, 1);
-                    color.set(season[type] ?? colors[type] ?? season.grass).multiplyScalar(light);
+                    const biome=streamed && Farlands.regions[Farlands.regionAt(x,z)];
+                    const tint=biome && (type==='grass' ? biome.color : type==='forest' ? biome.forest : 0);
+                    color.set(tint || season[type] || colors[type] || season.grass).multiplyScalar(light);
                     if (shore.some(Boolean) && type === 'grass') color.lerp(shoreColor, .42);
                     const corners = [
                         [x - .5, tileTop, z - .5], [x - .5, tileTop, z + .5],
@@ -8357,6 +8721,8 @@ window.addEventListener('load', () => {
                             sandB
                         ], surfColor, shorePositions, shoreTints, shoreUvs);
                     }
+                    // A building's tiles keep only their ground: no tree, rock or lantern grows through its walls.
+                    if (!this.room && buildingFootprints.has(z * width + x)) continue;
 
                     if (type === 'grass' && shore.some(Boolean) && hash(x, z, 7) > .38 &&
                         edges.some(([dx, dz]) => this.terrainAt(x + dx, z + dz) === 'road')) {
@@ -8370,29 +8736,53 @@ window.addEventListener('load', () => {
                     const r = hash(x, z, 2);
                     const rotation = r * Math.PI * 2;
                     const offset = (hash(x, z, 3) - .5) * .35;
+                    if (biome && type==='road' && Farlands.natural(x,z)==='water') {
+                        for (let j=-1;j<=1;j++) roomBlocks.push([x+j*.30,.078,z,.29,.045,.94,0,
+                            j%2 ? 0xa38157 : 0xb09467]);
+                    }
                     if (type === 'wall' && !this.room?.decorTiles.has(z*width+x)) {
                         roomBlocks.push([x,tileTop+.32,z,1,.64,1,0,0x8c7b64]);
                         roomBlocks.push([x,tileTop+.67,z,1,.06,1,0,0xb09c7f]);
                     } else if (type === 'counter') {
                         roomBlocks.push([x,tileTop+.011,z,.80,.022,.62,0,0x927352]);
-                    } else if (type === 'forest') {
-                        const h = 1.02 + .63 * r;
+                    } else if (type==='forest' && biome?.flora==='orchard' && r>.24) {
+                        // orchard trees grow by the same proportion as forest trees
+                        const h=(.74+r*.48)*1.3;
+                        logs.push([x+offset,.40,z,.084,.74,.096,rotation,0x7c573d]);
+                        const blooms=worldClimate.season==='Spring' ? 0xd59680 : biome.forest;
+                        stones.push([x+offset,h,z,.47,.32,.49,rotation,blooms]);
+                        stones.push([x+offset-.25,h-.07,z-.23,.31,.22,.35,rotation,season.crowns[1]]);
+                    } else if (type === 'forest' && (!biome || r>.20)) {
+                        // trees stand well above the heroes walking among them
+                        const h = (1.02 + .63 * r) * 1.3;
                         const shift = x + offset;
-                        logs.push([shift, tileTop + h * .29, z - offset, .073, h * .56, .073, rotation, 0x826747]);
-                        leaves.push([shift, tileTop + h * .65, z - offset, .44, h * .70, .44, rotation, season.crowns[0]]);
-                        leaves.push([shift, tileTop + h * .90, z - offset, .34, h * .64, .34, rotation + .4, season.crowns[1]]);
-                        leaves.push([shift, tileTop + h * 1.13, z - offset, .23, h * .48, .23, rotation + .2, season.crowns[2]]);
+                        logs.push([shift, tileTop + h * .29, z - offset, .088, h * .56, .088, rotation, 0x826747]);
+                        leaves.push([shift, tileTop + h * .65, z - offset, .53, h * .70, .53, rotation, biome?.forest ?? season.crowns[0]]);
+                        leaves.push([shift, tileTop + h * .90, z - offset, .41, h * .64, .41, rotation + .4, season.crowns[1]]);
+                        leaves.push([shift, tileTop + h * 1.13, z - offset, .28, h * .48, .28, rotation + .2, season.crowns[2]]);
                         stones.push([x - .25, .14, z + .29, .20, .15, .22, rotation, 0x73884e]);
                     } else if (type === 'mountain') {
                         const h = .58 + r * .55;
                         stones.push([x + offset, h * .73, z - offset, .61, h, .56, rotation, 0xa8a397]);
                         stones.push([x - .25, .27, z + .20, .32, .32, .32, rotation + .43, 0x888876]);
+                    } else if (biome?.flora==='cactus' && type==='sand' && r>.94) {
+                        const h=.38+r*.23;
+                        logs.push([x+offset,tileTop+h/2,z,.105,h,.10,rotation,0x648858]);
+                        logs.push([x+offset-.12,tileTop+h*.46,z,.065,h*.47,.067,rotation,0x729b66]);
+                        roomBlocks.push([x+offset-.065,tileTop+h*.30,z,.13,.065,.06,rotation,0x648858]);
+                    } else if (biome?.flora==='reed' && ['swamp','mud'].includes(type) && r>.49) {
+                        for (let j=0;j<4;j++) sprouts.push([x+offset+(j-1.5)*.082,.17+j*.012,z-offset,
+                            .041,.27+j*.027,.044,rotation,j%2 ? 0x9bb282 : 0xa69360]);
                     } else if (type === 'grass' && r > .61) {
                         const reeds = shore.some(Boolean);
                         const base = reeds ? .27 + .09 * r : .15 + .08 * r;
                         for (let j = 0; j < 3; j++) {
                             sprouts.push([x + offset + (j - 1) * .075, .08 + base / 2, z - offset,
                                 .035, base - j * .031, .04, rotation, reeds && worldClimate.season === "Summer" ? 0x759b5b : season.sprouts]);
+                        }
+                        if (biome?.flora==='orchard' && r>.87) {
+                            for (let j=0;j<3;j++) stones.push([x+offset+(j-1)*.088,.15+j*.009,z-offset,.031,.026,.033,rotation,
+                                j%2 ? 0xf3c682 : 0xd9ad9a]);
                         }
                         if (r > .96) stones.push([x + .30, .11, z - .32, .105, .075, .115, rotation, 0x9ca18b]);
                     } else if (type === 'door') {
@@ -8445,7 +8835,9 @@ window.addEventListener('load', () => {
                     if (!record) {
                         const variant = Math.floor(hash(Math.floor(data.x), Math.floor(data.y), 5) * 90);
                         let model;
-                        if (kind === 'building') model = art.building(data.type, variant, buildingFootprint(data));
+                        if (kind === 'building') model = data.realmId && data.landmark ?
+                            art.landmark(data.landmark, buildingFootprint(data)) :
+                            art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined);
                         else if (kind === 'item') model = art.item(data.type);
                         else if (kind === 'remote') {
                             model = art.humanoid('remote','',variant);
@@ -8454,6 +8846,8 @@ window.addEventListener('load', () => {
                             marker.position.y = .016;
                             model.group.add(marker);
                         }
+                        else if (kind==='npc' && data.fauna) model=art.fauna(data.name);
+                        else if (kind==='enemy' && data.crawler) model=art.crawler(data.region);
                         else {
                             const type = kind === 'npc' ? getNPCType(data.class) : (data.class.includes('skeleton') ? 'skeleton' : getEnemyType(data.class));
                             model = type === 'wolf' || type === 'dragon' ? art.beast(type) : art.humanoid(kind, type, variant);
@@ -8650,6 +9044,7 @@ window.addEventListener('load', () => {
             this.project(this.heroTag,here.x,here.y+this.hero.height+.19,here.z,labels);
             for (const record of this.actors.values()) {
                 const { data, model, kind, label } = record;
+                if (model.wheel && !this.reduced) model.wheel.rotation.z=time*.78;
                 const lift = kind === 'item' && !this.reduced ? .055 * Math.sin(time * 3 + data.x) + .06 : 0;
                 const pose = kind === 'building' ? buildingCentre(data) : sharedWorld.actorPose(data,now);
                 this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data);
@@ -8781,6 +9176,12 @@ window.addEventListener('load', () => {
         document.addEventListener('keydown', event => {
             if ((event.key === 'Enter' || event.key === ' ') &&
                 event.target.closest?.('.eb-tools button, .eb-panel-button, .eb-name')) event.stopPropagation();
+        }, { capture: true });
+        // A button clicked with the mouse or a finger hands the keyboard back to the game, so Space and Enter reach
+        // the world again (a keyboard user who tabs to a button keeps it). Buttons inside dialogs keep focus as usual.
+        document.addEventListener('click', event => {
+            const button = event.target.closest?.('button');
+            if (button && event.detail > 0 && document.activeElement === button && !button.closest('dialog')) button.blur();
         }, { capture: true });
 
         const summary = document.getElementById('eb-hero-summary');
@@ -10211,7 +10612,7 @@ const ebRank = (() => {
 
 </script>
 <script data-source="shared-manifest.js">
-const EB_SHARED_MAP = {"hash":[118,12,231,107,80,29,18,121,250,128,210,62,146,28,200,109,144,110,6,163,27,33,123,187,246,52,14,36,23,3,167,228],"width":300,"height":300,"npcs":[[12,41,13,41],[3,99,3,99],[92,34,92,34],[14,120,14,120],[25,128,26,128],[28,130,28,130],[28,129,28,129],[23,119,23,119],[28,126,29,126],[29,125,29,125],[30,121,30,121],[30,122,30,122],[33,125,34,125],[46,120,46,120],[67,99,67,99],[92,94,92,94],[94,94,94,95],[104,98,104,98],[76,102,76,102],[94,106,94,106],[87,109,88,109],[81,107,81,107],[83,97,83,97],[82,90,82,90],[82,91,83,91],[68,67,68,67],[90,78,90,78],[67,51,67,51],[107,63,108,63],[180,82,180,82],[184,82,183,82],[187,81,187,81],[222,101,222,101],[226,101,226,102],[229,100,229,100],[96,179,96,179],[100,179,101,179],[103,178,103,178],[46,193,46,193],[50,193,50,192],[53,192,53,192],[181,186,181,186],[185,186,184,186],[188,185,188,185],[223,223,223,223],[227,223,227,224],[230,222,230,222]],"enemies":[[12,33,13,33,25,10,15,10],[11,34,11,34,25,10,15,10],[10,33,10,33,25,10,15,10],[11,32,11,31,25,10,15,10],[70,5,70,5,100,25,75,50],[74,11,74,11,60,15,40,25],[93,6,92,6,45,12,30,18],[81,2,81,2,25,10,15,10],[80,0,80,0,25,10,15,10],[82,1,81,1,25,10,15,10],[81,0,81,0,25,10,15,10],[82,0,82,0,25,10,15,10],[89,6,90,6,25,10,15,10],[139,41,139,41,25,10,15,10],[143,41,143,41,25,10,15,10],[141,43,141,42,25,10,15,10],[141,39,141,39,25,10,15,10],[125,132,125,132,100,25,75,50],[130,133,129,133,100,25,75,50],[123,137,123,137,25,10,15,10],[134,142,134,142,25,10,15,10],[114,137,114,138,25,10,15,10],[128,136,128,136,25,10,15,10],[138,143,138,143,25,10,15,10],[139,143,140,143,25,10,15,10],[140,143,140,143,25,10,15,10],[141,143,141,143,25,10,15,10],[142,143,142,142,25,10,15,10],[143,143,143,143,25,10,15,10],[144,143,144,143,25,10,15,10],[144,144,143,144,25,10,15,10],[144,145,144,145,25,10,15,10],[144,146,144,146,25,10,15,10],[144,147,144,148,25,10,15,10],[144,148,144,148,25,10,15,10],[144,149,144,149,25,10,15,10],[143,149,144,149,25,10,15,10],[142,149,142,149,25,10,15,10],[141,149,141,149,25,10,15,10],[140,149,140,148,25,10,15,10],[139,149,139,149,25,10,15,10],[138,149,138,149,25,10,15,10],[138,148,137,148,25,10,15,10],[138,147,138,147,25,10,15,10],[138,146,138,146,25,10,15,10],[138,145,138,146,25,10,15,10],[138,144,138,144,25,10,15,10],[139,144,139,144,25,10,15,10],[140,144,141,144,25,10,15,10],[142,144,142,144,25,10,15,10],[143,144,143,144,25,10,15,10],[143,145,143,144,25,10,15,10],[143,147,143,147,25,10,15,10],[143,148,143,148,25,10,15,10],[142,148,141,148,25,10,15,10],[139,145,139,145,25,10,15,10],[139,147,139,147,25,10,15,10],[139,148,139,149,25,10,15,10],[140,148,140,148,25,10,15,10],[35,73,35,73,45,12,30,18],[45,89,46,89,30,8,20,12],[43,102,43,102,30,8,20,12],[171,50,170,50,42,13,26,20],[208,58,208,57,60,16,36,29],[245,128,246,128,73,17,46,37],[72,219,72,220,46,14,31,23],[111,204,110,204,64,17,39,34],[170,205,170,204,71,19,49,40],[211,237,212,237,78,19,54,46],[253,245,253,246,104,23,76,65]],"items":[[11,33,4,1],[79,4,4,1],[81,1,1,100],[141,40,1,100],[140,41,1,100],[141,42,1,100],[142,41,1,100],[141,41,4,1],[4,101,1,100],[5,101,1,100],[6,101,1,100],[3,100,1,100],[90,34,0,50],[90,35,3,1],[91,35,2,1],[92,35,2,1],[93,35,2,1],[93,34,2,1],[119,145,2,1],[140,146,1,100],[140,145,1,100],[141,145,1,100],[142,145,1,100],[142,146,1,100],[142,147,1,100],[141,147,1,100],[140,147,1,100],[141,146,1,100],[141,144,1,100],[143,146,1,100],[141,148,1,100],[139,146,1,100],[115,143,2,1],[114,144,2,1],[115,145,2,1],[116,144,2,1],[115,144,3,1],[4,34,2,1],[17,30,2,1],[133,95,3,1],[29,74,0,50],[188,86,2,2],[178,87,3,1],[230,105,2,2],[220,106,3,1],[104,183,2,2],[94,184,3,1],[54,197,2,2],[44,198,3,1],[189,190,2,2],[179,191,3,1],[231,227,2,2],[221,228,3,1],[173,51,1,40],[170,52,0,18],[210,59,1,49],[207,60,0,21],[247,129,1,57],[244,130,0,24],[74,220,1,43],[71,221,0,19],[113,205,1,54],[110,206,0,23],[172,206,1,60],[169,207,0,25],[213,238,1,66],[210,239,0,27],[255,246,1,85],[252,247,0,33]],"buildings":[[12,38,3,0],[92,90,4,0],[67,100,2,0],[105,99,3,0],[68,65,1,0],[96,116,1,0],[58,121,1,0],[46,121,2,1],[21,125,0,0],[13,129,0,0],[14,118,0,0],[24,116,0,0],[95,80,0,0],[103,84,0,0],[86,83,0,0],[94,76,0,0],[88,74,0,0],[112,73,0,0],[77,84,0,0],[78,90,0,0],[64,88,0,0],[69,82,0,0],[85,90,0,0],[111,108,0,0],[98,107,0,0],[78,110,0,0],[85,102,0,0],[90,112,0,0],[66,52,3,0],[44,95,4,0],[105,62,3,0],[180,81,1,0],[187,80,2,2],[185,87,0,0],[222,100,1,0],[229,99,2,3],[227,106,3,0],[96,178,1,0],[103,177,2,4],[101,184,0,0],[46,192,1,0],[53,191,2,5],[51,198,0,0],[181,185,1,0],[188,184,2,6],[186,191,3,0],[223,222,1,0],[230,221,2,7],[228,228,3,0]],"rooms":{"inn":["#############","#..#.....#..#","#..#..S..#..#","#..#.....#..#","#....+++....#","#.#..+++..#.#","#....+++....#","#.#..+++..#.#","#.....E.....#","#############"],"shop":["#############","#...........#","#.###.S.###.#","#...........#","#.##.....##.#","#....+++....#","#.##.+++.##.#","#....+++....#","#.....E.....#","#############"],"temple":["#############","#....###....#","#.....S.....#","#...+++++...#","#.#.+++++.#.#","#...+++++...#","#.#.+++++.#.#","#...+++++...#","#.....E.....#","#############"],"castle":["###############","#.....###.....#","#......S......#","#..##.+++.##..#","#.....+++.....#","##..#.+++.#..##","#.....+++.....#","#..##.+++.##..#","#.....+++.....#","#......E......#","###############"]},"layout":{"players":32,"playerSize":112,"header":64,"enemyOffset":3648,"itemOffset":4208,"stockOffset":4484,"openedOffset":4612,"openedCapacity":192,"size":5380}};
+const EB_SHARED_MAP = {"hash":[223,167,137,237,19,145,90,223,143,135,242,249,239,99,82,102,104,64,114,222,181,42,65,165,95,239,178,221,79,198,49,74],"width":300,"height":300,"npcs":[[12,41,13,41],[3,99,3,99],[92,34,92,34],[14,120,14,120],[25,128,26,128],[28,130,28,130],[28,129,28,129],[23,119,23,119],[28,126,29,126],[29,125,29,125],[30,121,30,121],[30,122,30,122],[33,125,34,125],[46,120,46,120],[67,99,67,99],[92,94,92,94],[94,94,94,95],[104,98,104,98],[76,102,76,102],[94,106,94,106],[87,109,88,109],[81,107,81,107],[83,97,83,97],[82,90,82,90],[82,91,83,91],[68,67,68,67],[90,78,90,78],[67,51,67,51],[107,63,108,63],[180,82,180,82],[184,82,183,82],[187,81,187,81],[222,101,222,101],[226,101,226,102],[229,100,229,100],[96,179,96,179],[100,179,101,179],[103,178,103,178],[46,193,46,193],[50,193,50,192],[53,192,53,192],[181,186,181,186],[185,186,184,186],[188,185,188,185],[223,223,223,223],[227,223,227,224],[230,222,230,222]],"enemies":[[12,33,13,33,25,10,15,10],[11,34,11,34,25,10,15,10],[10,33,10,33,25,10,15,10],[11,32,11,31,25,10,15,10],[70,5,70,5,100,25,75,50],[74,11,74,11,60,15,40,25],[93,6,92,6,45,12,30,18],[81,2,81,2,25,10,15,10],[80,0,80,0,25,10,15,10],[82,1,81,1,25,10,15,10],[81,0,81,0,25,10,15,10],[82,0,82,0,25,10,15,10],[89,6,90,6,25,10,15,10],[139,41,139,41,25,10,15,10],[143,41,143,41,25,10,15,10],[141,43,141,42,25,10,15,10],[141,39,141,39,25,10,15,10],[125,132,125,132,100,25,75,50],[130,133,129,133,100,25,75,50],[123,137,123,137,25,10,15,10],[134,142,134,142,25,10,15,10],[114,137,114,138,25,10,15,10],[128,136,128,136,25,10,15,10],[138,143,138,143,25,10,15,10],[139,143,140,143,25,10,15,10],[140,143,140,143,25,10,15,10],[141,143,141,143,25,10,15,10],[142,143,142,142,25,10,15,10],[143,143,143,143,25,10,15,10],[144,143,144,143,25,10,15,10],[144,144,143,144,25,10,15,10],[144,145,144,145,25,10,15,10],[144,146,144,146,25,10,15,10],[144,147,144,148,25,10,15,10],[144,148,144,148,25,10,15,10],[144,149,144,149,25,10,15,10],[143,149,144,149,25,10,15,10],[142,149,142,149,25,10,15,10],[141,149,141,149,25,10,15,10],[140,149,140,148,25,10,15,10],[139,149,139,149,25,10,15,10],[138,149,138,149,25,10,15,10],[138,148,137,148,25,10,15,10],[138,147,138,147,25,10,15,10],[138,146,138,146,25,10,15,10],[138,145,138,146,25,10,15,10],[138,144,138,144,25,10,15,10],[139,144,139,144,25,10,15,10],[140,144,141,144,25,10,15,10],[142,144,142,144,25,10,15,10],[143,144,143,144,25,10,15,10],[143,145,143,144,25,10,15,10],[143,147,143,147,25,10,15,10],[143,148,143,148,25,10,15,10],[142,148,141,148,25,10,15,10],[139,145,139,145,25,10,15,10],[139,147,139,147,25,10,15,10],[139,148,139,149,25,10,15,10],[140,148,140,148,25,10,15,10],[35,73,35,73,45,12,30,18],[45,89,46,89,30,8,20,12],[43,102,43,102,30,8,20,12],[171,50,170,50,42,13,26,20],[208,58,208,57,60,16,36,29],[245,128,246,128,73,17,46,37],[72,219,72,220,46,14,31,23],[111,204,110,204,64,17,39,34],[170,205,170,204,71,19,49,40],[211,237,212,237,78,19,54,46],[253,245,253,246,104,23,76,65]],"items":[[11,33,4,1],[79,4,4,1],[81,1,1,100],[141,40,1,100],[140,41,1,100],[141,42,1,100],[142,41,1,100],[141,41,4,1],[4,101,1,100],[5,101,1,100],[6,101,1,100],[3,100,1,100],[90,34,0,50],[90,35,3,1],[91,35,2,1],[92,35,2,1],[93,35,2,1],[93,34,2,1],[119,145,2,1],[140,146,1,100],[140,145,1,100],[141,145,1,100],[142,145,1,100],[142,146,1,100],[142,147,1,100],[141,147,1,100],[140,147,1,100],[141,146,1,100],[141,144,1,100],[143,146,1,100],[141,148,1,100],[139,146,1,100],[115,143,2,1],[114,144,2,1],[115,145,2,1],[116,144,2,1],[115,144,3,1],[4,34,2,1],[17,30,2,1],[133,95,3,1],[29,74,0,50],[188,86,2,2],[178,87,3,1],[230,105,2,2],[220,106,3,1],[104,183,2,2],[94,184,3,1],[54,197,2,2],[44,198,3,1],[189,190,2,2],[179,191,3,1],[231,227,2,2],[221,228,3,1],[173,51,1,40],[170,52,0,18],[210,59,1,49],[207,60,0,21],[247,129,1,57],[244,130,0,24],[74,220,1,43],[71,221,0,19],[113,205,1,54],[110,206,0,23],[172,206,1,60],[169,207,0,25],[213,238,1,66],[210,239,0,27],[255,246,1,85],[252,247,0,33]],"buildings":[[12,38,3,0],[92,90,4,0],[67,100,2,0],[105,99,3,0],[68,65,1,0],[96,116,1,0],[58,121,1,0],[46,121,2,1],[21,125,0,0],[13,129,0,0],[14,118,0,0],[24,116,0,0],[95,80,0,0],[103,84,0,0],[86,83,0,0],[94,76,0,0],[88,74,0,0],[112,73,0,0],[77,84,0,0],[78,90,0,0],[64,88,0,0],[69,82,0,0],[85,90,0,0],[111,108,0,0],[98,107,0,0],[78,110,0,0],[85,102,0,0],[90,112,0,0],[66,52,3,0],[44,95,4,0],[105,62,3,0],[180,81,1,0],[187,80,2,2],[185,87,0,0],[222,100,1,0],[229,99,2,3],[227,106,3,0],[96,178,1,0],[103,177,2,4],[101,184,0,0],[46,192,1,0],[53,191,2,5],[51,198,0,0],[181,185,1,0],[188,184,2,6],[186,191,3,0],[223,222,1,0],[230,221,2,7],[228,228,3,0]],"rooms":{"inn":["#############","#..#.....#..#","#..#..S..#..#","#..#.....#..#","#....+++....#","#.#..+++..#.#","#....+++....#","#.#..+++..#.#","#.....E.....#","#############"],"shop":["#############","#...........#","#.###.S.###.#","#...........#","#.##.....##.#","#....+++....#","#.##.+++.##.#","#....+++....#","#.....E.....#","#############"],"temple":["#############","#....###....#","#.....S.....#","#...+++++...#","#.#.+++++.#.#","#...+++++...#","#.#.+++++.#.#","#...+++++...#","#.....E.....#","#############"],"castle":["###############","#.....###.....#","#......S......#","#..##.+++.##..#","#.....+++.....#","##..#.+++.#..##","#.....+++.....#","#..##.+++.##..#","#.....+++.....#","#......E......#","###############"]},"layout":{"players":32,"playerSize":112,"header":64,"enemyOffset":3648,"itemOffset":4208,"stockOffset":4484,"openedOffset":4612,"openedCapacity":192,"size":5380}};
 
 </script>
 <script data-source="r4-tiles.js">
@@ -10309,7 +10710,7 @@ function interactInside(host = null) {
 function enterBuilding(building) {
     const { x, y } = gameState.player;
     if (gameState.inBattle || gameState.sailingMoves || !roomLayout(building) ||
-        Math.hypot(x-building.x,y-building.y) > 2) return;
+        buildingDistance(building,x,y) > 2) return;
     closeModal();
     if (sharedWorld.active()) sharedWorld.toggleRoom(building);
     else openBuildingInterior(building);
@@ -10327,6 +10728,836 @@ async function exitBuilding() {
 }
 
 window.addEventListener('load', () => document.getElementById('eb-room-exit').addEventListener('click',exitBuilding));
+
+</script>
+<script data-source="farlands-map.js">
+// The chart and the terrain use the same fixed geography. Only visited chunks are materialized.
+const Farlands = (() => {
+    const size = 10000;
+    const chunkSize = 32;
+    const cellSize = 48;
+    const featureSize = 256;
+    const tileNames = ['water','grass','forest','road','mountain','sand','snow','stone','lava','mud','swamp'];
+    const tileIds = Object.fromEntries(tileNames.map((name,index) => [name,index]));
+    const regions = {
+        hearth: { name:'Hearthmere', color:0x8fa45f, forest:0x618348, flora:'orchard',
+            fauna:['Copper hare','Meadow elk'], glyph:'🦌', foes:['Briar prowler','Toll-road raider'], level:1,
+            note:'A wide river valley of orchards, old mills and lantern-lit roads.' },
+        alder: { name:'Alderwild', color:0x679168, forest:0x3c715a, flora:'cedar',
+            fauna:['Alder stag','Mossback badger'], glyph:'🦌', foes:['Thorn wolf','Grove warden'], level:2,
+            note:'Rain-dark cedar groves hide abandoned shrines and footpaths beside the Alderwash.' },
+        rime: { name:'Rimefold', color:0xb4c9c5, forest:0x618d89, flora:'frost',
+            fauna:['Snow hare','Whitehorn caribou'], glyph:'🦌', foes:['Rime warg','Glacier sentinel'], level:3,
+            note:'Frostpine stands shelter travelers on the way to the glacial lakes.' },
+        iron: { name:'Ironspine', color:0x92966d, forest:0x66794f, flora:'cedar',
+            fauna:['Slate ibex','Crag marmot'], glyph:'🐐', foes:['Crag jackal','Ironbound sentry'], level:3,
+            note:'High ridges are crossed by switchbacks and mining trails. Watch for loose rock and sentries.' },
+        amber: { name:'Amber Coast', color:0x93a667, forest:0x577f56, flora:'coast',
+            fauna:['Dune hare','Saffron fox'], glyph:'🦊', foes:['Cliff jackal','Wreck scavenger'], level:2,
+            note:'Headlands and sheltered coves mark the coast beyond the eastern forest.' },
+        salt: { name:'Saltglass', color:0xc8ab69, forest:0x9b9759, flora:'cactus',
+            fauna:['Glasswing fennec','Sand gazelle'], glyph:'🦊', foes:['Saltglass scorpion','Dune marauder'], level:3,
+            note:'Salt pans gleam between amber dunes. Wells and ruined stations follow the caravan road.' },
+        reed: { name:'Reedwater', color:0x749065, forest:0x4e7760, flora:'reed',
+            fauna:['Reed hare','Marsh deer'], glyph:'🦌', foes:['Fen lurker','Reed stalker'], level:2,
+            note:'A network of channels, reed beds and willow islands spreads across the southern delta.' },
+        ember: { name:'Emberstep', color:0xa68a60, forest:0x7d8258, flora:'ash',
+            fauna:['Ash hare','Basalt ibex'], glyph:'🐐', foes:['Ash crawler','Cinder knight'], level:4,
+            note:'Obsidian outcrops and the old lava fields rise above a dry scrubland.' },
+        lantern: { name:'Lantern Keys', color:0x8cab74, forest:0x46876c, flora:'coast',
+            fauna:['Island fox','Painted hare'], glyph:'🦊', foes:['Brine jackal','Lantern smuggler'], level:3,
+            note:'Small islands, pale beaches and reef passages lie beyond the mainland.' }
+    };
+
+    // Major settlements are placed deliberately. Side trails have their own local geography and stories.
+    const stations = [
+        ['rest','Wayfarer’s Rest',5064,4864,'hearth','A riverside waystation where the First Survey begins.',
+            ['Lantern and Lark Inn','Riverglass Exchange','Hearthlight Chapel','Surveyors’ Hall']],
+        ['alder','Aldercross',2780,4538,'alder','Timber bridges and foresters’ homes stand at a bend in the Alderwash.',
+            ['Green Bough Inn','Alder and Axle','Chapel of Rain','Foresters’ Lodge']],
+        ['rime','Rimewatch',5208,1660,'rime','Sled crews and weather readers keep watch over the northern lake.',
+            ['White Hare Inn','Sledwright’s Store','Shrine of Thaw','Rimewatch Observatory']],
+        ['iron','Ironpass',2348,3030,'iron','A slate-built town at the mouth of a guarded mountain pass.',
+            ['Anvil and Oak Inn','High Pass Supply','Chapel of the Seam','Ironpass Keep']],
+        ['amber','Amberport',7636,3866,'amber','Ferries leave from a sheltered harbor beneath a copper-roofed beacon.',
+            ['Tide Lantern Inn','Cove Chandlery','Chapel of Safe Return','Amber Beacon']],
+        ['salt','Sunwell',6954,6320,'salt','Caravans trade under shade cloth around the oldest well in the dunes.',
+            ['Cool Well Inn','Salt and Silk Market','Chapel of Shade','Caravanserai']],
+        ['reed','Reedhaven',4636,7444,'reed','Herbalists, fishers and boatwrights live along the delta boardwalks.',
+            ['Woven Reed Inn','Fen Apothecary','Willow Shrine','Lockkeepers’ Hall']],
+        ['ember','Cinderford',2540,6622,'ember','Foundries and prospectors share a ford on the edge of an old lava field.',
+            ['Blackstone Inn','Cinder Forge','Chapel of Embers','Basalt Ward']],
+        ['lantern','Lantern Quay',8500,8530,'lantern','A ferry landing among reefs, with pearl traders and lighthouse keepers.',
+            ['Pearl Lantern Inn','Quay Provisioner','Shrine of Tides','Lantern Lookout']]
+    ].map(([id,name,x,y,region,story,services],index) => ({id,name,x,y,region,story,services,index,station:true,radius:12}));
+    const landmarks = [
+        ['mill','Millbend',5082,4883,'hearth','A waterwheel turns on a narrow creek. Millers leave supplies by the ford.'],
+        ['orchard','Bell Orchard',5040,4847,'hearth','A ring of flowering trees surrounds the bell that once called in the harvest.'],
+        ['toll','Old Tollhouse',5094,4847,'hearth','The ruined tollhouse still overlooks the first stretch of the east road.'],
+        ['grove','Rainroot Shrine',2691,4460,'alder','Soft blue fungi light the roots below the rain shrine.'],
+        ['bridge','Alderwash Bridge',2853,4610,'alder','Foresters built this crossing out of dark, long-lived cedar.'],
+        ['ice','Mirror Tarn',5220,1742,'rime','The ice gives way to clear glacial water at the head of the valley.'],
+        ['cairn','Wind Cairn',5136,1606,'rime','Carved stones point to the mountain trail in a snowstorm.'],
+        ['shaft','Slatecut Mine',2262,3002,'iron','A timbered mine entrance opens beneath a sharp vein of silver slate.'],
+        ['steps','The Shepherd’s Steps',2415,3094,'iron','Goatherds marked the hillside with broad stepping stones.'],
+        ['wreck','Broken Mast Cove',7709,3926,'amber','An old wreck rests against the beach beneath yellow coastal pines.'],
+        ['beacon','Copperlight Bluff',7701,3805,'amber','An unlit beacon once marked the headland for ships.'],
+        ['saltpool','Glass Pan',6898,6400,'salt','Wind-polished salt crunches underfoot in this shallow basin.'],
+        ['obelisks','The Twin Obelisks',7045,6264,'salt','The worn stones still cast a useful shadow beside the old trade road.'],
+        ['herons','Heron Pools',4678,7513,'reed','Reeds and soft mud divide a string of rain-fed pools.'],
+        ['lock','Willow Lock',4563,7424,'reed','A watchpost guards the lock that carries boats across the delta.'],
+        ['forge','The Cold Kiln',2477,6687,'ember','Weather has turned an ancient charcoal kiln into a shelter.'],
+        ['basalt','Blackglass Ridge',2602,6546,'ember','Hard columns of basalt stand above the lava field.'],
+        ['pearl','Pearl Banks',8560,8565,'lantern','Shell collectors follow the shallows beside this point.'],
+        ['beach','Last Light Point',8442,8462,'lantern','A little lookout faces the outer reefs and the evening sun.']
+    ].map(([id,name,x,y,region,story]) => ({id,name,x,y,region,story,radius:5}));
+    const sites = [...stations,...landmarks];
+    const byId = new Map(sites.map(site => [site.id,site]));
+    const start = stations[0];
+    const survey = ['mill','orchard','toll'];
+    const roads = [];
+    function road(from,to,turns = []) {
+        const a = byId.get(from), b = byId.get(to);
+        roads.push([[a.x,a.y],...turns,[b.x,b.y]]);
+    }
+    road('rest','alder',[[4650,4926],[4110,4680],[3500,4625],[3050,4490]]);
+    road('rest','iron',[[4700,4220],[4060,3930],[3460,3710],[2800,3180]]);
+    road('iron','rime',[[2770,2650],[3400,2420],[3950,2090],[4590,2110]]);
+    road('rest','rime',[[5380,4390],[5440,3650],[5640,2960],[5440,2260]]);
+    road('rest','amber',[[5620,4750],[6080,4450],[6850,4190],[7200,3880]]);
+    road('amber','salt',[[7540,4590],[7400,5080],[7040,5630]]);
+    road('salt','reed',[[6470,6660],[5830,6980],[5230,7320]]);
+    road('rest','reed',[[5180,5460],[4940,6010],[5010,6570],[4780,6990]]);
+    road('reed','ember',[[4130,7300],[3650,6990],[3050,6850]]);
+    road('alder','ember',[[2670,5170],[2830,5590],[2700,6110]]);
+    road('alder','iron',[[2610,4110],[2360,3650]]);
+    road('rest','mill',[[5064,4875],[5078,4882]]);
+    road('rest','orchard',[[5054,4864],[5047,4850]]);
+    road('rest','toll',[[5073,4864],[5089,4855]]);
+    for (const site of landmarks.slice(3)) road(stations.find(town=>town.region===site.region).id,site.id);
+
+    function hash(x,y,salt = 0) {
+        let n = Math.imul(x+113,0x1b873593) ^ Math.imul(y+59,0x85ebca6b) ^ Math.imul(salt+405,0x27d4eb2d);
+        n = Math.imul(n ^ (n>>>15),0x85ebca6b);
+        return ((n ^ (n>>>13))>>>0)/4294967296;
+    }
+    const mix = (a,b,t) => a+(b-a)*t;
+    function noise(x,y,scale,salt) {
+        x /= scale; y /= scale;
+        const a = Math.floor(x), b = Math.floor(y);
+        const dx = x-a, dy = y-b;
+        const u = dx*dx*(3-2*dx), v = dy*dy*(3-2*dy);
+        return mix(mix(hash(a,b,salt),hash(a+1,b,salt),u),mix(hash(a,b+1,salt),hash(a+1,b+1,salt),u),v);
+    }
+    function regionAt(x,y) {
+        const bend = Math.sin(y/640)*200;
+        if (x>7990+bend && y>7530) return 'lantern';
+        if (y<2380+Math.sin(x/490)*240) return 'rime';
+        if (x<3260+bend && y<3900) return 'iron';
+        if (x<3740+bend) return y<5790+Math.sin(x/570)*180 ? 'alder' : 'ember';
+        if (x>6270+bend && y>5290) return 'salt';
+        if (y>6560+Math.sin(x/500)*180) return 'reed';
+        if (x>6530+bend) return 'amber';
+        return 'hearth';
+    }
+    const ellipse = (x,y,cx,cy,rx,ry) => 1-((x-cx)/rx)**2-((y-cy)/ry)**2;
+    const riverX = y => 4770+Math.sin((y-4300)/1040)*510+Math.sin((y-3300)/410)*105;
+    const alderwashY = x => 4500+110*Math.sin((x-2400)/570)-.11*(x-2425);
+    const millCreekY = x => 4875+2.4*Math.sin((x-5064)/12);
+    const deltaX = y => riverX(y)+(y-7140)*.35;
+    function natural(x,y) {
+        const shoreNoise = .28*(noise(x,y,630,1)-.5)+.12*(noise(x,y,175,2)-.5)+.045*(noise(x,y,49,3)-.5);
+        const land = Math.max(
+            ellipse(x,y,4610,4710,4090,4170)-.10*Math.max(0,ellipse(x,y,8150,5740,1100,730)),
+            ellipse(x,y,7110,7120,1370,1510),
+            ellipse(x,y,8390,8460,580,380),
+            ellipse(x,y,9060,7870,280,430),
+            ellipse(x,y,9210,8730,325,230),
+            ellipse(x,y,8020,9230,340,225),
+            ellipse(x,y,1000,7350,310,550)
+        )+shoreNoise;
+        if (land<0) return 'water';
+        const river = riverX(y);
+        const lake = Math.max(ellipse(x,y,5260,1770,210,170),ellipse(x,y,5570,4820,152,106),
+            ellipse(x,y,2425,4500,205,140),ellipse(x,y,6700,6970,180,121));
+        if (lake+shoreNoise*.7>0 ||
+            (y>1400 && y<8840 && Math.abs(x-river)<3+y/1770) ||
+            (x>2425 && x<river && Math.abs(y-alderwashY(x))<4) ||
+            (x>riverX(4875)-4 && x<5560 && Math.abs(y-millCreekY(x))<2.2) ||
+            (y>7140 && y<8690 && Math.abs(x-deltaX(y))<4)) return 'water';
+        if (land<.047) return 'sand';
+        const region = regionAt(x,y);
+        const stone = noise(x,y,215,6)*.75+noise(x,y,66,7)*.25;
+        const growth = noise(x,y,128,8)*.62+noise(x,y,37,9)*.38;
+        const ridge = Math.max(0,1-Math.abs(x-(2340+620*Math.sin(y/1110)))/790);
+        if (region==='iron') return stone+.26*ridge>.71 ? 'mountain' : growth>.49 ? 'forest' : 'stone';
+        if (region==='rime') return stone>.75 ? 'mountain' : growth>.58 ? 'forest' : 'snow';
+        if (region==='salt') return stone>.77 ? 'stone' : 'sand';
+        if (region==='reed') return growth>.59 ? 'forest' : growth>.41 ? 'swamp' : 'mud';
+        if (region==='ember') return stone>.80 && x<2690 ? 'lava' : stone>.60 ? 'stone' : growth>.62 ? 'forest' : 'grass';
+        if (region==='alder') return growth>.40 ? 'forest' : stone>.79 ? 'stone' : 'grass';
+        return growth>.59 ? 'forest' : stone>.82 ? 'stone' : 'grass';
+    }
+
+    function trace(from,to,step,point) {
+        const path=[];
+        for (let at=from;at<to;at+=step) path.push(point(at));
+        return path;
+    }
+    const rivers = [trace(1400,8840,30,y=>[riverX(y),y]),
+        trace(2425,5000,28,x=>[x,alderwashY(x)]).filter(([x,y])=>x<riverX(y)),
+        trace(riverX(4875),5560,9,x=>[x,millCreekY(x)]),trace(7140,8690,27,y=>[deltaX(y),y])];
+
+    const bucketKey = (x,y,step) => Math.floor(y/step)*Math.ceil(size/step)+Math.floor(x/step);
+    function indexRect(index,entry,left,top,right,bottom,step) {
+        for (let y=Math.max(0,Math.floor(top/step));y<=Math.min(Math.ceil(size/step)-1,Math.floor(bottom/step));y++) {
+            for (let x=Math.max(0,Math.floor(left/step));x<=Math.min(Math.ceil(size/step)-1,Math.floor(right/step));x++) {
+                const key = bucketKey(x*step,y*step,step);
+                if (!index.has(key)) index.set(key,[]);
+                index.get(key).push(entry);
+            }
+        }
+    }
+    const roadIndex = new Map(), siteIndex = new Map(), siteCells = new Map();
+    for (const path of roads) {
+        for (let i=1;i<path.length;i++) {
+            const [x,y] = path[i-1], [tx,ty] = path[i], dx=tx-x, dy=ty-y;
+            const segment = {x,y,dx,dy,scale:1/(dx*dx+dy*dy)};
+            indexRect(roadIndex,segment,Math.min(x,tx)-3,Math.min(y,ty)-3,Math.max(x,tx)+3,Math.max(y,ty)+3,featureSize);
+        }
+    }
+    for (const site of sites) {
+        const {x,y,radius} = site;
+        indexRect(siteIndex,site,x-radius,y-radius,x+radius,y+radius,featureSize);
+        indexRect(siteCells,site,x,y,x,y,cellSize);
+    }
+    function nearbySite(x,y) {
+        return siteIndex.get(bucketKey(x,y,featureSize))?.find(s =>
+            Math.max(Math.abs(s.x-x),Math.abs(s.y-y))<=s.radius);
+    }
+    function trailAt(x,y) {
+        return roadIndex.get(bucketKey(x,y,featureSize))?.some(s => {
+            const vx=x-s.x, vy=y-s.y;
+            const t=Math.max(0,Math.min(1,(vx*s.dx+vy*s.dy)*s.scale));
+            return (vx-t*s.dx)**2+(vy-t*s.dy)**2 < 2.1;
+        });
+    }
+    function sample(x,y) {
+        if (trailAt(x,y)) return 'road';
+        const site = nearbySite(x,y);
+        if (site) {
+            const dx=Math.abs(x-site.x), dy=Math.abs(y-site.y);
+            if (dx<=1 || dy<=1 || (site.station && dx<=3 && dy<=3)) return 'road';
+            if (site.station && Math.hypot(dx,dy*.91)<9+(noise(x,y,8,77)-.5)*2) {
+                return site.region==='rime' ? 'snow' : site.region==='salt' ? 'sand' : 'grass';
+            }
+            if (!site.station && dx<=4 && dy<=3) return 'grass';
+        }
+        return natural(x,y);
+    }
+
+    function remember(cache,key,value,limit) {
+        cache.set(key,value);
+        if (cache.size>limit) cache.delete(cache.keys().next().value);
+        return value;
+    }
+
+    class Terrain {
+        constructor(edits = []) {
+            this.chunks = new Map();
+            this.edits = new Map(edits);
+        }
+        tileAt(x,y) {
+            if (!Number.isInteger(x) || !Number.isInteger(y) || x<0 || y<0 || x>=size || y>=size) return;
+            const edited = this.edits.get(y*size+x);
+            if (edited) return edited;
+            const key = bucketKey(x,y,chunkSize);
+            let chunk = this.chunks.get(key);
+            if (!chunk) {
+                const left = x-x%chunkSize, top = y-y%chunkSize;
+                chunk = new Uint8Array(chunkSize*chunkSize);
+                for (let dy=0;dy<chunkSize;dy++) {
+                    for (let dx=0;dx<chunkSize;dx++) {
+                        chunk[dy*chunkSize+dx] = tileIds[sample(left+dx,top+dy)];
+                    }
+                }
+                remember(this.chunks,key,chunk,80);
+            }
+            return tileNames[chunk[(y%chunkSize)*chunkSize+x%chunkSize]];
+        }
+        setTile(x,y,tile) {
+            if (this.tileAt(x,y)) this.edits.set(y*size+x,tile);
+        }
+    }
+
+    const features = ['inn','shop','temple','castle'];
+    function building(name,type,x,y,region,realmId,description) {
+        return {name,type,x,y,class:'building '+type,region,realmId,description};
+    }
+    function wildlife(region,x,y,seed,id) {
+        const fauna = regions[region];
+        const name=fauna.fauna[seed>.55 ? 1 : 0];
+        return {name,x,y,class:'villager',fauna:true,region,realmId:id,
+            glyph:name.includes('hare') ? '🐇' : fauna.glyph,movable:true,dialogue:'You pause to watch a wild '+name.toLowerCase()+
+                '. It has made a home in '+fauna.name+'.'};
+    }
+    function hostile(region,x,y,seed,id,site = null) {
+        const wild = regions[region];
+        const level = wild.level+(seed>.7 ? 1 : 0);
+        const hp=29+level*12+(seed>.7 ? 9 : 0);
+        return {name:wild.foes[seed>.55 ? 1 : 0],x,y,class:seed>.55 ? 'orc' : 'wolf',region,realmId:id,
+            crawler:seed<=.55 && (region==='salt' || region==='ember'),
+            level,hp,maxHp:hp,attack:6+level*3,defense:1+level,xpReward:20+level*9,goldReward:9+level*5,
+            movable:!site};
+    }
+    function cache(x,y,id,value = 18) {
+        return {x,y,type:'treasure',value,realmId:id};
+    }
+    function sceneCell(cx,cy) {
+        const actors = {buildings:[],npcs:[],enemies:[],items:[]};
+        const left=cx*cellSize, top=cy*cellSize;
+        for (const site of siteCells.get(bucketKey(left,top,cellSize)) ?? []) {
+            const { x,y,name,id,region,story } = site;
+            if (site.station) {
+                const layouts = [[-5,-4],[4,-4],[-5,4],[5,4]];
+                const rotation = site.index%4;
+                site.services.forEach((service,i) => {
+                    const [dx,dy] = layouts[(i+rotation)%layouts.length];
+                    const structure=building(service,features[i],x+dx,y+dy,region,id+'-service-'+i,story);
+                    if (i===3 && ['amber','lantern','rime'].includes(region)) structure.landmark=region==='rime' ? 'observatory' : 'beacon';
+                    actors.buildings.push(structure);
+                });
+                actors.buildings.push(building(name+' Cottage','house',x+8,y-3,region,id+'-house',story));
+                actors.npcs.push(
+                    {name:site===start ? 'Mira, the Cartographer' : name+' Waykeeper',class:'elder',x:x-1,y:y+1,
+                        dialogue:site===start ?
+                            'Welcome to the Farlands. Open the Atlas for caravan and ferry routes. For your First Survey, walk to Millbend, Bell Orchard and the Old Tollhouse.' :
+                            story+' Use the Atlas while you’re here to catch a route to another waystation.'},
+                    {name:site===start ? 'Ivo, the Millwright' : name+' Provisioner',class:'merchant',x:x+4,y:y-2,
+                        movable:true,dialogue:regions[region].note},
+                    {name:site===start ? 'Nessa, the Orchard Keeper' : name+' Trail Warden',class:'guard',x:x+2,y:y+5,
+                        movable:true,dialogue:'Each path out of town leads to a different part of '+regions[region].name+'. Look for landmarks in the Atlas.'},
+                    wildlife(region,x-6,y+5,.63,id+'-wildlife')
+                );
+                if (site===start) actors.items.push({x:x+2,y,type:'health_potion',value:1,realmId:'rest-welcome'});
+            } else {
+                const structure=building(name,'house',x+2,y-2,region,id+'-structure',story);
+                structure.landmark={mill:'mill',toll:'ruin',shaft:'mine',wreck:'wreck',beacon:'beacon',beach:'beacon'}[id] ?? 'marker';
+                actors.buildings.push(structure);
+                actors.items.push(cache(x-2,y,id+'-cache',id==='mill' ? 14 : 26));
+                if (!survey.includes(id)) actors.enemies.push(hostile(region,x+4,y+2,hash(x,y,46),id+'-guard',site));
+                actors.npcs.push(wildlife(region,x-3,y+3,hash(x,y,43),id+'-animal'));
+            }
+        }
+        for (let i=0;i<4;i++) {
+            const x=left+4+Math.floor(hash(cx,cy,50+i*2)*(cellSize-8));
+            const y=top+4+Math.floor(hash(cx,cy,51+i*2)*(cellSize-8));
+            if (x>=size-2 || y>=size-2 || nearbySite(x,y) ||
+                ['water','mountain','lava','road'].includes(sample(x,y))) continue;
+            if (Math.hypot(x-start.x,y-start.y)<27) continue;
+            const region=regionAt(x,y), id='wild-'+cx+'-'+cy+'-'+i;
+            const r=hash(cx,cy,80+i);
+            if (i===0) actors.npcs.push(wildlife(region,x,y,r,id));
+            else if (i===1) actors.enemies.push(hostile(region,x,y,r,id));
+            else if (i===2 && r>.43) actors.items.push(cache(x,y,id,13+Math.floor(r*22)));
+            else if (i===3 && r>.86 && ![...actors.npcs,...actors.enemies,...actors.items].some(a => a.x===x && a.y===y)) {
+                actors.buildings.push(building(regions[region].name+' Trail Shelter','house',x,y,region,id,regions[region].note));
+                if (!['water','mountain','lava'].includes(sample(x-1,y))) actors.npcs.push({
+                    name:'Traveling Surveyor',class:'merchant',x:x-1,y,dialogue:regions[region].note
+                });
+            }
+        }
+        fitFootprints(actors);
+        return actors;
+    }
+
+    // Buildings cover tiles by kind, as on the Eternal Kingdom map: castles 3x3, temples and inns 2x2, shops and houses
+    // 2x1, and the landmark structures 2x2. A footprint keeps the building's own tile, covers only walkable ground (no
+    // water, mountain or lava) that no actor, item or other building of the cell uses, as few road tiles as it can,
+    // keeps the walkable ground around it in one piece, and leaves at least two tiles within reach (two steps), one of
+    // them not beside an NPC. Otherwise the next smaller size is tried, then the single tile. It depends only on the
+    // cell, so it never changes.
+    const footprintSizes = {castle:[[3,3],[3,2],[2,2]],temple:[[2,2]],inn:[[2,2],[2,1]],shop:[[2,1]],house:[[2,1]],
+        landmark:[[2,2],[2,1]]};
+    const footprintOrder = ['castle','temple','inn','shop','landmark','house'];
+    const coverable = new Set(['grass','forest','sand','snow','stone','mud','swamp','road']);
+    function fitFootprints(actors) {
+        const key = (x,y) => y*size+x;
+        const ground = new Map();
+        const tile = (x,y) => {
+            const k = key(x,y);
+            if (!ground.has(k)) ground.set(k,x<0 || y<0 || x>=size || y>=size ? undefined : sample(x,y));
+            return ground.get(k);
+        };
+        const blocked = new Set(actors.buildings.map(b => key(b.x,b.y)));
+        const reserved = new Set([...actors.npcs,...actors.enemies,...actors.items].map(a => key(a.x,a.y)));
+        const npcSpots = actors.npcs.map(n => [n.x,n.y]);
+        const kindOf = b => b.landmark ? 'landmark' : b.type;
+        const ranked = [...actors.buildings].sort((a,b) => footprintOrder.indexOf(kindOf(a))-footprintOrder.indexOf(kindOf(b)));
+        for (const b of ranked) {
+            b.footprint = [b.x,b.y,1,1];
+            for (const [w,h] of footprintSizes[kindOf(b)] ?? []) {
+                const options = [];
+                for (let x0=b.x-w+1;x0<=b.x;x0++) for (let y0=b.y-h+1;y0<=b.y;y0++) {
+                    // fewest road tiles, then the building's own tile on the front (south) row, centred across
+                    let roads = 0;
+                    for (let y=y0;y<y0+h;y++) for (let x=x0;x<x0+w;x++) if ((x!==b.x || y!==b.y) && tile(x,y)==='road') roads++;
+                    options.push({x0,y0,score:roads*20+(y0+h-1===b.y ? 0 : 10)+Math.abs(x0+(w-1)/2-b.x)});
+                }
+                options.sort((p,q) => p.score-q.score);
+                const fit = options.find(({x0,y0}) => fits(b,x0,y0,w,h));
+                if (fit) {
+                    b.footprint = [fit.x0,fit.y0,w,h];
+                    break;
+                }
+            }
+            const [x0,y0,w,h] = b.footprint;
+            for (let y=y0;y<y0+h;y++) for (let x=x0;x<x0+w;x++) blocked.add(key(x,y));
+        }
+
+        function fits(b,x0,y0,w,h) {
+            const inside = (x,y) => x>=x0 && x<x0+w && y>=y0 && y<y0+h;
+            for (let y=y0;y<y0+h;y++) for (let x=x0;x<x0+w;x++) {
+                if (x===b.x && y===b.y) continue;
+                if (!coverable.has(tile(x,y)) || blocked.has(key(x,y)) || reserved.has(key(x,y))) return false;
+            }
+            const open = (x,y,trial) => !['water','mountain','lava',undefined].includes(tile(x,y)) &&
+                !blocked.has(key(x,y)) && !(trial && inside(x,y));
+            // Walkable ground within two tiles of the footprint stays connected wherever it was connected before; a
+            // footprint can only split ground further away by splitting it here.
+            const left=x0-2, top=y0-2, right=x0+w+1, bottom=y0+h+1;
+            const areas = trial => {
+                const id = new Map();
+                for (let y=top;y<=bottom;y++) for (let x=left;x<=right;x++) {
+                    if (id.has(key(x,y)) || !open(x,y,trial)) continue;
+                    const area = id.size, stack = [[x,y]];
+                    id.set(key(x,y),area);
+                    while (stack.length) {
+                        const [cx,cy] = stack.pop();
+                        for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+                            const nx=cx+dx, ny=cy+dy;
+                            if (nx<left || nx>right || ny<top || ny>bottom || id.has(key(nx,ny)) || !open(nx,ny,trial)) continue;
+                            id.set(key(nx,ny),area);
+                            stack.push([nx,ny]);
+                        }
+                    }
+                }
+                return id;
+            };
+            const before = areas(false), after = areas(true), joined = new Map();
+            for (const [k,area] of after) {
+                const was = before.get(k);
+                if (!joined.has(was)) joined.set(was,area);
+                else if (joined.get(was)!==area) return false;
+            }
+            // tiles a player can use the building from: two steps or fewer from the footprint, free and walkable
+            let reach = 0, quiet = 0;
+            for (let y=y0-2;y<y0+h+2;y++) for (let x=x0-2;x<x0+w+2;x++) {
+                const dx = Math.max(x0-x,0,x-(x0+w-1)), dy = Math.max(y0-y,0,y-(y0+h-1));
+                if (inside(x,y) || dx+dy>2 || !open(x,y,true) || reserved.has(key(x,y))) continue;
+                reach++;
+                if (!npcSpots.some(([nx,ny]) => Math.hypot(nx-x,ny-y)<=1.5)) quiet++;
+            }
+            return reach>=2 && quiet>=1;
+        }
+    }
+
+    return {size,cellSize,regions,stations,sites,byId,start,survey,roads,rivers,Terrain,nearbySite,regionAt,natural,sample,
+        sceneCell,remember,hash};
+})();
+
+</script>
+<script data-source="farlands.js">
+// Solo realm state holds the original map and a sparse journal of changes in the Farlands.
+const ebFarlands = (() => {
+    const get = id => document.getElementById(id);
+    let journey = null;
+    let home = null;
+    let chart = null;
+    let localChart = null;
+    const chartSize = 192;
+    const surface = () => worldMap instanceof Farlands.Terrain;
+    const inRealm = () => surface() || buildingInterior?.outside.map.terrain instanceof Farlands.Terrain;
+    const startPosition = () => ({x:Farlands.start.x,y:Farlands.start.y+1,sailing:0});
+    const pointAt = site => ({x:site.x,y:site.y+1,sailing:0});
+
+    function recordLocation() {
+        const outside = buildingInterior?.outside;
+        const { x,y } = outside ?? gameState.player;
+        return { x,y,sailing:gameState.sailingMoves,
+            room:buildingInterior ? {id:buildingInterior.building.realmId,x:gameState.player.x,y:gameState.player.y} : undefined };
+    }
+
+    function newJourney(save) {
+        const validTile = (n) => Number.isInteger(n) && n>=0 && n<Farlands.size;
+        const place = save?.place;
+        const where = validTile(place?.x) && validTile(place?.y) ?
+            {x:place.x,y:place.y,sailing:Number.isInteger(place.sailing) && place.sailing>=0 && place.sailing<=15 ? place.sailing : 0,
+                room:typeof place.room?.id==='string' && Number.isInteger(place.room.x) && Number.isInteger(place.room.y) ? place.room : undefined} :
+            startPosition();
+        const list = name => Array.isArray(save?.[name]) ? save[name] : [];
+        return {
+            terrain:new Farlands.Terrain(list('edits').filter(entry => Array.isArray(entry) &&
+                Number.isInteger(entry[0]) && entry[0]>=0 && entry[0]<Farlands.size**2 && ['grass','road'].includes(entry[1]))),
+            visited:new Set(list('visited').filter(id=>Farlands.byId.has(id))),
+            spent:new Set(list('spent').filter(id=>typeof id==='string' && /^[a-z0-9-]{1,64}$/.test(id))),
+            station:Farlands.stations.some(site=>site.id===save?.station) ? save.station : Farlands.start.id,
+            pin:Farlands.byId.has(save?.pin) ? save.pin : null,
+            place:where, cells:new Map(), scene:null
+        };
+    }
+
+    function map() {
+        return { width:Farlands.size,height:Farlands.size,terrain:journey.terrain,
+            metadata:{farlands:true,useDefaultSettlements:false} };
+    }
+
+    function addPatrol(actor,hostile) {
+        if (!actor.movable || actor.patrol) return;
+        const radius = hostile ? 2.5 : 1.8;
+        actor.patrol = { enabled:true,originX:actor.x,originY:actor.y,radius,
+            angle:Farlands.hash(actor.x,actor.y,96)*Math.PI*2,speed:hostile ? .04 : .036,mode:'patrol' };
+    }
+
+    function refreshScene(force = false) {
+        if (!surface() || !journey) return false;
+        const step = Farlands.cellSize;
+        const cx=Math.floor(gameState.player.x/step), cy=Math.floor(gameState.player.y/step);
+        const key=cy*Math.ceil(Farlands.size/step)+cx;
+        if (journey.scene===key && !force) return false;
+        journey.scene=key;
+        buildings=[]; npcs=[]; enemies=[]; items=[];
+        const edge=Math.ceil(Farlands.size/step);
+        for (let y=Math.max(0,cy-1);y<=Math.min(edge-1,cy+1);y++) {
+            for (let x=Math.max(0,cx-1);x<=Math.min(edge-1,cx+1);x++) {
+                const id=y*edge+x;
+                let cell=journey.cells.get(id);
+                if (!cell) cell=Farlands.remember(journey.cells,id,Farlands.sceneCell(x,y),48);
+                buildings.push(...cell.buildings);
+                npcs.push(...cell.npcs);
+                enemies.push(...cell.enemies.filter(actor=>!journey.spent.has(actor.realmId)));
+                items.push(...cell.items.filter(item=>!journey.spent.has(item.realmId)));
+            }
+        }
+        enemies.forEach(actor=>addPatrol(actor,true));
+        npcs.forEach(actor=>addPatrol(actor,false));
+        updateBuildingFootprints();
+        return true;
+    }
+
+    function putPlayer(place) {
+        const tile = journey.terrain.tileAt(place.x,place.y);
+        const location = tile==='water' && !place.sailing ? pointAt(Farlands.byId.get(journey.station)) : place;
+        gameState.sailingMoves = location.sailing;
+        applyAdventureMap(map(),{ ...gameState.player,x:location.x,y:location.y,targetX:location.x,targetY:location.y });
+        const room = location.room && buildings.find(building=>building.realmId===location.room.id);
+        if (room) openBuildingInterior(room,{x:location.room.x,y:location.room.y});
+    }
+
+    function enter(restoring = false) {
+        if (sharedWorld.active() || gameState.inBattle || inRealm() || buildingInterior) return false;
+        home={map:captureAdventureMap(),x:gameState.player.x,y:gameState.player.y,sailing:gameState.sailingMoves};
+        journey ??= newJourney();
+        putPlayer(journey.place);
+        if (!restoring) saveNow();
+        return true;
+    }
+
+    function leave() {
+        if (!surface() || !home || gameState.inBattle) return false;
+        journey.place=recordLocation();
+        const {map:outside,x,y,sailing}=home;
+        home=null;
+        gameState.sailingMoves=sailing;
+        applyAdventureMap(outside,{ ...gameState.player,x,y,targetX:x,targetY:y });
+        saveNow();
+        return true;
+    }
+
+    function pack(state) {
+        if (!journey) return state;
+        const active=state.map.terrain instanceof Farlands.Terrain;
+        state.farlands={version:1,active,place:active ? recordLocation() : journey.place,
+            station:journey.station,pin:journey.pin,visited:[...journey.visited],spent:[...journey.spent],
+            edits:[...journey.terrain.edits]};
+        if (active && home) {
+            state.map=home.map;
+            Object.assign(state.player,{x:home.x,y:home.y,targetX:home.x,targetY:home.y});
+            state.sailingMoves=home.sailing;
+            state.room=undefined;
+        }
+        return state;
+    }
+
+    function restore(save) {
+        if (save?.version!==1) return;
+        journey=newJourney(save);
+        if (save.active===true) enter(true);
+    }
+
+    function reset() {
+        home=journey=localChart=null;
+    }
+
+    function saveNow() {
+        soloSaves.queue();
+        soloSaves.flush();
+    }
+
+    function consume(actor) {
+        if (surface() && actor.realmId) journey.spent.add(actor.realmId);
+    }
+
+    function location(announce) {
+        const {x,y}=gameState.player;
+        const site=Farlands.nearbySite(x,y);
+        if (site?.station) journey.station=site.id;
+        if (site && !journey.visited.has(site.id)) {
+            journey.visited.add(site.id);
+            if (Farlands.survey.includes(site.id) && Farlands.survey.every(id=>journey.visited.has(id))) {
+                gameState.inventory.gold+=30;
+                gameState.player.xp+=40;
+                checkLevelUp();
+                updateUI();
+                if (announce) showFloatingText('First Survey complete · +30 gold · +40 XP',x*32+16,y*32-38,'#f1cf83');
+            }
+        }
+        updateHint();
+        return site?.name ?? Farlands.regions[Farlands.regionAt(x,y)].name;
+    }
+
+    function rescuePoint() {
+        return pointAt(Farlands.byId.get(journey.station));
+    }
+
+    function shore() {
+        const {x,y}=gameState.player;
+        for (let ring=1;ring<=18;ring++) {
+            for (let dy=-ring;dy<=ring;dy++) {
+                for (let dx=-ring;dx<=ring;dx++) {
+                    if (Math.max(Math.abs(dx),Math.abs(dy))!==ring) continue;
+                    const tx=x+dx, ty=y+dy;
+                    if (canEntityMoveTo(tx,ty)) return {x:tx,y:ty};
+                }
+            }
+        }
+        return rescuePoint();
+    }
+
+    function groundColor(tile,x,y) {
+        const region = Farlands.regions[Farlands.regionAt(x,y)];
+        if (tile==='grass' || tile==='forest') return '#'+region[tile==='grass' ? 'color' : 'forest'].toString(16).padStart(6,'0');
+        return mapColors[tile] ?? mapColors.grass;
+    }
+
+    function overview() {
+        if (chart) return chart;
+        chart=document.createElement('canvas');
+        chart.width=chart.height=chartSize;
+        const ctx=chart.getContext('2d');
+        const step=Farlands.size/chartSize;
+        for (let y=0;y<chartSize;y++) {
+            for (let x=0;x<chartSize;x++) {
+                const tx=Math.floor((x+.5)*step),ty=Math.floor((y+.5)*step);
+                ctx.fillStyle=groundColor(Farlands.natural(tx,ty),tx,ty);
+                ctx.fillRect(x,y,1,1);
+            }
+        }
+        for (const [paths,ink,width] of [[Farlands.rivers,'#43858e',.70],[Farlands.roads,'#e3cb91a0',.64]]) {
+            ctx.strokeStyle=ink;
+            ctx.lineWidth=width;
+            for (const path of paths) {
+                ctx.beginPath();
+                for (const [x,y] of path) ctx.lineTo(x/step,y/step);
+                ctx.stroke();
+            }
+        }
+        const from=Farlands.byId.get('amber'),to=Farlands.byId.get('lantern');
+        ctx.strokeStyle='#9dd2d1a8';
+        ctx.setLineDash([1.7,2.1]);
+        ctx.beginPath();
+        ctx.moveTo(from.x/step,from.y/step);
+        ctx.quadraticCurveTo(182,101,to.x/step,to.y/step);
+        ctx.stroke();
+        return chart;
+    }
+
+    function drawTerrain(ctx,view,left,top,scale) {
+        const {x,y,width,height}=view;
+        if (Math.max(width,height)>280) {
+            const ratio=chartSize/Farlands.size;
+            ctx.drawImage(overview(),x*ratio,y*ratio,width*ratio,height*ratio,left,top,width*scale,height*scale);
+            return;
+        }
+        const step=Math.max(1,Math.ceil(Math.max(width,height)/56));
+        const px=x-x%step,py=y-y%step;
+        const columns=Math.ceil(width/step)+1,rows=Math.ceil(height/step)+1;
+        const key=[px,py,columns,rows,step,worldMap.edits.size].join(',');
+        if (localChart?.key!==key) {
+            const canvas=document.createElement('canvas');
+            canvas.width=columns; canvas.height=rows;
+            const paint=canvas.getContext('2d');
+            for (let row=0;row<rows;row++) {
+                for (let col=0;col<columns;col++) {
+                    const tx=Math.min(Farlands.size-1,px+col*step);
+                    const ty=Math.min(Farlands.size-1,py+row*step);
+                    const tile=step<=2 ? adventureTile(tx,ty) : Farlands.sample(tx,ty);
+                    paint.fillStyle=groundColor(tile,tx,ty);
+                    paint.fillRect(col,row,1,1);
+                }
+            }
+            localChart={canvas,key};
+        }
+        ctx.drawImage(localChart.canvas,(x-px)/step,(y-py)/step,width/step,height/step,left,top,width*scale,height*scale);
+    }
+
+    function updateHint() {
+        const hint=get('eb-farlands-hint');
+        const target=surface() && Farlands.byId.get(journey?.pin);
+        hint.hidden=!target;
+        if (!target) return;
+        const {x,y}=gameState.player;
+        const dx=target.x-x, dy=target.y-y;
+        const direction=[dy < -3 ? 'N' : dy > 3 ? 'S' : '',dx < -3 ? 'W' : dx > 3 ? 'E' : ''].join('');
+        const text=target.name+' · '+Math.round(Math.hypot(dx,dy))+' tiles'+(direction ? ' '+direction : '');
+        if (hint.textContent!==text) hint.textContent=text;
+    }
+
+    function updateControls() {
+        const shared=sharedWorld.active();
+        const realm=inRealm();
+        document.documentElement.toggleAttribute('data-eb-farlands',Boolean(realm));
+        get('eb-farlands-atlas-open').hidden=!realm || shared;
+        if (!shared) get('eb-shared-badge').textContent=realm ? 'Farlands · Solo' : 'Solo adventure';
+        get('mapImporterTrigger').disabled=shared || realm;
+        get('teleportButton').disabled=shared || realm || Boolean(buildingInterior);
+        get('eb-farlands-option').hidden=shared || Boolean(buildingInterior);
+        get('eb-farlands-option').disabled=gameState.inBattle;
+        get('eb-farlands-option-title').textContent=realm ? 'Return to Eternal Kingdom' : 'Explore the Farlands';
+        get('eb-farlands-option-copy').textContent=realm ? 'Return to your last position on the original map.' :
+            'A 10,000 × 10,000 solo realm with nine regions to explore.';
+        updateHint();
+    }
+
+    function drawAtlas() {
+        const canvas=get('eb-farlands-chart'), ctx=canvas.getContext('2d');
+        const scale=canvas.width/Farlands.size;
+        ctx.imageSmoothingEnabled=false;
+        ctx.drawImage(overview(),0,0,canvas.width,canvas.height);
+        ctx.strokeStyle='#f1d29432';
+        ctx.lineWidth=1;
+        for (let coord=1000;coord<Farlands.size;coord+=1000) {
+            ctx.beginPath();
+            ctx.moveTo(coord*scale,0); ctx.lineTo(coord*scale,canvas.height);
+            ctx.moveTo(0,coord*scale); ctx.lineTo(canvas.width,coord*scale);
+            ctx.stroke();
+        }
+        const selected=Farlands.byId.get(get('eb-farlands-destination').value);
+        for (const site of Farlands.sites) {
+            const x=site.x*scale,y=site.y*scale;
+            ctx.fillStyle=site===selected ? '#fff4c9' : site.station ? '#f5ca85' :
+                journey.visited.has(site.id) ? '#d8e2a8' : '#b8c0a0';
+            ctx.strokeStyle='#27362d';
+            ctx.lineWidth=site.station ? 2 : 1;
+            ctx.beginPath();
+            ctx.arc(x,y,site===selected ? 7 : site.station ? 4.6 : 2.4,0,Math.PI*2);
+            ctx.fill();
+            ctx.stroke();
+            if (site.station) {
+                ctx.font='bold 13px system-ui';
+                ctx.lineWidth=3;
+                const labelWidth=ctx.measureText(site.name).width;
+                const labelX=x+labelWidth+12>canvas.width ? Math.max(5,x-labelWidth-8) : x+7;
+                ctx.strokeText(site.name,labelX,y-6);
+                ctx.fillText(site.name,labelX,y-6);
+            }
+        }
+        const {x,y}=buildingInterior?.outside ?? gameState.player;
+        ctx.beginPath();
+        ctx.arc(x*scale,y*scale,8,0,Math.PI*2);
+        ctx.strokeStyle='#e6fff3';
+        ctx.lineWidth=2;
+        ctx.stroke();
+    }
+
+    function renderAtlas() {
+        const selected=Farlands.byId.get(get('eb-farlands-destination').value);
+        if (!selected || !journey) return;
+        const region=Farlands.regions[selected.region];
+        get('eb-farlands-detail-title').textContent=selected.name;
+        get('eb-farlands-detail').textContent=selected.story;
+        get('eb-farlands-region').textContent=region.name+' · '+selected.x.toLocaleString()+' / '+selected.y.toLocaleString();
+        const here=surface() && Farlands.nearbySite(gameState.player.x,gameState.player.y);
+        const travel=get('eb-farlands-travel');
+        travel.disabled=!here?.station || !selected.station || here===selected;
+        travel.textContent=selected.region==='lantern' || here?.region==='lantern' ? 'Take ferry' : 'Take caravan';
+        get('eb-farlands-travel-note').textContent=!selected.station ? 'Reach this landmark on foot. Pin it for a bearing.' :
+            here?.station ? 'Caravans and ferries connect the nine charted waystations.' :
+                'Travel routes depart from waystations. Pin a place to find it on foot.';
+        get('eb-farlands-pin').textContent=journey.pin===selected.id ? 'Clear pin' : 'Pin this place';
+        get('eb-farlands-discovery').textContent=journey.visited.size+' / '+Farlands.sites.length+' places visited';
+        const visited=Farlands.survey.filter(id=>journey.visited.has(id)).length;
+        get('eb-farlands-survey').textContent=visited===3 ? 'First Survey complete · 30 gold and 40 XP earned.' :
+            'First Survey '+visited+'/3 · Visit Millbend, Bell Orchard and the Old Tollhouse for 30 gold and 40 XP.';
+        drawAtlas();
+    }
+
+    function openAtlas() {
+        if (!inRealm() || sharedWorld.active() || movementBlocked()) return;
+        releaseMovement();
+        const current=Farlands.nearbySite((buildingInterior?.outside ?? gameState.player).x,(buildingInterior?.outside ?? gameState.player).y);
+        get('eb-farlands-destination').value=journey.pin ?? current?.id ?? journey.station;
+        get('eb-farlands-atlas').showModal();
+        renderAtlas();
+    }
+
+    window.addEventListener('load',() => {
+        const select=get('eb-farlands-destination');
+        const atlas=get('eb-farlands-atlas');
+        for (const [id,region] of Object.entries(Farlands.regions)) {
+            const group=document.createElement('optgroup');
+            group.label=region.name;
+            for (const site of Farlands.sites.filter(place=>place.region===id)) {
+                const option=document.createElement('option');
+                option.value=site.id;
+                option.textContent=site.name+(site.station ? ' · Waystation' : '');
+                group.append(option);
+            }
+            select.append(group);
+        }
+        get('eb-farlands-atlas-open').addEventListener('click',openAtlas);
+        get('eb-farlands-atlas-close').addEventListener('click',()=>atlas.close());
+        select.addEventListener('change',renderAtlas);
+        get('eb-farlands-pin').addEventListener('click',() => {
+            if (!journey || !Farlands.byId.has(select.value)) return;
+            journey.pin=journey.pin===select.value ? null : select.value;
+            renderAtlas();
+            updateHint();
+            saveNow();
+        });
+        get('eb-farlands-travel').addEventListener('click',() => {
+            const here=surface() && Farlands.nearbySite(gameState.player.x,gameState.player.y);
+            const there=Farlands.byId.get(select.value);
+            if (!here?.station || !there?.station || gameState.inBattle || sharedWorld.active()) return;
+            atlas.close();
+            putPlayer(pointAt(there));
+            saveNow();
+        });
+        get('eb-farlands-chart').addEventListener('click',event=>{
+            const bounds=event.currentTarget.getBoundingClientRect();
+            const x=(event.clientX-bounds.left)*Farlands.size/bounds.width;
+            const y=(event.clientY-bounds.top)*Farlands.size/bounds.height;
+            const closest=Farlands.sites.reduce((best,site)=>Math.hypot(x-site.x,y-site.y)<Math.hypot(x-best.x,y-best.y) ? site : best);
+            if (Math.hypot(x-closest.x,y-closest.y)<Farlands.size*18/bounds.width) {
+                select.value=closest.id;
+                renderAtlas();
+            }
+        });
+        updateControls();
+    });
+
+    return {surface,inRealm,enter,leave,pack,restore,reset,refreshScene,consume,location,rescuePoint,shore,drawTerrain,updateControls};
+})();
 
 </script>
 <script data-source="world-stream.js">
@@ -10565,7 +11796,7 @@ const sharedWorld = (() => {
         if (detail.textContent !== text) detail.textContent = text;
         const badge = get('eb-shared-badge');
         const message = session?.entered ? text || 'Shared world · ' + activeCount + ' online' :
-            session ? 'Joining shared world…' : text ? 'Solo · Could not join' : 'Solo adventure';
+            session ? 'Joining shared world…' : text ? 'Solo · Could not join' : ebFarlands.inRealm() ? 'Farlands · Solo' : 'Solo adventure';
         if (badge.textContent !== message) badge.textContent = message;
         badge.title = text;
     }
@@ -11224,12 +12455,9 @@ const sharedWorld = (() => {
 
     function setMode(active) {
         get('eb-shared-open').textContent = active ? 'Leave world' : 'Play Together';
-        for (const id of ['mapImporterTrigger','teleportButton']) {
-            const button = get(id);
-            if (button) button.disabled = active;
-        }
         get('eb-save-status').textContent = active ? 'Shared progress follows your player account.' : 'Solo progress saves on this device.';
         get('eb-duel-nearby').hidden = !active || !duelProgramId;
+        ebFarlands.updateControls();
     }
 
     async function enter() {
@@ -11249,6 +12477,9 @@ const sharedWorld = (() => {
             await refresh();
             if (session !== connection) return;
             const previous = me()?.seq ?? -1;
+            // a join is the same instruction every time, so it gets a fresh blockhash (a cached one could repeat the
+            // last join's transaction exactly, which the rollup refuses as already processed)
+            blockhash = null;
             await send(18,0,encoder.encode(actor.name),match.shard);
             await observeWrite(previous);
             if (session !== connection) return;
@@ -11414,6 +12645,7 @@ const sharedWorld = (() => {
             byId('eb-menu-solo').querySelector('small').textContent = shared ? 'Return to your current location.' :
                 'Explore at your own pace. Saves on this device.';
             byId('eb-menu-world').hidden = shared || !sharedWorldProgramId;
+            ebFarlands.updateControls();
             if (!menu.open) menu.showModal();
         }
 
@@ -11457,6 +12689,12 @@ const sharedWorld = (() => {
 
         byId('eb-menu-open').addEventListener('click',openMenu);
         byId('eb-menu-solo').addEventListener('click',() => menu.close());
+        byId('eb-farlands-option').addEventListener('click',() => {
+            if (sharedWorld.active() || buildingInterior || gameState.inBattle) return;
+            menu.close();
+            if (ebFarlands.surface()) ebFarlands.leave();
+            else ebFarlands.enter();
+        });
         byId('eb-menu-world').addEventListener('click',() => {
             if (!sharedWorldProgramId || sharedWorld.active()) return;
             menu.close();

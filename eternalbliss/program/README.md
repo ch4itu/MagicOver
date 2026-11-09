@@ -1,4 +1,13 @@
-# EternalBliss multiplayer (R12)
+# EternalBliss multiplayer (R13)
+
+## What changed in R13
+
+Same program address, upgraded on Devnet, with a new map release for the shared world.
+
+1. **Houses cover two tiles.** Houses cover 2x1 tiles, like shops. Castles 3x3, temples and inns 2x2 are unchanged, except the island castle: it covers 3x2 now, not 3x3, so the row in front of it stays open. With 3x3 the only tiles in reach were on its bridge next to the two guards, and Space talks to an NPC before a building, so the castle could not be entered with the keyboard. The footprints were chosen as before (no item, NPC, enemy route, other building or the spawn tile covered, no land area cut in two), and now also so that every building has a tile in reach that is not next to an NPC.
+2. **Map release.** `MAP_HASH` = sha256("EB-FOOTPRINTS-V1\0" || the R12 hash || the footprints as u16 little-endian), and `PREVIOUS_MAP_HASH` is the R12 hash, so instruction 27 moves an R12 world to R13 (done on Devnet). An R12 page and an R13 world refuse each other.
+
+Verified: `check_world.py` 19/19 (with the live delegation program), `check_duel.py` 18/18, `check_save.py` 14/14, `check_capacity.py` 4/4. A clean build gives sha256 `1b7e2b455449e1bea1319bf3d9a21e3a91eda92da7abaa79f6e8da68449aca3a` (73,712 bytes, no stack accesses above r10), the bytes deployed on Devnet in slot 520309264. The live world was moved to the R13 release with instruction 27 and saved to Solana. On the live rollup, two players in two browsers: one entered the inn, the shop and the island castle from two tiles away and came out again, the rollup recorded each room and the other player saw it; a house offered nothing to enter. Four players at once still see each other, the same season and time of day, and the same positions.
 
 ## What changed in R12
 
@@ -54,7 +63,7 @@ On Devnet and the rollup: an admin save paid by the world reached Solana byte fo
 
 The R10 sBPF binary passed the world, duel, room collision and R4 migration checks in LiteSVM. In the local capacity check, 32 signed players each moved eight times and the 33rd new character was rejected. The previous release tested four live Devnet clients over six rounds of simultaneous moves. R10 was compared against R9 with two live clients on isolated moves and a continuous walking route. The live duel check covered proximity, accepting and declining an invitation, resuming a match and seeing its result. It also passed with the receiving client limited to HTTP. Full-capacity live latency remains unmeasured.
 
-Rebuild using the pinned Rust toolchain and sbpf-linker 0.2.5. Run these commands from this directory with solders available for the checks (R11 used 0.29.0). A clean build of this folder gives sha256 `cee82f6a2d5838a8fb153a9584fb107cbe1ad7488ab20451b519d1fe9fd2c0b3`, the bytes deployed on Devnet.
+Rebuild using the pinned Rust toolchain and sbpf-linker 0.2.5. Run these commands from this directory with solders available for the checks (R11 used 0.29.0). A clean build of this folder gives sha256 `1b7e2b455449e1bea1319bf3d9a21e3a91eda92da7abaa79f6e8da68449aca3a`, the bytes deployed on Devnet (R13).
 
     cargo install --locked sbpf-linker --version 0.2.5
     cargo build-bpf

@@ -237,6 +237,7 @@ if __name__ == "__main__":
 
     inn = next(i for i,b in enumerate(BUILDINGS) if b[2]==1)
     x0,y0,w,h = FOOTPRINTS[inn]
+    check("Every house covers 2x1 tiles", all(FOOTPRINTS[i][2:]==[2,1] for i,b in enumerate(BUILDINGS) if b[2]==0))
     check("An inn covers 2x2 tiles and keeps its own tile inside", (w,h)==(2,2) and
           x0<=BUILDINGS[inn][0]<x0+w and y0<=BUILDINGS[inn][1]<y0+h and (x0,y0)!=tuple(BUILDINGS[inn][:2]))
     assert ground(x0-1,y0) and not covered(x0-1,y0)
