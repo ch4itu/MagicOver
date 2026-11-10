@@ -101,7 +101,7 @@ The checks accept an optional path to the public MagicBlock delegation program E
 
 ## Devnet deployment
 
-The R11 page uses program `6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb` on Solana Devnet (upgrade authority `HDbeKypeJHXMM5Xs2RHKj8XGQgJeP4jnQ1Jiugf8mXPn`, the key that runs Magic Over and Smaran) and the MagicBlock Asia rollup (`devnet-as`).
+The R13 page uses program `6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb` on Solana Devnet (upgrade authority `HDbeKypeJHXMM5Xs2RHKj8XGQgJeP4jnQ1Jiugf8mXPn`, the key that runs Magic Over and Smaran) and the MagicBlock Asia rollup (`devnet-as`).
 
 | Account | Address |
 |---|---|
@@ -114,10 +114,18 @@ The R11 page uses program `6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb` on Sola
 | World 2 | `4HWDd69H9QFJF7XbafHb9iCdqFefJwvARtyrgAtJJcm9` (rent + 0.1 SOL; tables 8 to 11) |
 | World 3 | `DA2v98URwgZtJgnxtkbk5NdyeJ9domyAur9KCSD4NE8p` (rent + 0.1 SOL; tables 12 to 15) |
 | World 4 | `4fKyyYJWpux3KLoEAe4o9PM2FwxnZwYgneeqZzN2vh5Z` (rent + 0.1 SOL; tables 16 to 19) |
+| Character book 0 | `4XbAoJvMbNiCiAFPsvgJNcVNK7tpkURKmei1RYCQWqCk` (rent + 0.05 SOL save reserve) |
+| Character book 1 | `GKrd68nQSad5wtBVCxKubya1hBkdpm8oc6TZWnuYPAXM` (rent + 0.05 SOL save reserve) |
 
 Table n is the account at `["eb-duel", n]`. To open more worlds, with their tables, on the same program:
 
     python add_worlds.py PROGRAM_ID PAYER.json LAST_WORLD [RESERVE_LAMPORTS]
+
+Book b is the account at `["eb-book", b]`. To open more books on the same program:
+
+    python add_books.py PROGRAM_ID PAYER.json LAST_BOOK [RESERVE_LAMPORTS]
+
+The page reads worlds and books from number 0 until the first one missing, so new ones need no page change.
 
 R10 used program `qaVThKeU6aoVfNz5egb5CPKchXS4XGksNsh93XwjpB6`, whose upgrade key is lost; it is left as it was.
 
@@ -133,7 +141,7 @@ Run the installer with an operator funded with Devnet test SOL and dedicated pro
 
 `--world-reserve` gives the world lamports above rent to pay for its own saves (MagicBlock charges 0.0001 SOL a save after the first 25 of each delegation). Without it, saves fall back to sponsored saves, which MagicBlock limits to 10 per delegation.
 
-Keep keypair files private. The installer checks the Devnet genesis and the expected MagicBlock Asia validator, checks the operator balance and requested cap, uploads the exact ELF, initializes five accounts, and waits for all five on the rollup. A funded operator is required for setup. The game client signs play actions with the player account.
+Keep keypair files private. The installer checks the Devnet genesis and the expected MagicBlock Asia validator, checks the operator balance and requested cap, uploads the exact ELF, initializes five accounts, and waits for all five on the rollup. It does not create character books: run `add_books.py` afterwards, because without a book the page cannot seat a new character, and the program refuses a new character without one (43). A funded operator is required for setup. The game client signs play actions with the player account.
 
 Enable Shared world and Duel after the installer verifies the deployment.
 

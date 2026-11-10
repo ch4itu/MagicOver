@@ -4,7 +4,7 @@
 
 Smaran lets a player sign up for a Solana app with a player name and a passphrase. There is no wallet app, no seed phrase and no SOL to buy. The same name and passphrase bring the same player back on any device, and in any app that uses Smaran. Smaran is Sanskrit for remembering: remembering a name and a passphrase is all a player needs.
 
-It is the sign-up that [Magic Over](../README.md) runs, packaged two ways for other sites: a sign-in window on Smaran's own page, so the site never sees the passphrase or the key, and one file, `smaran.js`, that a page can load.
+It is the sign-up that [Magic Over](../README.md) and [EternalBliss](../eternalbliss/) run, packaged two ways for other sites: a sign-in window on Smaran's own page, so the site never sees the passphrase or the key, and one file, `smaran.js`, that a page can load.
 
 **Try it:** [ch4itu.github.io/MagicOver/smaran](https://ch4itu.github.io/MagicOver/smaran/). If you already play Magic Over, sign in there with the same name and passphrase and you get the same player key. You can also change your passphrase there.
 
@@ -12,7 +12,7 @@ It is the sign-up that [Magic Over](../README.md) runs, packaged two ways for ot
 
 <p align="center"><sub>The sign-in window, opened by a demo site (game.example) and stepping through sign-in and one signature.</sub></p>
 
-**Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, across two apps (Magic Over and the Smaran page), and with the sign-in window opened by a site on another address (in a desktop browser; the window is not yet tested on a phone). Not on mainnet yet.
+**Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, across three apps (Magic Over, EternalBliss and the Smaran page), and with the sign-in window opened by a site on another address (in a desktop browser; the window is not yet tested on a phone). Not on mainnet yet.
 
 ## What Smaran is, and what it is not
 
@@ -110,7 +110,7 @@ Either way, the player has 0 SOL. It can sign zero-fee transactions on MagicBloc
 
 - **Nothing to install or buy.** No wallet app, no seed phrase, no SOL, no email, no Google or Apple account, no particular device.
 - **Back on any device.** The name and passphrase are enough. Tested in fresh browsers with nothing saved.
-- **One player across apps.** Every app on the same registry gets the same player. A player made on the Smaran page signs in to Magic Over with the same key, and the other way round.
+- **One player across apps.** Every app on the same registry gets the same player. A player made on the Smaran page signs in to Magic Over with the same key, and the other way round. EternalBliss signs in the same players.
 - **Sites need not see the key.** With the sign-in window, the passphrase and the key stay on Smaran's own page. A site gets the player name, the public key and the signatures the player approves.
 - **No company in the middle.** The registry is an open Solana program that anyone can read. There is no login server to run, trust, pay for or shut down.
 - **Free for players.** Sign-up is a zero-fee rollup transaction signed by the player's own new key, so no fee-paying relay service is needed.

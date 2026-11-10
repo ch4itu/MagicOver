@@ -10,7 +10,7 @@ To show this working in a real-time app, it comes with a 3D cricket game on Magi
 
 [Play it](https://ch4itu.github.io/MagicOver/) · [Onboarding demo, 37 s](https://ch4itu.github.io/MagicOver/media/onboarding.mp4) · [Pitch and gameplay](https://cdn.jsdelivr.net/gh/ch4itu/MagicOver@main/media/pitch.mp4)
 
-Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this repository with a shared world and duels on the same rollup.
+Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this repository whose shared worlds and duels run on MagicBlock's public Ephemeral Rollup, like Smaran's registry.
 
 <p align="center"><img src="media/preview-play.gif" width="640" alt="Magic Over's 3D scene: a drive for four, then a pull for six"></p>
 
@@ -83,7 +83,7 @@ The leaderboard refreshes every five seconds while it is open and catches up whe
 | Cricket game | [`HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT`](https://explorer.solana.com/address/HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT?cluster=devnet) |
 | Player registry | [`CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P`](https://explorer.solana.com/address/CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P?cluster=devnet) |
 | Result register | [`BcS2Gb1Gihfzqs1UkViNnbQzjGcCGyvXu81VhwsFrUzU`](https://explorer.solana.com/address/BcS2Gb1Gihfzqs1UkViNnbQzjGcCGyvXu81VhwsFrUzU?cluster=devnet) |
-| EternalBliss world and duels | [`6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb`](https://explorer.solana.com/address/6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb?cluster=devnet) |
+| EternalBliss worlds, character books and duels | [`6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb`](https://explorer.solana.com/address/6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb?cluster=devnet) |
 
 ## Files and building
 
