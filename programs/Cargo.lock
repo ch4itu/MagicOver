@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "ludo_freeflow"
+version = "0.1.0"
+dependencies = [
+ "solana-compiler-builtins",
+]
+
+[[package]]
 name = "magic_over_leaderboard"
 version = "0.1.0"
 dependencies = [
