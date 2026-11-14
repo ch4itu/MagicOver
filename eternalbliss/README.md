@@ -4,7 +4,7 @@
 
 EternalBliss is an RPG in 3D or 2D. Its shared world and its duels run on Solana Devnet through MagicBlock's public Ephemeral Rollup, and players sign in with Smaran: the same player name and passphrase as Magic Over.
 
-- **Solo adventure**: no sign-in; progress saves on your device. There are two maps. The Eternal Kingdom is 300 × 300 tiles. The Farlands is a 10,000 × 10,000 realm with nine regions, nine waystations and 28 named places, made as you walk. Its Atlas pins a place or takes a caravan or ferry between waystations, and the First Survey sends you to three landmarks near the start. Both maps share one character and inventory.
+- **Solo adventure**: no sign-in; progress saves on your device. There are two maps, and a new player starts in the Farlands. The Eternal Kingdom is 300 × 300 tiles. The Farlands is a 10,000 × 10,000 realm with nine regions, nine waystations and 28 named places, made as you walk. Its Atlas pins a place or takes a caravan or ferry between waystations, and the First Survey sends you to three landmarks near the start. Both maps share one character and inventory.
 - **Shared worlds**: the Eternal Kingdom, up to 32 players in a world at a time. Characters are kept in character books on the rollup, and a world seat is taken only while you play, so everyone online plays in the first world until 32 are there together; then the next world opens. Five worlds are open, so there are seats for 160 players at once, and two character books of 80 hold 160 characters. The program allows 64 worlds and 256 books, and the page finds new ones by itself, so opening more needs no change to the program or the page. Players in different worlds don't see each other. In a world, enemies, treasure and shops are shared, and everyone sees the same season and time of day, set by the rollup's clock. Leaving writes your character back to its book with all its progress.
 - **Buildings** cover tiles by what they are: castles 3×3 (the island castle 3×2), temples and inns 2×2, shops and houses 2×1. In the Farlands the same sizes apply, and landmarks such as the mill and the beacons cover 2×2. Stand up to two tiles from a building and press Space or click it.
 - **Trees** stand well above the heroes in 3D.
@@ -27,6 +27,20 @@ World n is the account at `["eb-land", n]`. World w's duel tables are 4w to 4w+3
 
 - `index.html`: the whole game in one file.
 - `program/`: the Rust program, its local checks and the deployed build. A clean build gives sha256 `0a1ccaf1c9783671ad1d90afe9dd863e7bc38d5f28ac4068c007ba31951671dd`, the bytes on Devnet. [program/README.md](program/README.md) lists what changed in each release and what was tested.
+
+## Changes in R15.36
+
+R15.36 brings the solo work of R14 to R15.32 to the live page, with the fixes and the phone layout tested since.
+
+- **The Farlands is the default solo map.** A new player starts at Wayfarer's Rest. "Return to Eternal Kingdom" in the menu goes to the original map, and a player who chooses it stays there after a reload. Shared worlds stay on the Eternal Kingdom, the map the program checks moves against.
+- **A goal on screen.** In the Farlands the card shows the next journal landmark, for example "First Survey 0/3 · Millbend". Tapping it pins that place, so the card shows its distance and direction; tapping it again opens the Explorer's Journal.
+- **Phones.** In the Farlands the location card is compact: Play Together, the Atlas, routes from a waystation, the errand and buying the horse sit behind "Actions", while boarding, disembarking, mounting and leaving a building stay one tap. Landscape phones get a shorter card and a one-line stats bar, and text on the card and bars is at least 12 px. On desktop and in the Eternal Kingdom every action stays on the card.
+- **Horse.** Buy one at a waystation for 75 gold and ride faster on land. It follows you, and buying and mounting use in-game dialogs.
+- **Boats.** Moored boats wait at ports and on shores. Tap one to board and sail on real water; your horse rides aboard. Disembark at the shore, and the boat stays where you left it for that session.
+- **More to find.** Coastal and river settlements, local errands, waterways and routes on the Atlas, and an Explorer's Journal with four chapters.
+- **Smoother solo walking** in both maps.
+- **Music.** The main menu has a music switch. It starts off.
+- **Fixes.** Buying the horse uses the gold you see. The horse can't be mounted while sailing. A boat taken from its mooring no longer leaves a copy behind. A diagonal step past a corner no longer launches a boat or uses a pickaxe. The journal button sits in its tool row, and the location card no longer runs under the minimap.
 
 ## Changes in R13
 
