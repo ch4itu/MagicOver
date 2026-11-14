@@ -28,6 +28,14 @@ World n is the account at `["eb-land", n]`. World w's duel tables are 4w to 4w+3
 - `index.html`: the whole game in one file.
 - `program/`: the Rust program, its local checks and the deployed build. A clean build gives sha256 `0a1ccaf1c9783671ad1d90afe9dd863e7bc38d5f28ac4068c007ba31951671dd`, the bytes on Devnet. [program/README.md](program/README.md) lists what changed in each release and what was tested.
 
+## Changes in R15.37
+
+- **Battles happen in the world.** In the 3D view a solo battle no longer opens a full-screen window. Compact controls sit above the stats bar: the enemy's name and HP, the latest message, and Attack, Magic, Heal and Flee. The panels over the world step aside and the camera moves in, more on short screens such as landscape phones.
+- **What you see.** The hero and the enemy turn to face each other side by side across the screen. To attack, the hero steps in, winds up and cuts, and the blade meets the enemy as its HP drops. Swordsmen strike back the same way; wolves, dragons and crawlers pounce and bite. Whoever is hit flinches. A defeated enemy falls and sinks away, and a defeated hero falls before being revived. An enemy from a random encounter walks in. Trees between the fight and the camera are taken out until the battle ends.
+- **On horseback** the horse turns so the enemy stands at its shoulder on the sword side, and the rider cuts down from the saddle. You stay mounted.
+- **Same rules.** Damage, HP, MP, XP, gold, potions, fleeing and defeat work exactly as before. In the world, the buttons wait while the enemy replies and stay off once the battle is decided.
+- **The battle window stays** in shared worlds, in the 2D view, and for a battle that starts while sailing.
+
 ## Changes in R15.36
 
 R15.36 brings the solo work of R14 to R15.32 to the live page, with the fixes and the phone layout tested since.

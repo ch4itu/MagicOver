@@ -3827,6 +3827,94 @@ function queueBattle(enemy, delay, nearby = false) {
     }, delay);
 }
 
+// R15.37: solo battles in the 3D view play inside the world with compact controls. The rules stay authoritative
+// and apply at once; the controls show each result when the animation's blow lands. The shared world, the 2D view
+// and battles at sea keep the battle window.
+const ebCombatHUD = (() => {
+    let active=false, lockedUntil=0, epoch=0, pulse=null, hold=0, holdTimer=0, pending=[], downed=false;
+    const IMPACT={attack:.46,enemy:.46,magic:.56,heal:.3,flee:0};
+    const el=id=>document.getElementById(id);
+    const inWorld=()=>!sharedWorld.active() && document.documentElement.dataset.ebView==='3d' && !(gameState.sailingMoves>0);
+    function show() {
+        const enemy=gameState.currentEnemy;
+        if(!active || !enemy) return;
+        el('eb-battle-foe').textContent=enemy.name;
+        el('eb-battle-hp').textContent=Math.max(0,enemy.hp)+' / '+enemy.maxHp+' HP';
+        el('eb-battle-health-fill').style.width=Math.max(0,100*enemy.hp/Math.max(1,enemy.maxHp))+'%';
+    }
+    function flush() {
+        clearTimeout(holdTimer); holdTimer=0; hold=0;
+        if(!active) return;
+        show();
+        if(pending.length){ el('eb-battle-message').textContent=pending.join(' '); pending=[]; }
+    }
+    // The buttons wait while the enemy replies, and stay off once the battle is decided.
+    function controls() {
+        const enemy=gameState.currentEnemy, over=downed || !enemy || enemy.hp<=0 || gameState.player.hp<=0;
+        el('eb-battle-hud').querySelectorAll('[data-eb-combat]').forEach(b=>b.disabled=over || performance.now()<lockedUntil);
+    }
+    // Above the stats bar, centred on the game view.
+    function place() {
+        const hud=el('eb-battle-hud'), bar=el('eb-bottom-panel'), box=el('eb-scene')?.getBoundingClientRect();
+        hud.style.left=box?.width ? box.left+box.width/2+'px' : '';
+        const top=bar?.getClientRects().length ? bar.getBoundingClientRect().top : 0;
+        hud.style.bottom=top>0 ? Math.max(8,document.documentElement.clientHeight-top+8)+'px' : '';
+    }
+    function open(enemy) {
+        epoch++; lockedUntil=0; pulse=null; downed=false; pending=[]; hold=0; clearTimeout(holdTimer);
+        active=inWorld();
+        if(!active) return false;
+        el('eb-battle-shield').hidden=false;
+        el('eb-battle-hud').hidden=false;
+        document.body.classList.add('eb-in-battle');
+        el('eb-battle-message').textContent='⚔️ '+enemy.name+' blocks your path!';
+        controls(); place(); show();
+        return true;
+    }
+    function close() {
+        epoch++; active=false; lockedUntil=0; pulse=null; pending=[]; hold=0; clearTimeout(holdTimer); holdTimer=0;
+        el('eb-battle-hud').hidden=true;
+        el('eb-battle-shield').hidden=true;
+        document.body.classList.remove('eb-in-battle');
+    }
+    // A turn is about to change the numbers: hold them until its animation says when the blow lands.
+    function begin() { if(active){ clearTimeout(holdTimer); hold=performance.now()+4000; } }
+    function effect(action) {
+        if(!active) return;
+        const now=performance.now(), at=(IMPACT[action] ?? 0)*1000;
+        pulse={action,started:now};
+        clearTimeout(holdTimer);
+        if(at>0){ hold=now+at; holdTimer=setTimeout(flush,at); } else flush();
+    }
+    function update() { if(!active) return; controls(); if(performance.now()>=hold) show(); }
+    // Messages wait with the numbers; the latest two show together (a blow and its result, a victory and its reward).
+    function message(value) {
+        if(!active) return;
+        if(performance.now()<hold) pending=[...pending,value].slice(-2); else el('eb-battle-message').textContent=value;
+    }
+    function lock(ms) {
+        if(!active) return;
+        lockedUntil=performance.now()+ms;
+        controls();
+        const mine=epoch;
+        setTimeout(()=>{ if(mine!==epoch || !active) return; lockedUntil=0; controls(); },ms);
+    }
+    function visual(now) {
+        if(!pulse) return null;
+        const age=(now-pulse.started)/1000;
+        if(age>1.15){ pulse=null; return null; }
+        return {action:pulse.action,age,started:pulse.started};
+    }
+    addEventListener('resize',()=>{ if(active) place(); });
+    document.addEventListener('click',event=>{
+        const action=event.target.closest?.('[data-eb-combat]')?.dataset.ebCombat;
+        if(action && active && !lockedUntil) battleAction(action);
+    });
+    return {open,close,begin,effect,release:flush,update,message,lock,visual,defeat:()=>{downed=true; controls();},
+        impact:action=>IMPACT[action] ?? 0, active:()=>active, downed:()=>downed,
+        waiting:()=>active && performance.now()<lockedUntil};
+})();
+
 function startBattle(enemy) {
     if (movementBlocked()) return;
     clearTimeout(queuedEncounter);
@@ -3845,7 +3933,8 @@ function startBattle(enemy) {
     battleLog.innerHTML = '';
     addBattleLog(`⚔️ ${enemy.name} blocks your path!`, 'log-info');
     
-    document.getElementById('battleModal').style.display = 'flex';
+    // R15.37: solo battles in the 3D view stay in the world; the shared world, the 2D view and battles at sea keep this window.
+    document.getElementById('battleModal').style.display = ebCombatHUD.open(enemy) ? 'none' : 'flex';
     createParticleEffect(enemy.x * 32 + 16, enemy.y * 32, '#dc2626');
 }
 
@@ -3861,12 +3950,14 @@ function getBattleEmoji(enemyClass) {
 function battleAction(action) {
     if (!gameState.inBattle || !gameState.currentEnemy) return;
     if (sharedWorld.active()) { sharedWorld.fight(action); return; }
+    if (ebCombatHUD.waiting()) return;
     
     if (gameState.currentEnemy.hp <= 0) {
         addBattleLog('Enemy is already defeated!', 'log-info');
         return;
     }
     
+    ebCombatHUD.begin();
     let playerDamage = 0;
     let playerUsedTurn = true;
     
@@ -3917,6 +4008,7 @@ function battleAction(action) {
             break;
     }
     
+    if (playerUsedTurn) ebCombatHUD.effect(action); else ebCombatHUD.release();
     updateBattleUI();
     updateUI();
     
@@ -3926,6 +4018,7 @@ function battleAction(action) {
     }
     
     if (playerUsedTurn) {
+        ebCombatHUD.lock(2700); // the enemy's turn (1.5 s) and its animation (1.15 s) finish first
         setTimeout(enemyTurn, 1500);
     }
 }
@@ -3933,6 +4026,7 @@ function battleAction(action) {
 function enemyTurn() {
     if (!gameState.inBattle || !gameState.currentEnemy) return;
     
+    ebCombatHUD.begin();
     const baseEnemyDamage = Math.floor(Math.random() * gameState.currentEnemy.attack) + 5;
     const defense = Math.floor(gameState.player.defense / 3);
     const actualDamage = Math.max(1, baseEnemyDamage - defense);
@@ -3941,6 +4035,7 @@ function enemyTurn() {
     addBattleLog(`🔥 ${gameState.currentEnemy.name} attacks for ${actualDamage} damage!`, 'log-damage');
     
     flashStatBar('hp', 'damage');
+    ebCombatHUD.effect('enemy');
     updateBattleUI();
     updateUI();
     
@@ -3975,6 +4070,7 @@ function enemyDefeated() {
 }
 
 function playerDefeated() {
+    ebCombatHUD.defeat();
     addBattleLog(`💀 You have been defeated!`, 'log-damage');
 
     gameState.player.hp = Math.floor(gameState.player.maxHp * 0.3);
@@ -4001,6 +4097,7 @@ function endBattle(victory) {
     gameState.inBattle = false;
     gameState.currentEnemy = null;
     document.getElementById('battleModal').style.display = 'none';
+    ebCombatHUD.close();
     updateUI();
     renderWorld();
     centerCameraOnPlayer();
@@ -4047,6 +4144,7 @@ function randomEncounter() {
 }
 
 function updateBattleUI() {
+    ebCombatHUD.update();
     if (gameState.currentEnemy) {
         document.getElementById('enemyHp').textContent = gameState.currentEnemy.hp;
         document.getElementById('enemyHpBar').style.width = `${(gameState.currentEnemy.hp / gameState.currentEnemy.maxHp) * 100}%`;
@@ -4060,6 +4158,7 @@ function addBattleLog(message, type) {
     entry.textContent = message;
     log.appendChild(entry);
     log.scrollTop = log.scrollHeight;
+    ebCombatHUD.message(message);
 }
 
 // UI UPDATE FUNCTIONS
@@ -5875,6 +5974,30 @@ body { height: 100dvh; }
 @media (max-height: 450px) and (pointer: coarse) {
     #eb-actions-collapse { position: absolute; top: 6px; right: 8px; margin: 0; }
 }
+/* R15.37: solo battles stay in the 3D world: compact controls above the stats bar instead of a full-screen window.
+   A clear shield keeps the rest of the screen out of reach during the fight, as the battle window did. */
+#eb-battle-shield { position:fixed; inset:0; z-index:1000; background:transparent; }
+#eb-battle-shield[hidden] { display:none!important; }
+#eb-battle-hud { position:fixed; z-index:1001; left:50%; bottom:92px; transform:translateX(-50%); width:min(92%,420px);
+    box-sizing:border-box; border:1px solid #c3a66e; border-radius:14px; padding:10px 12px; background:rgba(14,31,35,.92);
+    color:#f6ead2; box-shadow:0 8px 25px #0009; pointer-events:auto; font:13px system-ui,sans-serif; }
+#eb-battle-hud[hidden] { display:none!important; }
+.eb-battle-head { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+.eb-battle-health { height:6px; margin:8px 0; border-radius:6px; background:#653a3a; overflow:hidden; }
+#eb-battle-health-fill { display:block; height:100%; width:100%; background:#7cd6a3; transition:width .25s; }
+#eb-battle-message { min-height:17px; max-height:38px; overflow:hidden; margin:5px 0 8px; }
+.eb-battle-buttons { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
+.eb-battle-buttons button { background:#284b4e; color:#f8eed9; border:1px solid #739a93; border-radius:8px; padding:9px 3px;
+    min-height:44px; cursor:pointer; font:600 13px system-ui,sans-serif; }
+.eb-battle-buttons button:disabled { opacity:.4; cursor:wait; }
+/* The panels over the world step aside for the fight (the battle window covered them); the stats bar stays. */
+body.eb-in-battle #mobile-controls, body.eb-in-battle .eb-name-enemy, body.eb-in-battle .location-info,
+body.eb-in-battle .minimap, body.eb-in-battle #eb-capture-toggle, body.eb-in-battle .eb-tools,
+body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hidden !important; }
+@media (max-width:600px) { #eb-battle-hud { padding:8px; width:min(96%,410px); }
+    .eb-battle-buttons { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-height:450px) and (pointer:coarse) { #eb-battle-hud { padding:6px 10px; } .eb-battle-health { margin:4px 0; }
+    #eb-battle-message { max-height:17px; margin:3px 0 5px; } }
 /* R15.36: phones in the Farlands open a compact location card. Play Together, Atlas, station routes, the errand, the
    horse purchase, its help and the mode badge sit behind "Actions"; boarding, disembarking, duels, mounting and
    building exits stay one tap. Desktop and the Eternal Kingdom keep their layout. */
@@ -6308,6 +6431,20 @@ body { height: 100dvh; }
             </div>
         </div>
     </div>
+
+    <!-- R15.37: compact solo battle controls; the fight itself plays on the 3D game canvas. -->
+    <div id="eb-battle-shield" hidden></div>
+    <section id="eb-battle-hud" aria-label="Battle controls" hidden>
+      <div class="eb-battle-head"><strong>⚔️ <span id="eb-battle-foe">Enemy</span></strong><span id="eb-battle-hp">HP</span></div>
+      <div class="eb-battle-health"><span id="eb-battle-health-fill"></span></div>
+      <div id="eb-battle-message" role="status" aria-live="polite">Choose an action.</div>
+      <div class="eb-battle-buttons">
+        <button type="button" data-eb-combat="attack">⚔️ Attack</button>
+        <button type="button" data-eb-combat="magic">✨ Magic</button>
+        <button type="button" data-eb-combat="heal">💚 Heal</button>
+        <button type="button" data-eb-combat="flee">🏃 Flee</button>
+      </div>
+    </section>
 
     <!-- Battle Modal (PvE) -->
     <div class="modal battle-modal" id="battleModal">
@@ -9197,6 +9334,330 @@ window.addEventListener('load', () => {
             }
         }
 
+        // R15.37: in-world battle choreography. Render only: tile positions, HP, damage and the rules are never touched.
+        // The fighters face each other across the screen. The attacker steps in, winds up and strikes with the sword
+        // arm while the wrist turns the blade along the swing; the defender reacts when the blow lands; both return
+        // to guard. Beasts pounce and bite. A rider fights from the saddle. A defeated fighter falls.
+        stageCombat(now, time) {
+            const T=THREE, hero=this.hero;
+            const foe=gameState.inBattle && ebCombatHUD.active() ? gameState.currentEnemy : null;
+            let c=this.combat;
+            if (!foe) { if (c) this.endCombatStage(); return null; }
+            const riding=ebHorseMounted && this.farlandsHorse.visible;
+            if (!c || c.foe!==foe) {
+                if (c) this.endCombatStage();
+                // Across the screen (the camera looks along -x,-z), on open ground, on the side nearer the enemy.
+                const across=new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2), at=hero.group.position;
+                const fx=Number.isFinite(foe.x) ? foe.x-gameState.player.x : 0, fz=Number.isFinite(foe.y) ? foe.y-gameState.player.y : 0;
+                const open=v=>{ try { return canEntityMoveTo(Math.round(at.x+v.x*1.6),Math.round(at.z+v.z*1.6)); } catch { return true; } };
+                const first=fx*across.x+fz*across.z<0 ? across.clone().negate() : across, second=first.clone().negate();
+                const dir=open(first) ? first : open(second) ? second : new T.Vector3(fx,0,fz);
+                if (dir.lengthSq()<1e-4) dir.set(Math.sin(hero.group.rotation.y),0,Math.cos(hero.group.rotation.y));
+                c=this.combat={foe,dir:dir.normalize(),base:at.clone(),started:now,model:null,own:false,downAt:0,heroDownAt:0,hidden:[]};
+            }
+            // The battle holds a copy of the enemy; its actor is the enemy record on the same tile.
+            if (!c.record || this.actors.get(c.record.data)!==c.record)
+                c.record=[...this.actors.values()].find(r=>r.kind==='enemy' && r.data.x===foe.x && r.data.y===foe.y) || null;
+            if (c.record && c.model!==c.record.model) {
+                if (c.own && c.model) this.scene.remove(c.model.group);
+                c.model=c.record.model; c.own=false;
+            }
+            if (!c.model) {
+                // An encounter with no figure on the map (a random encounter) brings its own, which walks in.
+                const type=foe.class?.includes('skeleton') ? 'skeleton' : getEnemyType(foe.class||'');
+                c.model=foe.crawler ? art.crawler(foe.region) : type==='wolf'||type==='dragon' ? art.beast(type) : art.humanoid('enemy',type,0);
+                c.own=c.arrives=true;
+            }
+            const enemy=c.model;
+            // A defeated enemy's actor leaves the map at once; its figure stays for the fall until the battle ends.
+            if (!enemy.group.parent) { this.scene.add(enemy.group); c.own=true; }
+            const ease=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+            const key=(t,frames)=>{
+                if (t<=frames[0][0]) return frames[0][1];
+                for (let i=1;i<frames.length;i++) {
+                    const [t1,v1]=frames[i], [t0,v0]=frames[i-1];
+                    if (t<=t1) return v0+(v1-v0)*ease((t-t0)/(t1-t0));
+                }
+                return frames[frames.length-1][1];
+            };
+            const swordOf=m=>m.arms?.[1]?.children.find(o=>o.isGroup);
+            const armed=m=>(m.arms?.length||0)>1;
+            // Every frame starts from the neutral pose; a rider's legs keep the seat the horse gives them.
+            const neutral=(m,seated)=>{
+                if (m.body) { m.body.rotation.set(0,0,0); m.body.position.x=0; m.body.position.z=0; }
+                for (const arm of m.arms||[]) { arm.rotation.x=0; arm.rotation.z=0; }
+                if (!seated) for (const leg of m.legs||[]) { leg.rotation.x=0; leg.rotation.z=0; }
+                const sword=swordOf(m);
+                if (sword) { if (sword.userData.ebRest===undefined) sword.userData.ebRest=sword.rotation.x; sword.rotation.x=sword.userData.ebRest; }
+            };
+            neutral(hero,riding); neutral(enemy,false);
+            const dir=c.dir, beastLong=enemy.width>1 ? .55 : armed(enemy) ? 0 : .25;
+            // Distance between the fighters at guard. A rider keeps the enemy beside the horse's shoulder on the
+            // sword side, where the blade reaches down to it.
+            const rest=riding ? .75+beastLong*.8 : 1.45+beastLong;
+            this.clearCombatView(c,rest);
+            // Guard: sword raised in front, the off hand ready, feet apart, breathing.
+            const guard=(m,phase,seated)=>{
+                if (m.body) m.body.position.y=.012*Math.sin(time*3.1+phase)+(armed(m) ? 0 : -.02);
+                if (!armed(m)) return;
+                const sword=swordOf(m);
+                m.arms[1].rotation.x=-.62; m.arms[1].rotation.z=.10;
+                if (sword) sword.rotation.x=sword.userData.ebRest+1.15;
+                m.arms[0].rotation.x=-.30; m.arms[0].rotation.z=-.12;
+                if (!seated && m.legs?.length>1) { m.legs[0].rotation.x=-.22; m.legs[1].rotation.x=.22; }
+            };
+            // A sword stroke: step in, wind up over the head, cut down across the body so the blade meets the target's
+            // chest when the blow lands, follow through, recover, step back. Arm angle plus wrist angle is the blade's
+            // angle from straight up (1.7 at the blow: just below level). From the saddle there is no step and the body
+            // barely turns: the arm swings out to the sword side and the blade cuts down (2.3) onto the enemy there.
+            const strike=(m,a,seated)=>{
+                const sword=swordOf(m);
+                m.arms[1].rotation.x=key(a,[[0,-.62],[.16,-.9],[.34,-2.95],[.40,-2.1],[.47,seated ? -1.3 : -1.0],[.60,seated ? -1.1 : -.80],[1.0,-.62]]);
+                m.arms[1].rotation.z=key(a,seated ? [[0,.10],[.34,.30],[.47,.35],[.62,.30],[1.0,.10]] : [[0,.10],[.34,.22],[.47,-.40],[.62,-.30],[1.0,.10]]);
+                if (sword) sword.rotation.x=sword.userData.ebRest+key(a,[[0,1.15],[.16,1.1],[.34,1.0],[.40,1.8],[.47,seated ? 3.6 : 2.7],[.60,seated ? 3.7 : 2.85],[1.0,1.15]]);
+                m.arms[0].rotation.x=key(a,[[0,-.30],[.34,-.95],[.47,.35],[.62,.10],[1.0,-.30]]);
+                m.arms[0].rotation.z=-.12;
+                if (m.body) {
+                    m.body.rotation.y=key(a,[[0,0],[.34,.38],[.47,-.32],[.62,-.22],[1.0,0]])*(seated ? .3 : 1);
+                    m.body.position.y=key(a,[[0,0],[.34,.02],[.47,-.035],[.62,-.02],[1.0,0]]);
+                }
+                if (!seated && m.legs?.length>1) {
+                    const stride=Math.sin(a*24)*.5*key(a,[[0,0],[.06,1],[.26,1],[.32,0],[.64,0],[.70,1],[.94,1],[1.02,0]]);
+                    m.legs[0].rotation.x=-.22+stride+key(a,[[0,0],[.40,0],[.47,-.40],[.62,-.30],[.9,0]]);
+                    m.legs[1].rotation.x=.22-stride+key(a,[[0,0],[.40,0],[.47,.36],[.62,.28],[.9,0]]);
+                }
+                return seated ? 0 : key(a,[[0,0],[.30,1],[.62,1],[1.02,0]]);
+            };
+            // A beast's pounce: crouch, leap in, bite, spring back.
+            const pounce=(m,a)=>{
+                if (m.body) {
+                    m.body.position.y=key(a,[[0,-.02],[.12,-.08],[.20,-.02],[.42,0],[.50,-.04],[1.0,-.02]]);
+                    m.body.rotation.x=key(a,[[0,0],[.12,-.12],[.38,-.06],[.46,.30],[.60,.12],[.95,0]]);
+                }
+                const moving=key(a,[[0,0],[.12,0],[.18,1],[.40,1],[.46,0],[.64,0],[.70,1],[.96,1],[1.02,0]]);
+                (m.legs||[]).forEach((leg,i)=>{ leg.rotation.x=Math.sin(a*22+i*Math.PI)*.55*moving; });
+                return key(a,[[0,0],[.12,0],[.42,1],[.62,1],[1.0,0]]);
+            };
+            // The defender reacts when the blow lands: flinch, turn away, rock back (a rider only flinches).
+            // Tilts turn the body, not the figure's group, so the hero's ground ring stays flat.
+            const reactTo=(m,a,at,seated)=>{
+                const r=key(a,[[0,0],[at,0],[at+.07,1],[at+.20,.75],[at+.50,0]]);
+                if (armed(m)) { m.arms[0].rotation.x+=-.85*r; m.arms[1].rotation.x+=-.45*r; }
+                if (m.body) {
+                    m.body.position.y-=.035*r;
+                    if (!seated) { m.body.rotation.y+=.28*r; m.body.rotation.x+=-.20*r; }
+                }
+                return r;
+            };
+            const v=ebCombatHUD.visual(now);
+            let heroReach=0, enemyReach=0, heroPush=0, enemyPush=0;
+            guard(hero,0,riding); guard(enemy,1.7,false);
+            // How far each steps in to strike: a sword fighter closes to .66 from a figure (the blade's reach at chest
+            // height) and to the head of a beast (about 1.2 from a beast's centre, 1.05 from a crawler's), a beast to
+            // its bite; nobody steps into a horse.
+            const contactHero=rest-(armed(enemy) ? .66 : foe.crawler ? 1.05 : 1.2);
+            const contactEnemy=riding ? .1 : armed(enemy) ? rest-.66 : rest-.80-beastLong*.4;
+            if (v) {
+                const a=v.age, at=ebCombatHUD.impact(v.action);
+                if (v.action==='attack') {
+                    heroReach=strike(hero,a,riding)*contactHero;
+                    enemyPush=reactTo(enemy,a,at,false)*.18;
+                } else if (v.action==='enemy') {
+                    enemyReach=(armed(enemy) ? strike(enemy,a,false) : pounce(enemy,a))*contactEnemy;
+                    heroPush=reactTo(hero,a,at,riding)*(riding ? 0 : .18);
+                } else if (v.action==='magic' && armed(hero)) {
+                    hero.arms[0].rotation.x=key(a,[[0,-.30],[.12,-1.0],[.28,-1.50],[.62,-1.45],[.95,-.30]]);
+                    hero.arms[0].rotation.z=key(a,[[0,-.12],[.28,.10],[.95,-.12]]);
+                    if (hero.body) hero.body.rotation.y=key(a,[[0,0],[.28,.22],[.70,.18],[1.0,0]])*(riding ? .3 : 1);
+                    enemyPush=reactTo(enemy,a,at,false)*.14;
+                } else if (v.action==='heal' && armed(hero)) {
+                    const lift=key(a,[[0,0],[.15,1],[.70,1],[1.0,0]]);
+                    hero.arms[0].rotation.x=-.30-.95*lift; hero.arms[1].rotation.x=-.62-.55*lift;
+                    hero.arms[0].rotation.z=-.12-.35*lift; hero.arms[1].rotation.z=.10+.35*lift;
+                }
+            }
+            // A defeated fighter falls when the last blow has landed and stays down until the battle ends.
+            const landed=!v || v.age>=ebCombatHUD.impact(v.action);
+            if (foe.hp<=0 && landed && !c.downAt) c.downAt=now;
+            if (ebCombatHUD.downed() && landed && !c.heroDownAt) c.heroDownAt=now;
+            // Both turn to face each other; a rider turns the horse so the enemy stands at its front quarter on the
+            // sword side (.9 rad off the horse's line; the hero's sword is in the hand on the figure's +x side).
+            const yaw=Math.atan2(dir.x,dir.z), turn=(from,to,k)=>from+Math.atan2(Math.sin(to-from),Math.cos(to-from))*k;
+            const facing=this.reduced ? 1 : ease((now-c.started)/300);
+            if (c.heroYaw===undefined) {
+                c.heroYaw=riding ? this.horseHeading : hero.group.rotation.y;
+                c.enemyYaw=c.arrives ? yaw+Math.PI : enemy.group.rotation.y;
+            }
+            if (riding) {
+                this.horseHeading=turn(c.heroYaw,yaw-.9-Math.PI,facing);
+                this.farlandsHorse.rotation.y=this.horseHeading;
+                hero.group.rotation.y=this.horseHeading+Math.PI;
+            } else hero.group.rotation.y=turn(c.heroYaw,yaw,facing);
+            enemy.group.rotation.y=turn(c.enemyYaw,yaw+Math.PI,facing);
+            // The hero holds its ground (a rider stays where the horse stands); the enemy walks to its place.
+            const hp=hero.group.position, ep=enemy.group.position, b=c.base;
+            if (!riding) { hp.x=b.x+dir.x*(heroReach-heroPush); hp.z=b.z+dir.z*(heroReach-heroPush); }
+            if (!c.from) {
+                c.from=c.arrives ? new T.Vector3(b.x+dir.x*(rest+1.4),tileTop,b.z+dir.z*(rest+1.4)) : ep.clone();
+                const gap=Math.hypot(b.x+dir.x*rest-c.from.x,b.z+dir.z*rest-c.from.z);
+                c.entry=this.reduced || gap<.05 ? 0 : 250+300*Math.min(2,gap);
+            }
+            const enter=c.entry ? ease((now-c.started)/c.entry) : 1, ed=rest-enemyReach+enemyPush;
+            ep.set(c.from.x+(b.x+dir.x*ed-c.from.x)*enter, tileTop, c.from.z+(b.z+dir.z*ed-c.from.z)*enter);
+            if (enter<1) (enemy.legs||[]).forEach((leg,i)=>{ leg.rotation.x+=Math.sin(time*14+i*Math.PI)*.5*Math.min(1,(1-enter)*4); });
+            if (v?.action==='enemy' && !armed(enemy)) ep.y+=.24*Math.sin(Math.PI*Math.max(0,Math.min(1,(v.age-.12)/.30)));
+            // Falling: a figure tips back onto the ground, arms down and the blade lying along the arm, a beast rolls
+            // onto its side. A defeated enemy then sinks away before the battle closes, since its figure leaves the
+            // map then.
+            const fall=(m,since,beast,sinks)=>{
+                const f=ease((now-since)/550), sink=sinks ? ease((now-since-1700)/600) : 0;
+                if (m.body) {
+                    if (beast) { m.body.rotation.z=1.35*f; m.body.position.y=.2*f; }
+                    else { m.body.rotation.x=-1.42*f; m.body.position.y=.04*f; }
+                    m.body.position.y-=.7*sink;
+                }
+                for (const arm of m.arms||[]) arm.rotation.x=arm.rotation.x*(1-f)+.35*f;
+                const sword=swordOf(m);
+                if (sword) sword.rotation.x=sword.rotation.x*(1-f)+(sword.userData.ebRest+Math.PI)*f;
+            };
+            if (c.downAt) fall(enemy,c.downAt,!armed(enemy),true);
+            if (c.heroDownAt && !riding) fall(hero,c.heroDownAt,false,false);
+            this.renderCombatEffects(now,v,hero,enemy,dir,riding);
+            return {x:b.x+dir.x*rest/2, z:b.z+dir.z*rest/2};
+        }
+
+        // Effects that mark the moment a blow lands; nothing runs outside those instants.
+        renderCombatEffects(now,v,hero,enemy,dir,riding) {
+            const T=THREE;
+            if (!this.combatFx) {
+                const material=color=>new T.MeshBasicMaterial({color,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide});
+                const fx={bolt:new T.Mesh(new T.IcosahedronGeometry(.13,1),material(0x9fe6ff)),
+                    glow:new T.Mesh(new T.SphereGeometry(.62,16,12),material(0x7affb8)),sparks:[]};
+                for (let i=0;i<8;i++) fx.sparks.push(new T.Mesh(new T.SphereGeometry(.03,5,4),material(i%2 ? 0xffffff : 0xffc46b)));
+                for (const m of [fx.bolt,fx.glow,...fx.sparks]) { m.visible=false; this.scene.add(m); }
+                this.combatFx=fx;
+            }
+            const fx=this.combatFx;
+            for (const m of [fx.bolt,fx.glow,...fx.sparks]) m.visible=false;
+            if (!v) return;
+            const a=v.age, at=ebCombatHUD.impact(v.action);
+            const target=v.action==='enemy' ? hero : enemy, caster=v.action==='enemy' ? enemy : hero;
+            // Where the blow lands: the chest, or a beast's head; from the saddle the rider's blade lands high on the
+            // enemy, and an enemy's blow on a rider lands at the rider's leg by the horse's side.
+            const toRider=riding && v.action==='enemy', beast=(enemy.arms?.length||0)<2;
+            const hit=target.group.position.clone().add(new T.Vector3(0,toRider ? .05 : riding ? .72 : .55,0))
+                .addScaledVector(dir,toRider ? .3 : v.action==='enemy' ? .12 : beast ? -.5 : -.12);
+            const show=(m,p,alpha,scale=1)=>{ m.visible=alpha>.01; m.position.copy(p); m.material.opacity=Math.max(0,Math.min(1,alpha)); m.scale.setScalar(scale); };
+            if (v.action==='magic') {
+                const flight=Math.max(0,Math.min(1,(a-.28)/(at-.28)));
+                if (a>=.28 && a<=at) {
+                    caster.group.updateMatrixWorld(true);
+                    const hand=caster.arms?.[0] ? caster.arms[0].localToWorld(new T.Vector3(0,-.2,0)) : caster.group.position.clone().add(new T.Vector3(0,.6,0));
+                    const p=hand.lerp(hit,flight); p.y+=.12*Math.sin(Math.PI*flight);
+                    show(fx.bolt,p,.95,1);
+                }
+            }
+            if (v.action==='heal') show(fx.glow,caster.group.position.clone().add(new T.Vector3(0,.5,0)),.28*Math.sin(Math.PI*Math.min(1,a/1.0)),1+.15*a);
+            if (v.action!=='heal' && v.action!=='flee' && a>=at && a<at+.22) {
+                const s=(a-at)/.22;
+                fx.sparks.forEach((m,i)=>{
+                    const phi=i*2.4, up=.15+(i%3)*.12;
+                    const p=hit.clone().add(new T.Vector3(Math.cos(phi)*s*.45,up*s,Math.sin(phi)*s*.45));
+                    show(m,p,1-s,1);
+                });
+            }
+        }
+
+        // Trees standing between the fight and the camera would hide it: their trunks and crowns are taken out for
+        // the battle (each instance collapsed to nothing) and put back when it ends. A tree in front reaches up over
+        // the fighters on screen when it stands within about 2.3 tiles of them towards the camera.
+        clearCombatView(c,rest) {
+            if (c.land===this.land) return;
+            this.restoreCombatView(c);
+            c.land=this.land;
+            if (!this.land) return;
+            const T=THREE, m=new T.Matrix4(), p=new T.Vector3(), none=new T.Matrix4().makeScale(0,0,0);
+            const across=new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2), toward=new T.Vector3(Math.SQRT1_2,0,Math.SQRT1_2);
+            const enemyAt=c.dir.dot(across)*rest, low=Math.min(0,enemyAt)-.9, high=Math.max(0,enemyAt)+.9;
+            for (const mesh of this.land.children) {
+                if (!mesh.isInstancedMesh || (mesh.geometry!==this.trunk && mesh.geometry!==this.crown)) continue;
+                let changed=false;
+                for (let i=0;i<mesh.count;i++) {
+                    mesh.getMatrixAt(i,m);
+                    p.setFromMatrixPosition(m).sub(c.base);
+                    const side=p.dot(across), depth=p.dot(toward);
+                    if (side<low || side>high || depth<-.35 || depth>2.4) continue;
+                    c.hidden.push([mesh,i,m.clone()]);
+                    mesh.setMatrixAt(i,none);
+                    changed=true;
+                }
+                if (changed) mesh.instanceMatrix.needsUpdate=true;
+            }
+        }
+
+        restoreCombatView(c) {
+            for (const [mesh,i,matrix] of c.hidden) { mesh.setMatrixAt(i,matrix); mesh.instanceMatrix.needsUpdate=true; }
+            c.hidden=[];
+        }
+
+        // The battle has closed: both figures return to their own animation (the enemy walks back to its tile).
+        endCombatStage() {
+            const c=this.combat;
+            this.combat=null;
+            if (!c) return;
+            this.restoreCombatView(c);
+            for (const m of [this.hero,c.model]) {
+                if (!m) continue;
+                if (m.body) { m.body.rotation.set(0,0,0); m.body.position.x=0; m.body.position.z=0; }
+                for (const arm of m.arms||[]) arm.rotation.z=0;
+                const sword=m.arms?.[1]?.children.find(o=>o.isGroup);
+                if (sword && sword.userData.ebRest!==undefined) sword.rotation.x=sword.userData.ebRest;
+            }
+            if (c.own) this.scene.remove(c.model.group);
+            if (this.combatFx) for (const m of [this.combatFx.bolt,this.combatFx.glow,...this.combatFx.sparks]) m.visible=false;
+        }
+
+        // Battle framing: ease toward the duel and zoom in, keeping the fight in the free area above the controls;
+        // ease back to the normal follow camera after the battle.
+        frameCombat(focus, dt) {
+            const blend=this.combatBlend || 0;
+            const next=focus ? 1 : 0;
+            this.combatBlend=this.reduced ? next : blend+(next-blend)*(1-Math.exp(-6*dt));
+            if (focus) this.combatFocus=focus;
+            const b=this.combatBlend;
+            if (!focus && b<.003) {
+                this.combatBlend=0;
+                if (this.camera.zoom!==1) { this.camera.zoom=1; this.camera.updateProjectionMatrix(); }
+                return;
+            }
+            const f=this.combatFocus;
+            if (!f) return;
+            // Zoom: the fighters (about a unit tall) at least 1.85 times the default view and at least about 70 px
+            // tall, while the fight with its labels (about 1.3 units) stays within 60% of the free height above the
+            // controls. Lift: the fight sits in the middle of that free space. Both are measured while the controls
+            // show; after the battle the last values ease out.
+            let lift=this.combatLift || 0;
+            const hud=document.getElementById('eb-battle-hud');
+            if (focus && hud && !hud.hidden) {
+                const box=this.renderer.domElement.getBoundingClientRect(), span=this.camera.top-this.camera.bottom;
+                const free=Math.min(hud.getBoundingClientRect().top,box.bottom)-box.top, unit=box.height/(span*this.zoom);
+                if (unit>0 && free>0) {
+                    const magnify=Math.max(1,Math.min(Math.max(1.85,70/unit),.6*free/(1.3*unit)));
+                    this.combatZoom=Math.max(1,magnify/this.zoom);
+                    const pxPerUnit=box.height*(1+(this.combatZoom-1)*b)/span;
+                    lift=this.combatLift=Math.max(0,(box.height-free)/2/pxPerUnit/.663);
+                }
+            }
+            const zoom=1+((this.combatZoom || 1.85)-1)*b;
+            const cx=this.camera.position.x-16, cz=this.camera.position.z-16;
+            const tx=cx+(f.x+lift*.7071-cx)*b, tz=cz+(f.z+lift*.7071-cz)*b;
+            this.camera.position.set(tx+16,20,tz+16);
+            this.camera.lookAt(tx,.15,tz);
+            this.camera.zoom=zoom;
+            this.camera.updateProjectionMatrix();
+            this.camera.updateMatrixWorld();
+        }
+
         animateActor(model, x, z, y, time, dt, stepping = false, staged = false) {
             const position = model.group.position;
             const dx = x - position.x;
@@ -9610,6 +10071,7 @@ window.addEventListener('load', () => {
                 this.hero.body.position.y=0;
             }
 
+            const combatFocus = this.stageCombat(now, time); // R15.37: in-world battle, render only
             const shift = Math.hypot(this.cameraPosition.x - here.x, this.cameraPosition.y - here.z);
             // Normal movement must not snap the entire scene after a few steps.
             // Preserve a hard reset only for large teleports or reduced motion.
@@ -9631,6 +10093,7 @@ window.addEventListener('load', () => {
             this.camera.position.set(cx + 16, 20, cz + 16);
             this.camera.lookAt(cx, .15, cz);
             this.camera.updateMatrixWorld();
+            this.frameCombat(combatFocus, dt); // R15.37: battle framing, after the follow camera
             this.sun.position.set(cx - 10, 19, cz - 7);
             this.sun.target.position.set(cx, 0, cz);
             this.water.position.x = cx;
@@ -9647,7 +10110,8 @@ window.addEventListener('load', () => {
                 // Remote player poses may be interpolated by the shared-world buffer.
                 // Do not force-snap those poses on every frame: that defeats 3D smoothing.
                 model.ebRemotePlayer = kind === 'remote';
-                this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data && kind !== 'remote');
+                if (model !== this.combat?.model) // R15.37: a battle poses its enemy itself
+                    this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data && kind !== 'remote');
                 if (label) {
                     const position = model.group.position;
                     const title = this.actorTitle(record);
