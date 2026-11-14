@@ -37,7 +37,7 @@ IDENTITY = Pubkey.find_program_address([b"identity"], PROGRAM)[0]
 VRF_IDENTITY = Pubkey.find_program_address([b"identity", bytes(PROGRAM)], VRF)[0]
 CALLBACK = b"LFVRFCB1"
 TABLE_SIZE, T_SEATS, SEAT, T_RING, RING = 512, 40, 104, 456, 7
-BASE, HOME = 255, 57
+BASE, HOME = 255, 56
 
 svm = LiteSVM()
 svm.add_program_from_file(PROGRAM, Path(args[0]).resolve())
@@ -335,9 +335,15 @@ for k in range(3):
 s = seat(tbl(), 0)
 ok("A third six in a row is forfeited: no die waits, the count restarts", s["wait"] == 0 and s["sixes"] == 0 and s["last"] == 6 and s["pieces"][0] == 32 and last_events(tbl(), 1)[0][:3] == (7, 0, 6))
 
+print("pairs on safe squares")
+poke(0, [(o0 + 80, [6, BASE, BASE, BASE]), (o0 + 84, [4]), (o0 + 86, [0]), (o1 + 80, [(8 + 52 - 13) % 52, (8 + 52 - 13) % 52, BASE, BASE])])
+move(A, 0, 1, 0, seq, 0, 6)
+seq += 1
+ok("Passing blue's pair on a star square (every colour shares those squares): accepted", seat(tbl(), 0)["pieces"][0] == 10)
+
 print("finish, win and leave")
-poke(0, [(o0 + 80, [HOME, HOME, HOME, 56]), (o0 + 84, [1]), (o0 + 91, [3])])
-move(A, 0, 1, 0, seq, 3, 56)
+poke(0, [(o0 + 80, [HOME, HOME, HOME, HOME - 1]), (o0 + 84, [1]), (o0 + 91, [3])])
+move(A, 0, 1, 0, seq, 3, HOME - 1)
 t = tbl()
 ok("Red's fourth token home: red wins, the match is finished", head(t)["phase"] == 3 and head(t)["winner"] == 0 and (9, 0, 0, 0, 0, 0, 0, 0) in last_events(t, 3))
 roll(B, 0, 1, 1, seat(t, 1)["seq"], 5)

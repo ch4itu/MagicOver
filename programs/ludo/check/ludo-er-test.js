@@ -47,7 +47,7 @@ async function refused(promise) { try { await promise; return null; } catch (e) 
     for (let n = 0; n < perPlayer; n++) {
       let s = (await read(idx)).seats[seat];
       if (s.wait) {
-        const d = s.wait, token = s.pieces.findIndex(v => v === -1 ? d === 6 : v + d <= 57);
+        const d = s.wait, token = s.pieces.findIndex(v => v === -1 ? d === 6 : v + d <= 56);
         await L.send(er, [token < 0 ? L.I.move(who.publicKey, idx, match, seat, s.seq, 255, 0) : L.I.move(who.publicKey, idx, match, seat, s.seq, token, s.pieces[token] === -1 ? 255 : s.pieces[token])], [who]).catch(e => console.log(label, 'move refused', e.code));
         s = (await read(idx)).seats[seat];
       }
@@ -87,7 +87,7 @@ async function refused(promise) { try { await promise; return null; } catch (e) 
   t = await read(idx);
   const a = t.seats[0];
   if (a.wait) {
-    const d = a.wait, token = a.pieces.findIndex(v => v === -1 ? d === 6 : v + d <= 57);
+    const d = a.wait, token = a.pieces.findIndex(v => v === -1 ? d === 6 : v + d <= 56);
     const mv = token < 0 ? L.I.move(SA.publicKey, idx, match, 0, a.seq, 255, 0) : L.I.move(SA.publicKey, idx, match, 0, a.seq, token, a.pieces[token] === -1 ? 255 : a.pieces[token]);
     check('Rolling while a die waits to be played is refused (8)', await refused(L.send(er, [L.I.roll(SA.publicKey, idx, match, 0, a.seq)], [SA])) === 8);
     sigs.move = await L.send(er, [mv], [SA]);

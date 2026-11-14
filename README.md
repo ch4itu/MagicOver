@@ -10,7 +10,7 @@ To show this working in a real-time app, it comes with a 3D cricket game on Magi
 
 [Play it](https://ch4itu.github.io/MagicOver/) · [Onboarding demo, 37 s](https://ch4itu.github.io/MagicOver/media/onboarding.mp4) · [Pitch and gameplay](https://cdn.jsdelivr.net/gh/ch4itu/MagicOver@main/media/pitch.mp4)
 
-Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this repository whose shared worlds and duels run on MagicBlock's public Ephemeral Rollup, like Smaran's registry.
+Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this repository whose shared worlds and duels run on MagicBlock's public Ephemeral Rollup, like Smaran's registry, and into [Ludo Freeflow](https://ch4itu.github.io/MagicOver/ludo-freeflow/), four-colour Ludo with no turns whose online matches roll MagicBlock VRF dice on the rollup.
 
 <p align="center"><img src="media/preview-play.gif" width="640" alt="Magic Over's 3D scene: a drive for four, then a pull for six"></p>
 
@@ -90,6 +90,7 @@ The leaderboard refreshes every five seconds while it is open and catches up whe
 - `index.html`: the whole game in one file. Open it in a modern browser with internet access, or serve it from any static host.
 - `smaran/`: the sign-up for other apps: a sign-in window (`signin.html`, opened with `connect.js`) and one file (`smaran.js`, built from this page by `smaran/build.py`), with a [demo page](https://ch4itu.github.io/MagicOver/smaran/) and a short guide.
 - `programs/`: source for the game, the player registry and the result register, with a shared pinned build setup.
+- `ludo-freeflow/`: Ludo Freeflow in one file; its program is `programs/ludo`.
 - `eternalbliss/`: EternalBliss in one file, with its program's source, checks and deployed build in `eternalbliss/program/` (its own pinned build setup).
 - `media/onboarding.mp4`: 37-second recording on the live site. A player is created in one browser and recovered in a second browser with nothing saved.
 - `media/pitch.mp4`: narrated, captioned pitch with desktop and mobile gameplay.

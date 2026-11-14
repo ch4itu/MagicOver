@@ -23,9 +23,10 @@
 //! Move also names the token's current square: if a capture sent that token home in the meantime, the move is refused
 //! instead of silently becoming a different move.
 //!
-//! Rules (the existing Freeflow page): tokens at -1 (base, stored as 255), 0-51 on the shared ring from the colour's
-//! start (0, 13, 26, 39), 52-56 the colour's home lane, 57 home. A six enters a token; finishing needs the exact count.
-//! Two or more tokens of one colour on a ring square block every other colour from passing or landing there. Landing
+//! Rules (the Freeflow page): tokens at -1 (base, stored as 255), 0-50 on the shared ring from the colour's start
+//! (0, 13, 26, 39) round to its home lane's entrance, 51-55 the colour's home lane, 56 home. A six enters a token;
+//! finishing needs the exact count. Two or more tokens of one colour on a ring square block every other colour from
+//! passing or landing there, except on the safe squares, which every colour shares. Landing
 //! alone on an opponent's single token off the safe squares (0, 8, 13, 21, 26, 34, 39, 47) sends it back to base.
 //! A third six in a row is forfeited. A six or a capture gives a bonus roll (shown only: with no turns, every seat may
 //! always roll again once its die is played). First colour with all four tokens home wins.
@@ -186,7 +187,7 @@ const SEAT: usize = 104;
 const K_KEY: usize = 0; // the Smaran key that owns the seat
 const K_SESSION: usize = 32; // the session key that may play for it
 const K_NAME: usize = 64; // length + up to 15 bytes, as claimed by the player
-const K_PIECES: usize = 80; // 4 tokens: 255 base, 0-51 ring, 52-56 lane, 57 home
+const K_PIECES: usize = 80; // 4 tokens: 255 base, 0-50 ring, 51-55 lane, 56 home
 const K_WAIT: usize = 84; // die waiting to be played, 0 none
 const K_PENDING: usize = 85; // 1: a VRF roll is outstanding
 const K_SIXES: usize = 86; // sixes in a row
@@ -222,8 +223,8 @@ const E_LEAVE: u8 = 10;
 const E_PASS: u8 = 11; // die
 
 const BASE_POS: u8 = 255;
-const LANE: u8 = 52;
-const HOME_POS: u8 = 57;
+const LANE: u8 = 51;
+const HOME_POS: u8 = 56;
 const STARTS: [u8; 4] = [0, 13, 26, 39];
 
 const VRF_RETRY: i64 = 8; // seconds before a seat may replace a roll whose callback never came
@@ -504,7 +505,7 @@ fn block_count(t: &[u8], seat: usize, r: u8) -> u8 {
     n
 }
 /// The page's legal(): a six enters from base; the exact count finishes; no passing or landing on another colour's
-/// block of two or more.
+/// block of two or more, except on a safe square.
 fn legal(t: &[u8], seat: usize, i: usize, d: u8) -> bool {
     let v = piece(t, seat, i);
     if v == BASE_POS {
@@ -519,6 +520,9 @@ fn legal(t: &[u8], seat: usize, i: usize, d: u8) -> bool {
             break;
         }
         let r = ring_square(seat, n);
+        if is_safe(r) {
+            continue;
+        }
         for q in 0..4 {
             if q != seat && block_count(t, q, r) >= 2 {
                 return false;

@@ -27,7 +27,7 @@ vm.runInContext(`var __nextDie = 0, __inRoll = false; const __origMove = move;
   var __roll = (p, d) => { __nextDie = d; __inRoll = true; try { roll(p); } finally { __inRoll = false; } };
   var __state = () => ({ pieces: pieces.map(a => a.slice()), waiting: waiting.map(w => w === null ? 0 : w), sixes: sixes.slice(),
     bonus: bonus.slice(), last: lastRolls.map(v => v === null ? 0 : v), captures: captureCounts.slice(), over,
-    winner: over ? pieces.findIndex(a => a.every(x => x === 57)) : 255 });`, ctx);
+    winner: over ? pieces.findIndex(a => a.every(x => x === HOME_POS)) : 255 });`, ctx);
 
 const lines = fs.readFileSync(tracePath, 'utf8').trim().split('\n');
 let games = 0, actions = 0, mismatches = 0;

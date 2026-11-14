@@ -21,7 +21,8 @@ fn put(t: &mut [u8], seat: usize, i: usize, v: u8) {
 fn pieces(t: &[u8], seat: usize) -> [u8; 4] {
     [0, 1, 2, 3].map(|i| piece(t, seat, i))
 }
-/// Position (0-51) a seat must use to stand on ring square r.
+/// Position (0-50) a seat must use to stand on ring square r (the 52nd ring square, just behind its start, is not on
+/// its way).
 fn rel(seat: usize, r: u8) -> u8 {
     ((r as u16 + 52 - STARTS[seat] as u16) % 52) as u8
 }
@@ -43,7 +44,7 @@ fn entry_needs_a_six_and_lands_on_the_start_square() {
 #[test]
 fn finishing_needs_the_exact_count() {
     let mut t = fresh(0b0011);
-    put(&mut t, 0, 0, 54);
+    put(&mut t, 0, 0, 53);
     assert!(legal(&t, 0, 0, 3));
     assert!(!legal(&t, 0, 0, 4));
     apply_move(&mut t, 0, 0, 3);
@@ -85,15 +86,21 @@ fn a_block_of_two_stops_other_colours_passing_or_landing_but_not_its_own() {
     // blue itself passes its own block
     put(&mut t, 1, 2, rel(1, 9));
     assert!(legal(&t, 1, 2, 4));
-    // a block on a safe square blocks too (the page counts tokens, not safety)
+    // a pair on a safe square (a star or a start square) blocks nobody: every colour shares those squares
     let mut t = fresh(0b0011);
     put(&mut t, 1, 0, rel(1, 8));
     put(&mut t, 1, 1, rel(1, 8));
     put(&mut t, 0, 0, 6);
-    assert!(!legal(&t, 0, 0, 2));
+    assert!(legal(&t, 0, 0, 2)); // landing on the star
+    assert!(legal(&t, 0, 0, 4)); // passing it
+    let mut t = fresh(0b0011);
+    put(&mut t, 1, 0, 0); // blue's two tokens on blue's start square (ring 13)
+    put(&mut t, 1, 1, 0);
+    put(&mut t, 0, 0, 10);
+    assert!(legal(&t, 0, 0, 5)); // red passes it
     // the home lane is private: no block can stand there
     let mut t = fresh(0b0011);
-    put(&mut t, 0, 0, 50);
+    put(&mut t, 0, 0, 49);
     assert!(legal(&t, 0, 0, 6));
 }
 
@@ -134,7 +141,7 @@ fn four_home_wins_and_ends_the_match() {
     for i in 0..3 {
         put(&mut t, 0, i, HOME_POS);
     }
-    put(&mut t, 0, 3, 56);
+    put(&mut t, 0, 3, HOME_POS - 1);
     assert!(apply_move(&mut t, 0, 3, 1));
     assert_eq!(t[T_PHASE], PH_FINISHED);
     assert_eq!(t[T_WINNER], 0);

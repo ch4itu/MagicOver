@@ -2,7 +2,7 @@
 
 Four colours on one board, and no turns: every player rolls and moves whenever their own die is played.
 
-- **Local preview** (no sign-in): you are red, three bots play the other colours, dice come from the browser. Fully offline.
+- **Local preview** (no sign-in): you are red, three bots play the other colours, dice come from the browser. Fully offline. The bots roll only as often as you do; a bonus roll after a six or a capture is one they do not match.
 - **Online match** (sign in with Smaran): two to four people, one colour each. Every die comes from MagicBlock VRF and is applied on chain before the page shows it. Nobody needs SOL, a wallet or a seed phrase.
 
 ## How an online match works
@@ -18,7 +18,7 @@ Four colours on one board, and no turns: every player rolls and moves whenever t
 - **Rolls.** A roll asks MagicBlock VRF for randomness tied to the table, the match, the seat and the seat's action number. The die exists only once the VRF program's signed callback for exactly that request has been applied. A seat waiting for its die never blocks another seat. If no answer comes within 8 seconds, the seat may roll again: the new request replaces the old one, whose late answer is then refused.
 - **Fair dice.** The die is the first randomness byte below 252, mod 6, plus 1. Each face gets exactly 42 of those 252 byte values.
 - **No double actions.** Every roll and move carries the seat's next action number, so a retry, a replay or the same player on two devices can never apply an action twice. A move also names the token's current square: if a capture sent that token home first, the move is refused instead of becoming a different move.
-- **Same rules as the preview.** The program's rules were compared with this page's own JavaScript over 400 random four-colour games (287,528 actions). They agree on every state.
+- **Same rules as the preview.** A six enters a token; a token walks 51 squares from its start square round to its column entrance, then its 5 column squares, then home, with the exact count. Landing alone on an opponent's single token off the stars and start squares sends it home. Two tokens of one colour block other colours, except on the stars and start squares, which every colour shares. A third six in a row is forfeited. The program's rules were compared with this page's own JavaScript over 400 random four-colour games (281,564 actions). They agree on every state.
 
 ### Choices made for online play (please confirm)
 

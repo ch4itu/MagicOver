@@ -11,13 +11,13 @@ const er = new web3.Connection(L.ER_URL, 'confirmed');
 const read = async i => L.parseTable((await er.getAccountInfo(L.tablePda(i))).data);
 
 function legalTokens(t, seat, d) {
-  const starts = [0, 13, 26, 39], P = t.seats.map(s => s.pieces);
-  const block = (q, r) => P[q].filter(v => v >= 0 && v < 52 && (starts[q] + v) % 52 === r).length;
+  const starts = [0, 13, 26, 39], safe = new Set([0, 8, 13, 21, 26, 34, 39, 47]), P = t.seats.map(s => s.pieces);
+  const block = (q, r) => P[q].filter(v => v >= 0 && v < 51 && (starts[q] + v) % 52 === r).length;
   return [0, 1, 2, 3].filter(i => {
     const v = P[seat][i];
     if (v === -1) return d === 6;
-    if (v >= 57 || v + d > 57) return false;
-    for (let s = 1; s <= d; s++) { const n = v + s; if (n >= 52) break; const r = (starts[seat] + n) % 52; for (let q = 0; q < 4; q++) if (q !== seat && block(q, r) >= 2) return false; }
+    if (v >= 56 || v + d > 56) return false;
+    for (let s = 1; s <= d; s++) { const n = v + s; if (n >= 51) break; const r = (starts[seat] + n) % 52; if (safe.has(r)) continue; for (let q = 0; q < 4; q++) if (q !== seat && block(q, r) >= 2) return false; }
     return true;
   });
 }
@@ -68,7 +68,7 @@ function legalTokens(t, seat, d) {
   console.log(`dice ${n}: faces ${JSON.stringify(counts)}; chi-square ${chi.toFixed(2)} (5 d.f.; 11.07 is the 5% critical value)`);
   console.log(`roll-to-die latency: median ${latency[n >> 1]} ms, 95th ${latency[Math.floor(n * 0.95)]} ms, max ${latency.at(-1)} ms`);
   console.log(`moves ${stats.moves}, passes ${stats.passes}, re-rolls after an unanswered roll ${stats.retries}, refused actions ${JSON.stringify(refusals)} (7 = the board moved on, 15 = a block appeared: expected in a race)`);
-  console.log(`state: ${t.phase}, winner ${t.winner}; captures ${JSON.stringify(t.seats.map(s => s.captures))}; tokens home ${JSON.stringify(t.seats.map(s => s.pieces.filter(v => v === 57).length))}; events written ${t.eventCount}`);
+  console.log(`state: ${t.phase}, winner ${t.winner}; captures ${JSON.stringify(t.seats.map(s => s.captures))}; tokens home ${JSON.stringify(t.seats.map(s => s.pieces.filter(v => v === 56).length))}; events written ${t.eventCount}`);
   if (t.phase === 'playing') for (let s = 1; s < 4; s++) await L.send(er, [L.I.leave(sessions[s].publicKey, idx, match, s)], [sessions[s]]).catch(() => {});
   t = await read(idx);
   console.log('after three leave:', t.phase, 'winner', t.winner);
