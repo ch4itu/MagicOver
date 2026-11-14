@@ -9353,7 +9353,7 @@ window.addEventListener('load', () => {
                 const first=fx*across.x+fz*across.z<0 ? across.clone().negate() : across, second=first.clone().negate();
                 const dir=open(first) ? first : open(second) ? second : new T.Vector3(fx,0,fz);
                 if (dir.lengthSq()<1e-4) dir.set(Math.sin(hero.group.rotation.y),0,Math.cos(hero.group.rotation.y));
-                c=this.combat={foe,dir:dir.normalize(),base:at.clone(),started:now,model:null,own:false,downAt:0,heroDownAt:0,hidden:[]};
+                c=this.combat={foe,dir:dir.normalize(),base:at.clone(),started:now,model:null,own:false,downAt:0,heroDownAt:0,hidden:[],faded:[]};
             }
             // The battle holds a copy of the enemy; its actor is the enemy record on the same tile.
             if (!c.record || this.actors.get(c.record.data)!==c.record)
@@ -9568,17 +9568,35 @@ window.addEventListener('load', () => {
             }
         }
 
-        // Trees standing between the fight and the camera would hide it: their trunks and crowns are taken out for
-        // the battle (each instance collapsed to nothing) and put back when it ends. A tree in front reaches up over
-        // the fighters on screen when it stands within about 2.3 tiles of them towards the camera.
+        // Whatever stands between the fight and the camera would hide it. Trees: their trunks and crowns are taken
+        // out for the battle (each instance collapsed to nothing). Buildings: shown faded (their meshes get faded
+        // copies of their materials). Both come back when the battle ends. Something in front reaches up over the
+        // fighters on screen when it stands closer to the camera than about 1.13 times its height.
         clearCombatView(c,rest) {
             if (c.land===this.land) return;
             this.restoreCombatView(c);
             c.land=this.land;
-            if (!this.land) return;
             const T=THREE, m=new T.Matrix4(), p=new T.Vector3(), none=new T.Matrix4().makeScale(0,0,0);
             const across=new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2), toward=new T.Vector3(Math.SQRT1_2,0,Math.SQRT1_2);
             const enemyAt=c.dir.dot(across)*rest, low=Math.min(0,enemyAt)-.9, high=Math.max(0,enemyAt)+.9;
+            const box=new T.Box3(), fade=material=>{ const f=material.clone(); f.transparent=true; f.opacity=.28; f.depthWrite=false; return f; };
+            for (const record of this.actors.values()) {
+                if (record.kind!=='building') continue;
+                box.setFromObject(record.model.group);
+                let sideMin=Infinity, sideMax=-Infinity, depthMin=Infinity, depthMax=-Infinity;
+                for (const x of [box.min.x,box.max.x]) for (const z of [box.min.z,box.max.z]) {
+                    p.set(x-c.base.x,0,z-c.base.z);
+                    const side=p.dot(across), depth=p.dot(toward);
+                    sideMin=Math.min(sideMin,side); sideMax=Math.max(sideMax,side); depthMin=Math.min(depthMin,depth); depthMax=Math.max(depthMax,depth);
+                }
+                if (sideMax<low || sideMin>high || depthMax<.05 || depthMin>1.13*(box.max.y-tileTop)) continue;
+                record.model.group.traverse(o=>{
+                    if (!o.isMesh || o.material===this.pickMaterial) return;
+                    c.faded.push([o,o.material]);
+                    o.material=Array.isArray(o.material) ? o.material.map(fade) : fade(o.material);
+                });
+            }
+            if (!this.land) return;
             for (const mesh of this.land.children) {
                 if (!mesh.isInstancedMesh || (mesh.geometry!==this.trunk && mesh.geometry!==this.crown)) continue;
                 let changed=false;
@@ -9597,7 +9615,11 @@ window.addEventListener('load', () => {
 
         restoreCombatView(c) {
             for (const [mesh,i,matrix] of c.hidden) { mesh.setMatrixAt(i,matrix); mesh.instanceMatrix.needsUpdate=true; }
-            c.hidden=[];
+            for (const [mesh,material] of c.faded) {
+                for (const copy of [mesh.material].flat()) copy.dispose();
+                mesh.material=material;
+            }
+            c.hidden=[]; c.faded=[];
         }
 
         // The battle has closed: both figures return to their own animation (the enemy walks back to its tile).
