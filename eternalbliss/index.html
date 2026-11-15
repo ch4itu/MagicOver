@@ -8756,6 +8756,22 @@ const EternalBlissArt = (() => {
         return {group,height,width:1.02,depth:.96,wheel};
     }
 
+    let harvestCanopy=null;
+    function vaultCanopy() {
+        if(harvestCanopy)return harvestCanopy.clone(true);
+        const g=new T.Group(),face=(points,color)=>{const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points.flat(),3));geo.computeVertexNormals();const m=new T.Mesh(geo,material(color));m.receiveShadow=true;g.add(m);};
+        // Two shallow barrel vaults follow the archive's existing chambers; no new room or floor space.
+        for(const left of [.5,8.5])for(let i=0;i<12;i++){
+            const t0=i/12,t1=(i+1)/12,x0=left+7*t0,x1=left+7*t1,y0=2.08+.82*Math.sin(Math.PI*t0),y1=2.08+.82*Math.sin(Math.PI*t1);
+            face([[x0,y0,.5],[x1,y1,.5],[x1,y1,13.5],[x0,y0,.5],[x1,y1,13.5],[x0,y0,13.5]],i%2?0x74786e:0x6b7169);
+            for(const z of [1,4.5,8,11.5,13]){const rib=box(g,Math.hypot(x1-x0,y1-y0)+.012,.105,.16,0x999585,(x0+x1)/2,(y0+y1)/2-.035,z);rib.rotation.z=Math.atan2(y1-y0,x1-x0);}
+        }
+        const baked=bakeArchitecture(g);baked.children.forEach(m=>m.castShadow=false);
+        // Two warm, non-shadowed fills reuse the locations of the authored braziers.
+        for(const [x,z]of [[2,2],[13,11]]){const light=new T.PointLight(0xffc786,1.15,8,2);light.position.set(x,1.03,z);baked.add(light);}
+        harvestCanopy=baked;return baked.clone(true);
+    }
+
     function roomProp(kind) {
         const group = new T.Group();
         const oak = 0x8d593a, edge = 0x593c30, iron = 0x484946, brass = 0xc6a96c;
@@ -9036,7 +9052,7 @@ const EternalBlissArt = (() => {
         return group;
     }
 
-    return { building, landmark, roomProp, humanoid, beast, fauna, crawler, item, boat };
+    return { building, landmark, roomProp, vaultCanopy, humanoid, beast, fauna, crawler, item, boat };
 })();
 
 </script>
@@ -9618,6 +9634,10 @@ window.addEventListener('load', () => {
                     prop.position.set(x,tileTop,y);
                     this.roomDecor.add(prop);
                 }
+                this.vaultCanopy=null;
+                if(this.room?.questDungeon&&!sharedWorld.active()){
+                    this.vaultCanopy=art.vaultCanopy();this.vaultCanopy.visible=this.eyeMode;this.vaultCanopy.position.y=tileTop;this.roomDecor.add(this.vaultCanopy);
+                }
                 if (this.room) this.scene.add(this.roomDecor);
             }
             const radius = Math.max(this.eyeMode ? (this.mobile ? 48 : 60) : (this.mobile ? 17 : 25), this.visibleRadius() + 2);
@@ -9687,6 +9707,7 @@ window.addEventListener('load', () => {
                         else if (type === 'grass' && !shore.some(Boolean)) color.set(0x7b9d50).multiplyScalar(light); // a kept green
                         else if (type === 'road' && Farlands.natural(x,z) !== 'water') color.set(0x9a8560).multiplyScalar(light); // trodden earth
                     }
+                    if(this.room?.questDungeon&&this.eyeMode&&!sharedWorld.active()&&(type==='floor'||type==='exit'))color.set(type==='exit'?0xa99c78:0x8e8c7e).multiplyScalar(light);
                     const corners = [
                         [x - .5, tileTop, z - .5], [x - .5, tileTop, z + .5],
                         [x + .5, tileTop, z + .5], [x + .5, tileTop, z - .5]
@@ -9735,8 +9756,17 @@ window.addEventListener('load', () => {
                             j%2 ? 0xa38157 : 0xb09467]);
                     }
                     if (type === 'wall' && !this.room?.decorTiles.has(z*width+x)) {
-                        roomBlocks.push([x,tileTop+.32,z,1,.64,1,0,0x8c7b64]);
-                        roomBlocks.push([x,tileTop+.67,z,1,.06,1,0,0xb09c7f]);
+                        if(this.room?.questDungeon&&this.eyeMode&&!sharedWorld.active()){
+                            roomBlocks.push([x,tileTop+1.04,z,.97,2.08,.97,0,0x4d554f]);
+                            for(let row=0;row<4;row++){
+                                const cuts=row%2?[-.5,-.25,.25,.5]:[-.5,0,.5];
+                                for(let i=0;i<cuts.length-1;i++)roomBlocks.push([x+(cuts[i]+cuts[i+1])/2,tileTop+.28+row*.51,z,cuts[i+1]-cuts[i]-.018,.49,.998,0,[0x8a8d7e,0x7d8479,0x929382][(x+z+row+i)%3]]);
+                            }
+                            roomBlocks.push([x,tileTop+.10,z,1,.16,1,0,0x6b756b]);
+                        }else{
+                            roomBlocks.push([x,tileTop+.32,z,1,.64,1,0,0x8c7b64]);
+                            roomBlocks.push([x,tileTop+.67,z,1,.06,1,0,0xb09c7f]);
+                        }
                     } else if (type === 'counter') {
                         roomBlocks.push([x,tileTop+.011,z,.80,.022,.62,0,0x927352]);
                     } else if (type==='forest' && biome?.flora==='orchard' && r>.24) {
@@ -9787,11 +9817,12 @@ window.addEventListener('load', () => {
                         if (r > .96) stones.push([x + .30, .11, z - .32, .105, .075, .115, rotation, 0x9ca18b]);
                     } else if (type === 'door') {
                         if(this.room?.questDungeon) {
-                            // Iron bars, crosspieces and a lintel only in the vault.
-                            roomBlocks.push([x,tileTop+.78,z,.92,.13,.14,0,0x786d60]);
-                            roomBlocks.push([x,tileTop+.14,z,.92,.12,.14,0,0x786d60]);
-                            for (let k=-2;k<=2;k++)
-                                roomBlocks.push([x+k*.19,tileTop+.45,z,.075,.76,.13,0,0x525861]);
+                            // Full eye-level gate in FP; the overhead cutaway remains readable.
+                            const tall=this.eyeMode&&!sharedWorld.active(),h=tall?2.05:.78;
+                            roomBlocks.push([x,tileTop+h,z,.94,.13,.16,0,0x786d60]);
+                            roomBlocks.push([x,tileTop+.14,z,.94,.12,.16,0,0x786d60]);
+                            for (let k=-2;k<=2;k++)roomBlocks.push([x+k*.19,tileTop+(h+.07)/2,z,.075,h-.07,.13,0,0x525861]);
+                            if(tall)roomBlocks.push([x,tileTop+1.04,z,.94,.055,.15,0,0x9a8a6b]);
                         } else {
                             logs.push([x - .35, .45, z, .11, .82, .11, 0, 0x8e6447]);
                             logs.push([x + .35, .45, z, .11, .82, .11, 0, 0x8e6447]);
@@ -10534,6 +10565,7 @@ window.addEventListener('load', () => {
         applySky(dt) {
             const blend = this.reduced ? 1 : 1 - Math.exp(-3.5 * dt);
             const indoors = Boolean(buildingInterior);
+            if(this.vaultCanopy)this.vaultCanopy.visible=Boolean(this.eyeMode&&this.room?.questDungeon&&!sharedWorld.active());
             this.lightLevel += ((indoors ? .70 : worldClimate.daylight) - this.lightLevel) * blend;
             this.sunsetWarmth += ((indoors ? .35 : worldClimate.warmth) - this.sunsetWarmth) * blend;
             const light = this.lightLevel;
@@ -10543,6 +10575,7 @@ window.addEventListener('load', () => {
             this.sun.color.copy(sky.moon).lerp(sky.sun, light).lerp(sky.sunset, warmth * .65);
             this.hemisphere.intensity = .82 + .50 * light;
             this.hemisphere.color.copy(sky.nightHemi).lerp(sky.dayHemi, light);
+            if(buildingInterior?.questDungeon&&this.eyeMode&&!sharedWorld.active()){this.sun.intensity=.42;this.hemisphere.intensity=.96;}
             this.scene.background.copy(sky.night).lerp(ebFarlands.surface()?sky.farlandsDay:sky.day,light).lerp(sky.dusk, warmth * .42);
             if (indoors) this.scene.background.set(0x262c28);
             const soloSky=ebFarlands.surface()&&!sharedWorld.active()&&!indoors;
