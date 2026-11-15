@@ -14552,6 +14552,21 @@ const ebStory = (() => {
         showFloatingText('The iron gate opens',gameState.player.x*32+16,gameState.player.y*32-20,'#fbbf24');
         ebSound.play('pickup');
     }
+    const ledgerTitle="The toll keepers' ledger";
+    const ledgerPage='<article style="font-size:15px;line-height:1.55;text-align:left"><p style="margin-bottom:12px">The toll was once counted in sacks of grain. Beside the neat columns, someone has sketched the orchard bell. A note reads: “When this rings, leave the road and bring the harvest home.”</p><p>A later hand records that the brass ward key was last seen by the creek at Millbend. The Harvest Bell is kept in the eastern chamber, beyond the iron gate and its Warden. Return it to Mira at Wayfarer’s Rest.</p></article>';
+    function nearbyLedger(){
+        if(!buildingInterior?.questDungeon||!active()||gameState.inBattle)return null;
+        const rack=buildingInterior.furniture.find(p=>p.kind==='rack'&&p.x===6&&p.y===4);
+        return rack&&Math.hypot(gameState.player.x-rack.x,gameState.player.y-rack.y)<=1?rack:null;
+    }
+    function readLedger(){
+        if(!nearbyLedger())return false;
+        mark('ledger'); // Optional, idempotent copy in the existing solo story journal; no reward or unlock.
+        document.getElementById('modalTitle').textContent=ledgerTitle;
+        document.getElementById('modalContent').innerHTML=ledgerPage+'<p><small>Copied to your Explorer’s Journal.</small></p>';
+        releaseMovement();document.getElementById('interactionModal').style.display='flex';return true;
+    }
+    function ledgerNote(){return active()&&flag('ledger')?'<section id="eb-archive-copy" style="padding:12px;margin:10px 0;border:1px solid rgba(180,200,180,.25);border-radius:10px;text-align:left"><strong>'+ledgerTitle+'</strong>'+ledgerPage+'</section>':'';}
     function interactDungeon() {
         if(!buildingInterior?.questDungeon)return;
         const {x,y}=gameState.player;
@@ -14566,6 +14581,7 @@ const ebStory = (() => {
             else collectItem(items.indexOf(relic));
             return;
         }
+        if(readLedger())return;
         showFloatingText(flag('guardian')?'Find the bell in the eastern chamber':'The archive still has a guardian',x*32+16,y*32,'#d3b483');
     }
     // The pin follows the quest: if the place just finished was pinned, the next place is pinned instead.
@@ -14579,13 +14595,14 @@ const ebStory = (() => {
         else {const enemy=enemies.find(e=>near(e,1.5));
             if(enemy){at=enemy;text='Challenge '+enemy.name;}
             else if(!flag('gate')&&near(EB_VAULT_GATE,1.5)){at=EB_VAULT_GATE;text=flag('key')?'Iron gate nearby · use ward key':'Iron gate nearby · needs ward key';}
-            else {const relic=items.find(i=>i.type==='vault_relic'&&near(i,1));if(relic){at=relic;text=flag('guardian')?'Harvest Bell nearby · take it':'Harvest Bell nearby · still guarded';}}
+            else {const relic=items.find(i=>i.type==='vault_relic'&&near(i,1));if(relic){at=relic;text=flag('guardian')?'Harvest Bell nearby · take it':'Harvest Bell nearby · still guarded';}
+                else {const rack=nearbyLedger();if(rack){at=rack;text='Archive ledger nearby · read';}}}
         }
         if(!at)return '';const dx=at.x-p.x,dy=at.y-p.y,d=Math.hypot(dx,dy);
         return d<.01||(-Math.sin(yaw)*dx-Math.cos(yaw)*dy)/d>=.6?text:'';
     }
     const bumpGate=()=>openGate(true); // walking into the gate: opens with the ward key, a short note without it
-    return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon,eyeHint};
+    return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon,eyeHint,ledgerNote};
 })();
 </script>
 <script data-source="farlands-life.js">
@@ -14764,7 +14781,7 @@ const ebJournal = (() => {
             document.getElementById('modalTitle').textContent = '📖 Explorer’s Journal';
             const quest=ebStory.objective();
             const storyCard=quest ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.5);border-radius:10px;text-align:left"><strong>🔔 The Silent Harvest · Story Quest</strong><p style="margin:8px 0">The Harvest Bell lies in the locked archive beneath the Old Tollhouse. Find the ward key at Millbend, defeat the Archive Warden, recover the bell and return it to Mira at Wayfarer’s Rest.</p><p style="margin:0"><strong>Now:</strong> ${escapeMapText(quest.label)}</p></section>` : '';
-            document.getElementById('modalContent').innerHTML = storyCard+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
+            document.getElementById('modalContent').innerHTML = storyCard+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
         }
         releaseMovement();
         document.getElementById('interactionModal').style.display='flex';
