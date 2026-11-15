@@ -1,0 +1,1 @@
+const t=require('./browser.cjs');(async()=>{const b=await t.launch();try{const p=await t.page(b);await t.smoke(p);t.record('3D/FP/2D startup smoke','PASS');console.log('PASS startup smoke',t.sha);}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});

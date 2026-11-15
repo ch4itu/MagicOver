@@ -3629,7 +3629,12 @@ function interact() {
         let nearby = null, nearest = Infinity;
         for (const actor of actors) {
             const d = distance(actor);
-            if (d <= range && d < nearest) { nearby = actor; nearest = d; }
+            // A reachable pending quest wins a distance tie with generic village dialogue.
+            // Keep nearer NPCs, explicit clicks, and all shared-world selection unchanged.
+            const questTie = kind==='npc' && ebFarlands.surface() && !sharedWorld.active() &&
+                ebFarlands.storyFlag('quest-vault-relic') && !ebFarlands.storyFlag('quest-vault-reward') &&
+                actor.name==='Mira, the Cartographer' && d===nearest;
+            if (d <= range && (d < nearest || questTie)) { nearby = actor; nearest = d; }
         }
         if (nearby) {
             useWorldActor(kind, nearby);
