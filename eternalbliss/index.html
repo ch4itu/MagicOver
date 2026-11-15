@@ -3683,6 +3683,7 @@ function talkToNPC(npc) {
     releaseMovement();
     document.getElementById('interactionModal').style.display = 'flex';
     ebVillageWork.attach(npc);
+    ebJournal.attachLead(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
 }
 
@@ -14635,8 +14636,28 @@ const ebJournal = (() => {
         document.getElementById('interactionModal').style.display='flex';
     }
     function atlas() { if (ebFarlands.inRealm() && !sharedWorld.active()) ebFarlands.openAtlas(); }
+    function leadFor(npc){
+        if(!ebFarlands.surface()||sharedWorld.active()||buildingInterior||!npc)return null;
+        const pools={'rest-resident-1':['toll','orchard','mill'],'rest-resident-3':['grove','bridge','alder']};
+        const pool=pools[npc.realmId];if(!pool)return null;
+        const quest=ebStory.objective();
+        if(npc.realmId==='rest-resident-1'&&quest&&!quest.done&&quest.site)return quest.site;
+        const visited=ebFarlands.discoveries();return pool.map(id=>Farlands.byId.get(id)).find(site=>site&&!visited.has(site.id))||null;
+    }
+    function attachLead(npc){
+        const slot=document.getElementById('eb-rumor-action'),lead=leadFor(npc);if(!slot||!lead)return;
+        const b=document.createElement('button');b.type='button';b.className='btn';b.id='eb-rumor-pin';b.dataset.destination=lead.id;b.style.minHeight='44px';
+        b.disabled=ebFarlands.pinned()===lead.id;b.textContent=b.disabled?'Marked on Atlas':'Mark '+lead.name;
+        const status=document.createElement('p');status.id='eb-rumor-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+        b.addEventListener('click',()=>{
+            if(gameState.inBattle||!npcs.includes(npc)||Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5||leadFor(npc)?.id!==lead.id){status.textContent='That conversation has moved on. Talk again when you are nearby.';return;}
+            if(ebFarlands.pin(lead.id)){b.disabled=true;b.textContent='Marked on Atlas';status.textContent=lead.name+' is marked on your Atlas. The location card shows the way.';}
+        });slot.append(b,status);
+    }
     function hint(npc) {
         if (!npc.realmId || !ebFarlands.inRealm() || sharedWorld.active()) return '';
+        const lead=leadFor(npc);
+        if(lead)return `<section style="margin-top:14px;padding:12px;border:1px solid #8d987a;border-radius:8px;text-align:left"><strong>${escapeMapText(npc.name)} · A road worth taking</strong><p>${escapeMapText(lead.story)}</p><p>${escapeMapText(lead.name)} · ${escapeMapText(Farlands.regions[lead.region].name)}</p><div id="eb-rumor-action"></div></section>`;
         const visited=ebFarlands.discoveries();
         const next=chapters.flatMap(ch=>ch.ids).map(id=>Farlands.byId.get(id)).find(site=>site && !visited.has(site.id));
         return next ? `<p style="margin-top:12px;font-size:13px;opacity:.85">📖 Explorer’s lead: ${escapeMapText(next.name)} in ${escapeMapText(Farlands.regions[next.region].name)}. Check your journal and Atlas.</p>` : '';
@@ -14684,7 +14705,7 @@ const ebJournal = (() => {
     // UI-only polling: no writes to game state, accounts, or movement.
     syncVisibility();
     setInterval(syncVisibility, 350);
-    return {open,hint,atlas,syncVisibility};
+    return {open,hint,atlas,syncVisibility,attachLead};
 })();
 </script>
 <script data-source="world-stream.js">
