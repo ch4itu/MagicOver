@@ -2039,7 +2039,14 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
  [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
 }
 /* D-pad stays usable while filming. */
-body.eb-capture-clean #mobile-controls { display:block!important; }
+/* Keep touch movement in Clean View on phones and touch landscape layouts only.
+   Desktop mouse/keyboard layouts must never inherit the mobile joystick. */
+@media (max-width: 768px), (max-height: 520px) and (pointer: coarse) {
+    body.eb-capture-clean #mobile-controls { display:grid!important; }
+}
+@media (min-width: 769px) and (min-height: 521px) {
+    #mobile-controls, body.eb-capture-clean #mobile-controls { display:none!important; }
+}
 .location-info.eb-controls-collapsed #eb-world-actions,
 .location-info.eb-controls-collapsed #eb-farlands-hint,
 .location-info.eb-controls-collapsed #eb-room-exit,
