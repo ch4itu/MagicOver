@@ -8462,6 +8462,14 @@ const EternalBlissArt = (() => {
 
     // The authored inn uses real footprint units. Static parts are baked by material and cached;
     // more craft detail does not mean a draw call per plank, stone or roof course.
+    function bakeArchitecture(g) {
+        // Bake only this static asset; never dispose globally cached helper geometry/materials.
+        g.updateMatrixWorld(true);const batches=new Map();
+        g.traverse(o=>{if(!o.isMesh)return;const geo=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();geo.applyMatrix4(o.matrixWorld);let batch=batches.get(o.material);if(!batch)batches.set(o.material,batch={p:[],n:[]});batch.p.push(...geo.attributes.position.array);batch.n.push(...geo.attributes.normal.array);geo.dispose();});
+        const baked=new T.Group();for(const [mat,b]of batches){const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(b.p,3));geo.setAttribute('normal',new T.Float32BufferAttribute(b.n,3));const m=new T.Mesh(geo,mat);m.castShadow=m.receiveShadow=true;baked.add(m);}
+        return baked;
+    }
+
     const authoredInns=new Map();
     function authoredInn(footprint) {
         const w=footprint?.w??3, d=footprint?.h??2, key=w+':'+d;
@@ -8525,16 +8533,75 @@ const EternalBlissArt = (() => {
         for(let i=0;i<5;i++)box(g,.32,.035,.37,0xb0a38e,-half*.72,1.83+i*.20,-front*.40);
         box(g,.39,.09,.43,0x716b60,-half*.72,2.83,-front*.40);
         box(g,.22,.025,.25,0x393b35,-half*.72,2.89,-front*.40);
-        // Bake only this static asset; never dispose globally cached helper geometry/materials.
-        g.updateMatrixWorld(true);const batches=new Map();
-        g.traverse(o=>{if(!o.isMesh)return;const geo=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();geo.applyMatrix4(o.matrixWorld);let batch=batches.get(o.material);if(!batch)batches.set(o.material,batch={p:[],n:[]});batch.p.push(...geo.attributes.position.array);batch.n.push(...geo.attributes.normal.array);geo.dispose();});
-        const baked=new T.Group();for(const [mat,b]of batches){const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(b.p,3));geo.setAttribute('normal',new T.Float32BufferAttribute(b.n,3));const m=new T.Mesh(geo,mat);m.castShadow=m.receiveShadow=true;baked.add(m);}
+        const baked=bakeArchitecture(g);
         const model={group:baked,width:w+.16,depth:d+.24,height:2.94};authoredInns.set(key,model);
         return {...model,group:baked.clone(true)};
     }
 
-    function building(kind, variant, footprint = null, region, wayfarerInn = false) {
-        if(wayfarerInn && kind==='inn')return authoredInn(footprint);
+    const authoredExchanges=new Map();
+    function authoredExchange(footprint) {
+        const w=footprint?.w??3,d=footprint?.h??2,key=w+':'+d;
+        if(authoredExchanges.has(key)){const m=authoredExchanges.get(key);return {...m,group:m.group.clone(true)};}
+        const g=new T.Group(),wood=0x584735,trim=0x947452,plaster=0xd5c9ac,slate=0x485d58,cloth=0x6b8266,linen=0xe0d3ab,stoneColor=0x939081;
+        const hw=w/2-.06,f=d/2-.07,eave=1.48,peak=2.13,ridge=-d*.16;
+        const beam=(a,b,size,color=wood)=>{const start=new T.Vector3(...a),v=new T.Vector3(...b).sub(start),m=box(g,size,v.length(),size,color);m.position.copy(start.addScaledVector(v,.5));m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());};
+        const face=(points,color)=>{const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points.flat(),3));geo.computeVertexNormals();const m=new T.Mesh(geo,material(color));m.castShadow=m.receiveShadow=true;g.add(m);};
+        box(g,w,.17,d,stoneColor,0,.085);
+        box(g,w-.12,1.25,d-.14,plaster,0,.795);
+        for(let i=0;i<10;i++)box(g,(w-.12)/10-.018,.12,.04,i%3?0xa5a08d:0x7e8074,-hw+(i+.5)*(w-.12)/10,.22,f+.025);
+        box(g,w-.08,.09,d-.10,wood,0,1.42);
+        for(const x of [-hw,-hw*.50,hw*.50,hw])box(g,.075,1.21,.065,wood,x,.84,f+.025);
+        for(const x of [-hw,hw]){box(g,.075,1.21,.065,wood,x,.84,-f);beam([x,.26,-f],[x,1.40,f],.045,trim);}
+        // Same centred entry and footprint: shallow frontage detail never becomes a new walk obstacle.
+        box(g,.48,1.03,.055,0x343b32,0,.68,f+.04);
+        for(let i=-2;i<=2;i++)box(g,.075,.95,.024,i%2?0x6d6d4d:0x5f6348,i*.084,.67,f+.08);
+        for(const x of [-.29,.29])box(g,.07,1.13,.085,trim,x,.72,f+.06);
+        box(g,.64,.09,.085,trim,0,1.28,f+.06);box(g,.035,.035,.03,0xc4a871,.17,.72,f+.105);
+        box(g,.73,.065,.23,0xb0a48c,0,.16,f+.10);
+        // Recessed shelves, paneled counters and a few authored wares distinguish the trading frontage.
+        for(const side of [-1,1]){
+            const x=side*hw*.62;
+            box(g,.78,.63,.03,0x41493a,x,.85,f+.045);
+            box(g,.82,.055,.18,trim,x,.56,f+.11);box(g,.82,.05,.14,trim,x,1.13,f+.09);
+            box(g,.73,.37,.19,0x856447,x,.39,f+.12);
+            for(let i=0;i<5;i++)box(g,.11,.33,.025,i%2?0x97744e:0x876444,x+(i-2)*.139,.40,f+.225);
+            box(g,.81,.055,.25,0xb08c5e,x,.60,f+.12);
+            if(side<0){for(let i=0;i<6;i++)stone(g,.075,[0xb1694a,0x8c9b58,0xd4b266][i%3],x+(i%3-1)*.18,.68+(i>2?.055:0),f+.10+(i>2?-.07:.055),1,.78,1);}
+            else for(let i=0;i<3;i++){cylinder(g,.045,.055,.18,7,[0x6f8d72,0xa77d58,0x687c8a][i],x+(i-1)*.19,.72,f+.09);cylinder(g,.022,.025,.075,7,0x9d8760,x+(i-1)*.19,.845,f+.09);}
+        }
+        // An asymmetric saltbox roof is a distinct silhouette beside the taller inn.
+        const rw=hw+.13,rd=f+.12;
+        for(const side of [-1,1]){
+            const z=side*rd,a=[-rw,eave,z],b=[rw,eave,z],c=[rw,peak,ridge],e=[-rw,peak,ridge];
+            face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],slate);
+            for(let row=1;row<7;row++){
+                const t=row/7,y=eave+(peak-eave)*t+.009,zz=z+(ridge-z)*t;
+                beam([-rw,y,zz],[rw,y,zz],.025,row%2?0x6b7970:0x566a61);
+            }
+            beam([-rw,eave,z],[rw,eave,z],.065,wood);
+        }
+        for(const x of [-hw,hw]){const a=[x,eave,-f],b=[x,eave,f],c=[x,peak,ridge];face(x>0?[a,c,b]:[a,b,c],plaster);beam(a,c,.065);beam(b,c,.065);beam([x,eave,ridge],c,.065);}
+        beam([-rw,peak+.025,ridge],[rw,peak+.025,ridge],.07,trim);
+        // Taut striped linen, shallow enough that the legal approach tile remains outside the frontage.
+        const az=f+.27;
+        for(let i=0;i<10;i++){
+            const x0=-hw+i*2*hw/10,x1=x0+2*hw/10,col=i%2?linen:cloth;
+            face([[x0,1.45,f-.22],[x0,1.29,az],[x1,1.29,az],[x0,1.45,f-.22],[x1,1.29,az],[x1,1.45,f-.22]],col);
+            box(g,2*hw/10,.075,.025,col,(x0+x1)/2,1.255,az);
+        }
+        for(const x of [-hw+.04,hw-.04]){box(g,.055,1.10,.055,wood,x,.73,az-.025);box(g,.11,.14,.11,stoneColor,x,.20,az-.025);beam([x,1.27,az],[x,1.42,f-.19],.04,trim);}
+        beam([-hw,1.30,az],[hw,1.30,az],.045,wood);
+        // A simple balance emblem identifies the Exchange without inventing a new service or advertising.
+        box(g,.55,.21,.06,wood,0,1.57,f+.04);box(g,.47,.15,.025,0xa7986a,0,1.57,f+.085);
+        beam([-.15,1.59,f+.105],[.15,1.59,f+.105],.014,0x4b5644);beam([0,1.51,f+.105],[0,1.63,f+.105],.014,0x4b5644);
+        for(const x of [-.12,.12]){beam([x,1.59,f+.105],[x,1.54,f+.105],.009,wood);box(g,.08,.014,.025,0x4b5644,x,1.53,f+.105);}
+        const baked=bakeArchitecture(g),model={group:baked,width:w+.14,depth:d+.27,height:2.18};authoredExchanges.set(key,model);
+        return {...model,group:baked.clone(true)};
+    }
+
+    function building(kind, variant, footprint = null, region, authoredRest = false) {
+        if(authoredRest && kind==='inn')return authoredInn(footprint);
+        if(authoredRest && kind==='shop')return authoredExchange(footprint);
         const group = new T.Group();
         const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
             amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
@@ -9781,7 +9848,7 @@ window.addEventListener('load', () => {
                         if (kind === 'building') model = data.realmId && data.landmark ?
                             art.landmark(data.landmark, buildingFootprint(data)) :
                             art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
-                                ebFarlands.surface() && !sharedWorld.active() && data.realmId==='rest-service-0');
+                                ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'));
                         else if (kind === 'item') model = art.item(data.type);
                         else if (kind === 'remote') {
                             model = art.humanoid('remote','',variant);
