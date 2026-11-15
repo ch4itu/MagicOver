@@ -22,6 +22,12 @@ Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this rep
 
 <p align="center"><sub>Top: two deliveries drawn by the game's own 3D scene. Below: the home screen, sign-up and a Bat vs AI match on the live site, at phone size. The ping is high because these were taken on a test machine far from the rollup.</sub></p>
 
+## Revenue model
+
+Non-intrusive ads only, such as scrolling boards around the ground in Magic Over. The ads cover running costs: Smaran's registry, MagicBlock's charges and hosting. Players pay nothing. No crypto, tokens or in-game coins are sold, and there are no wagers, stakes, entry fees or prize pools.
+
+See [Smaran for founders](FOUNDERS.md) for the cost breakdown and operating plan (a dated Devnet estimate, not a guaranteed future mainnet price).
+
 ## How sign-up works
 
 1. The player picks a name (3 to 32 characters: a to z, 0 to 9, `_` or `-`) and a passphrase of at least 16 characters.
