@@ -1,0 +1,20 @@
+const t=require('./browser.cjs');
+async function approach(p){return p.evaluate(()=>{const n=npcs.find(n=>n.realmId==='rest-resident-0');if(!n)throw Error('Tamsin not outdoors');gameState.player.x=n.x+1;gameState.player.y=n.y;gameState.player.targetX=gameState.player.x;gameState.player.targetY=gameState.player.y;renderWorld();document.activeElement?.blur();return {legal:canEntityMoveTo(gameState.player.x,gameState.player.y),stock:gameState.inventory.healthPotions,gold:gameState.inventory.gold,xp:gameState.player.xp,npc:[n.x,n.y]};});}
+async function space(p){await p.evaluate(()=>document.activeElement?.blur());await p.keyboard.press('Space');await p.waitForSelector('#eb-village-work');}
+(async()=>{const b=await t.launch();try{
+ for(const [name,profile]of [['desktop',{viewport:{width:1280,height:800}}],['phone',{viewport:{width:390,height:844},hasTouch:true,isMobile:true}]]){
+ const p=await t.page(b,profile,(1767225600+4*480+240)*1000);const before=await approach(p);t.assert(before.legal);await space(p);t.assert.match(await p.locator('#modalTitle').textContent(),/Tamsin/);await p.click('#eb-herb-start');
+ await p.getByRole('button',{name:'Mint',exact:true}).click();t.assert.equal(await p.evaluate(()=>gameState.inventory.healthPotions),before.stock);t.assert.match(await p.locator('#eb-village-work').textContent(),/1 \/ 3/);
+ for(const herb of ['Comfrey','Feverfew','Mint']){const button=p.getByRole('button',{name:herb,exact:true});const r=await button.boundingBox();t.assert(r.height>=44,'touch target');await button.click();}
+ t.assert.match(await p.locator('#eb-village-work').textContent(),/one health potion/);
+ t.assert.deepEqual(await p.evaluate(()=>[gameState.inventory.healthPotions,gameState.inventory.gold,gameState.player.xp,ebFarlands.storyFlag('work-rest-herbs')]),[before.stock+1,before.gold,before.xp,true]);
+ await t.shot(p,'herb-work-'+name+'-'+t.sha.slice(0,8));await p.reload({waitUntil:'domcontentloaded'});await p.click('#eb-menu-solo');await space(p);
+ t.assert.match(await p.locator('#eb-village-work').textContent(),/lesson complete/);t.assert.equal(await p.locator('#eb-herb-start').count(),0);t.assert.equal(await p.evaluate(()=>gameState.inventory.healthPotions),before.stock+1);
+ // The sorting pose reads the real scheduled NPC; it must not move the rendered group off its authoritative location.
+ const pose=await p.evaluate(()=>{const n=npcs.find(n=>n.realmId==='rest-resident-0'),r=__view.actors.get(n);return {working:ebVillageWork.working(n),distance:r?Math.hypot(r.model.group.position.x-n.x,r.model.group.position.z-n.y):null};});t.assert(pose.working&&pose.distance<.02);
+ t.assert.deepEqual(p.errors,[]);t.record('resident herb lesson '+name,'PASS actual Space/choices, wrong answer has no reward, 44px targets, one potion only, gold/XP unchanged, save/reload idempotent, render/authoritative NPC position agree');await p.close();
+ }
+ const p=await t.page(b,undefined,(1767225600+4*480+380)*1000);const evening=await approach(p);await space(p);t.assert(await p.locator('#eb-herb-start').isDisabled());t.assert.equal(await p.evaluate(()=>gameState.inventory.healthPotions),evening.stock);t.assert.deepEqual(p.errors,[]);t.record('resident evening schedule','PASS task unavailable at 19:00 while Tamsin waters the beds; no reward');await p.close();
+ const q=await t.page(b,undefined,(1767225600+4*480+240)*1000);const stale=await approach(q);await space(q);await q.click('#eb-herb-start');for(const h of ['Comfrey','Feverfew'])await q.getByRole('button',{name:h,exact:true}).click();
+ await q.evaluate(()=>{gameState.player.x+=10;});await q.getByRole('button',{name:'Mint',exact:true}).click();t.assert.equal(await q.evaluate(()=>gameState.inventory.healthPotions),stale.stock);t.assert.equal(await q.evaluate(()=>ebFarlands.storyFlag('work-rest-herbs')),false);t.record('resident stale/range guard','PASS moving out of range cancels completion without reward');t.assert.deepEqual(q.errors,[]);await q.close();
+}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});

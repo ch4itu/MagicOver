@@ -3680,6 +3680,7 @@ function talkToNPC(npc) {
     `;
     releaseMovement();
     document.getElementById('interactionModal').style.display = 'flex';
+    ebVillageWork.attach(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
 }
 
@@ -10721,6 +10722,13 @@ window.addEventListener('load', () => {
                 model.ebRemotePlayer = kind === 'remote';
                 if (model !== this.combat?.model) // R15.37: a battle poses its enemy itself
                     this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data && kind !== 'remote');
+                // Real resident, real scheduled location: only the idle hand pose changes while bundling herbs.
+                if(kind==='npc' && data.realmId==='rest-resident-0' && model.arms?.length){
+                    const target=ebVillageWork.working(data)?1:0;
+                    model.ebWorkBlend=(model.ebWorkBlend||0)+(target-(model.ebWorkBlend||0))*(this.reduced?1:1-Math.exp(-6*dt));
+                    const b=model.ebWorkBlend,sway=this.reduced?0:Math.sin(time*2.6)*.09;
+                    model.arms.forEach((arm,i)=>{arm.rotation.x=arm.rotation.x*(1-b)+(-.65+(i?1:-1)*sway)*b;});
+                }
                 if (label) {
                     const position = model.group.position;
                     const title = this.actorTitle(record);
@@ -13496,6 +13504,13 @@ const ebFarlands = (() => {
     function consume(actor) {
         if (surface() && actor.realmId) journey.spent.add(actor.realmId);
     }
+    function completeHerbLesson(npc) {
+        const key='work-rest-herbs';
+        if(!journey || !surface() || sharedWorld.active() || buildingInterior || gameState.inBattle ||
+            journey.spent.has(key) || !ebVillageWork.working(npc) || !npcs.includes(npc) ||
+            Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5)return false;
+        journey.spent.add(key);gameState.inventory.healthPotions++;updateUI();saveNow();return true;
+    }
     function storyFlag(id) { return !!journey?.spent.has(id); }
     function markStory(id) {
         if (!journey || !/^quest-vault-[a-z-]+$/.test(id) || journey.spent.has(id)) return false;
@@ -14253,7 +14268,7 @@ const ebFarlands = (() => {
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
     return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
-        storyFlag,markStory,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
+        completeHerbLesson,storyFlag,markStory,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
 </script>
@@ -14474,6 +14489,53 @@ const ebLife = (() => {
         if (listChanged) renderWorld();
     }
     return { enroll, tick, roster:() => roster, hour };
+})();
+</script>
+<script data-source="village-work.js">
+// A single authored resident activity, solo only. Completion uses the existing sparse journal, not a new save schema.
+const ebVillageWork=(()=>{
+    const KEY='work-rest-herbs';let session=null;
+    const steps=[
+        {prompt:'Tamsin sets out three bundles. Broad comfrey leaves belong in the pilgrim’s foot-balm parcel. Which bundle do you tie first?',answer:'Comfrey',note:'The broad leaves are tied loosely so they do not bruise.'},
+        {prompt:'The courier’s parcel is labelled feverfew. The small pale flowers go in a paper wrap; which bundle goes next?',answer:'Feverfew',note:'Tamsin folds the paper over the flower heads before tying it.'},
+        {prompt:'Last is the river crew’s fragrant mint. Which bundle belongs in their travel parcel?',answer:'Mint',note:'The mint parcel is ready for the next boat.'}
+    ];
+    function working(npc){
+        if(!npc || npc.realmId!=='rest-resident-0' || !ebFarlands.surface() || sharedWorld.active() || buildingInterior || npc.indoors)return false;
+        const slot=npc.life?.slot,h=ebLife.hour();
+        return h>=6&&h<18&&slot?.from===6&&Math.hypot(npc.x-slot.x,npc.y-slot.y)<.08;
+    }
+    const closeEnough=npc=>working(npc)&&!gameState.inBattle&&npcs.includes(npc)&&Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)<=1.5;
+    const visible=()=>document.getElementById('interactionModal').style.display==='flex'&&document.getElementById('eb-village-work');
+    function render(note=''){
+        const box=document.getElementById('eb-village-work');if(!box||!session)return;
+        const index=session.step,step=steps[index];
+        box.innerHTML=`<strong>Help bundle herbs · ${index+1} / ${steps.length}</strong><p>${escapeMapText(step.prompt)}</p><p role="status" aria-live="polite">${escapeMapText(note)}</p><div class="eb-herb-choices" style="display:flex;gap:8px;flex-wrap:wrap"></div>`;
+        for(const herb of ['Comfrey','Mint','Feverfew']){
+            const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=herb;button.style.minHeight='44px';
+            button.addEventListener('click',()=>{
+                if(!session||session.step!==index||!visible())return;
+                if(!closeEnough(session.npc)){session=null;box.textContent='Tamsin has moved on from her bundles. Return during her working hours to try again.';return;}
+                if(herb!==step.answer){box.querySelector('[role="status"]').textContent='Tamsin points to the parcel label. '+step.note+' Try that bundle again.';return;}
+                session.step++;
+                if(session.step<steps.length){render(step.note);return;}
+                const granted=ebFarlands.completeHerbLesson(session.npc);session=null;
+                box.textContent=granted?'The parcels are ready. Tamsin thanks you with one health potion. Herb lesson complete.':'This lesson is already recorded, or Tamsin is no longer at work.';
+            });
+            box.querySelector('.eb-herb-choices').append(button);
+        }
+    }
+    function attach(npc){
+        session=null;
+        if(npc?.realmId!=='rest-resident-0'||!ebFarlands.surface()||sharedWorld.active()||buildingInterior)return;
+        const box=document.createElement('section');box.id='eb-village-work';box.style.cssText='margin-top:16px;padding:12px;border:1px solid #7f9e79;border-radius:8px;text-align:left';
+        document.getElementById('modalContent').append(box);
+        if(ebFarlands.storyFlag(KEY)){box.textContent='Herb lesson complete · the parcels you helped bundle are on their way.';return;}
+        const b=document.createElement('button');b.type='button';b.className='btn';b.id='eb-herb-start';b.style.minHeight='44px';b.disabled=!closeEnough(npc);b.textContent='Help bundle herbs';
+        const p=document.createElement('p');p.textContent=b.disabled?'Tamsin bundles herbs here between 06:00 and 18:00. Catch her when she has settled at her work spot.':'Help Tamsin sort three labelled parcels. She will share one health potion after your first completed lesson.';
+        box.append(p,b);b.addEventListener('click',()=>{if(!closeEnough(npc)||ebFarlands.storyFlag(KEY))return;session={npc,step:0};render();});
+    }
+    return {attach,working};
 })();
 </script>
 <script data-source="r14-adventure-journal.js">
