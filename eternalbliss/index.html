@@ -10203,8 +10203,13 @@ window.addEventListener('load', () => {
             const casting=v?.action==='magic' || v?.action==='heal';
             const lift=casting ? Math.sin(Math.PI*Math.min(1,a)) : 0;
             this.eyeHands.visible=!c.heroDownAt;
-            this.eyeHands.position.set(.30-stroke*.30,-.28+stroke*.19+lift*.10,-.55-stroke*.16);
-            this.eyeHands.rotation.set(-.45-stroke*.65-lift*.35,0,-.22+stroke*1.15);
+            // The world camera keeps its FOV; fit only the camera-local weapon to portrait's narrower frustum.
+            const fit=Math.min(1,this.eyeCamera.aspect/.95);
+            const gripX=.30-.18*(1-fit);
+            const hit=v?.action==='enemy' && !this.reduced ? Math.max(0,1-Math.abs(a-.53)/.16) : 0;
+            this.eyeHands.scale.setScalar(fit);
+            this.eyeHands.position.set(gripX*(1-stroke)*fit,(-.28+stroke*.19+lift*.10)*fit,-.55-stroke*.16+.025*hit);
+            this.eyeHands.rotation.set(-.45-stroke*.65-lift*.35+.12*hit,0,-.22+stroke*1.15);
             const sword=this.eyeSwordArm.children.find(o=>o.isGroup);
             if(sword)sword.rotation.x=0;
         }
