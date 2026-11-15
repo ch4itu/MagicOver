@@ -5,8 +5,8 @@ const source=process.env.EB_SOURCE||path.join(__dirname,'../index.html');
 const html=fs.readFileSync(source,'utf8'),sha=crypto.createHash('sha256').update(html).digest('hex');
 const out=process.env.EB_EVIDENCE||'/workspace/.magic-over-setup/eternalbliss-evidence';fs.mkdirSync(out,{recursive:true});
 async function launch(){return chromium.launch({executablePath:'/usr/lib/chromium/chromium',args:['--no-sandbox','--enable-unsafe-swiftshader']});}
-async function page(browser,profile={viewport:{width:1280,height:800}}){
- const p=await browser.newPage(profile);p.errors=[];p.on('pageerror',e=>p.errors.push(e.message));
+async function page(browser,profile={viewport:{width:1280,height:800}},fixedTime){
+ const p=await browser.newPage(profile);if(fixedTime)await p.clock.setFixedTime(new Date(fixedTime));p.errors=[];p.on('pageerror',e=>p.errors.push(e.message));
  await p.route('**/eternalbliss/',r=>r.fulfill({contentType:'text/html',body:html.replace('view = new WorldView(canvas, layer, world);','view = new WorldView(canvas, layer, world); window.__view=view;')}));
  await p.goto('http://127.0.0.1:8091/eternalbliss/',{waitUntil:'domcontentloaded'});await p.click('#eb-menu-solo');
  await p.waitForFunction(()=>window.__view?.active && ebFarlands.surface());return p;

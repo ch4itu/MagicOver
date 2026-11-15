@@ -17,3 +17,5 @@ Start a static server from the repository root on port 8091. With Playwright ava
 The historical 25/25 and 22/22 matrices mentioned in the handoff were not included in this checkout and have not been independently repeated. These focused checks do not establish physical Android performance, a natural full quest run, live multiplayer stability or production readiness. Run the release matrix once on the exact candidate proposed for deployment. No deployment is performed by these tests.
 
 Rollback remains R15.55 `6321565231a81204e4c92c801ef3b9eca3175648`; live R15.56 baseline is `77b0b430995c9b37b9369bab1399ae5ec706ef80`.
+
+`inn.cjs` captures only the named Wayfarer's Rest inn, overhead and FP, summer noon and 22:00, and checks its footprint/entrance. Fixed clocks are installed before app startup in fresh profiles. Use `EB_CAPTURE_ONLY=1 EB_LABEL=inn-before-final EB_SOURCE=<baseline HTML>` (and a separate candidate run) when refreshing pictures without repeating completed entrance checks. The initial capture attempts with a mid-session clock change were superseded; use the final comparison sheets below.

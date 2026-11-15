@@ -8441,7 +8441,7 @@ const EternalBlissArt = (() => {
         box(group, .23, .035, .085, 0xb69a6c, x, y - .105, z + .016);
     }
 
-    function building(kind, variant, footprint = null, region) {
+    function building(kind, variant, footprint = null, region, wayfarerInn = false) {
         const group = new T.Group();
         const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
             amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
@@ -8506,8 +8506,8 @@ const EternalBlissArt = (() => {
             }
             windowPane(group, -width * .32, .57, .429);
             windowPane(group, width * .32, .57, .429);
-            roof(group, width + .19, 1.03, .94, .32, roofColor);
-            box(group, .046, .052, .82, roofColor, 0, 1.26);
+            roof(group, width + .19, 1.03, .94, wayfarerInn ? .44 : .32, roofColor);
+            box(group, .046, .052, .82, roofColor, 0, wayfarerInn ? 1.38 : 1.26);
             box(group, .14, .35, .15, 0x765749, width * .30, 1.11, -.25);
             box(group, .18, .05, .19, 0xa18066, width * .30, 1.30, -.25);
             if (broad && kind !== 'house') {
@@ -8529,9 +8529,32 @@ const EternalBlissArt = (() => {
                 }
             }
         }
+        // One authored prototype: the existing Wayfarer's Rest inn, with the same walls, footprint and door.
+        // Its steeper roof, braced plaster frontage and recessed porch stay inside the existing model envelope.
+        if (wayfarerInn) {
+            const timber=0x674735, sill=0x9e8e76;
+            for (const x of [-.40,.40]) {
+                const brace=box(group,.045,.30,.045,timber,x,.68,.46);
+                brace.rotation.z=x<0 ? -.66 : .66;
+                box(group,.23,.04,.12,sill,x,.425,.47);
+                box(group,.035,.22,.035,timber,x-.12,.57,.46);
+                box(group,.035,.22,.035,timber,x+.12,.57,.46);
+            }
+            // Shallow shelter over the original threshold; the middle remains open for entry.
+            const porch=new T.Group();porch.position.set(0,.95,.53);group.add(porch);
+            const canopy=box(porch,.52,.045,.24,roofColors.hearth,0,0,0);
+            canopy.rotation.x=.16;
+            for (const x of [-.23,.23]) {
+                box(group,.035,.76,.035,timber,x,.50,.61);
+                box(group,.065,.08,.065,sill,x,.16,.61);
+            }
+            box(group,.51,.045,.045,timber,0,.90,.62);
+            // Small paired gable vents break up the roof without adding another building or a remote asset.
+            for (const x of [-.07,.07]) box(group,.035,.10,.025,0x51463c,x,1.06,.485);
+        }
         const [width,depth,height] = {
             castle:[1.56,1.46,1.92], temple:[1.31,1.42,1.63],
-            inn:[1.41,1.06,1.33], shop:[1.41,1.06,1.33]
+            inn:[1.41,1.06,wayfarerInn ? 1.43 : 1.33], shop:[1.41,1.06,1.33]
         }[kind === 'house' && (footprint?.w ?? 1) > 1 ? 'shop' : kind] ?? [1.11,1.06,1.33];
         const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
         if (across === 1 && deep === 1) {
@@ -9622,7 +9645,8 @@ window.addEventListener('load', () => {
                         let model;
                         if (kind === 'building') model = data.realmId && data.landmark ?
                             art.landmark(data.landmark, buildingFootprint(data)) :
-                            art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined);
+                            art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
+                                ebFarlands.surface() && !sharedWorld.active() && data.realmId==='rest-service-0');
                         else if (kind === 'item') model = art.item(data.type);
                         else if (kind === 'remote') {
                             model = art.humanoid('remote','',variant);
