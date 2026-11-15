@@ -2030,6 +2030,8 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
 #eb-eye-reticle{position:absolute;z-index:9;left:50%;top:49%;transform:translate(-50%,-50%);
  pointer-events:none;color:#f8e9c7;text-shadow:0 1px 5px #10252a;font:26px system-ui}
 #eb-eye-actions{position:absolute;z-index:13;right:14px;bottom:154px;pointer-events:auto}
+#eb-eye-context{display:block;max-width:min(180px,48vw);margin:0 0 6px;padding:7px 9px;border:1px solid #8b9d84;border-radius:8px;background:#19383ee8;color:#fff3d5;font:13px/1.3 system-ui;text-align:left}
+#eb-eye-context[hidden]{display:none!important}
 #eb-eye-use{border:1px solid #cbb482;border-radius:18px;padding:12px 16px;min-height:48px;
  background:#19383ee8;color:#fff3d5;font-weight:700;touch-action:manipulation}
 [data-eb-immersive="first"] #eb-scene{touch-action:none}
@@ -6522,7 +6524,8 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
         <div id="eb-scene-labels"></div>
         <div id="eb-eye-reticle" hidden aria-hidden="true"><span>+</span></div>
         <div id="eb-eye-actions" hidden aria-label="First-person actions">
-            <button type="button" id="eb-eye-use" aria-label="Interact with object ahead">✋ Use</button>
+            <span id="eb-eye-context" role="status" aria-live="polite" hidden></span>
+            <button type="button" id="eb-eye-use" aria-describedby="eb-eye-context" aria-label="Interact with object ahead">✋ Use</button>
         </div>
         <div id="eb-immersive-look" hidden aria-label="First-person look controls">
             <button type="button" id="eb-look-left" aria-label="Look left">↶</button>
@@ -10333,6 +10336,8 @@ window.addEventListener('load', () => {
 
         useEyeTarget() {
             if(!this.active || !this.eyeMode || gameState.inBattle)return;
+            // A reachable archive action must not lose to a distant actor picked through a wall.
+            if(ebStory.eyeHint(this.eyeYaw)){interact();return;}
             this.ray.setFromCamera(new T.Vector2(0,0),this.eyeCamera);
             const hits=this.ray.intersectObjects(this.targets||[],false);
             const hit=hits.find(h=>h.distance<=4.4);
@@ -10813,6 +10818,11 @@ window.addEventListener('load', () => {
                 this.eyeRenderPitch+=(pitch-this.eyeRenderPitch)*blend;
                 this.eyeCamera.rotation.set(this.eyeRenderPitch,this.eyeRenderYaw,0);
                 this.eyeCamera.updateMatrixWorld();
+            }
+            if(!this.lastEyeHint || now-this.lastEyeHint>=140){
+                const hint=this.eyeMode?ebStory.eyeHint(this.eyeYaw):'',node=document.getElementById('eb-eye-context');
+                if(node.textContent!==hint)node.textContent=hint;
+                node.hidden=!hint;this.lastEyeHint=now;
             }
             if(this.atmosphere.visible)this.atmosphere.position.copy(this.eyeCamera.position);
             this.renderEyeCombat(now,dt);
@@ -14425,8 +14435,22 @@ const ebStory = (() => {
     }
     // The pin follows the quest: if the place just finished was pinned, the next place is pinned instead.
     const movePin=from=>{const to=objective()?.site?.id; if(to && to!==from && ebFarlands.pinned()===from)ebFarlands.pin(to);};
+    // Describe the same primary proximity action as interactDungeon; no discovery, reward or state mutation.
+    function eyeHint(yaw){
+        if(!buildingInterior?.questDungeon||!active()||gameState.inBattle)return '';
+        const p=gameState.player,near=(a,r)=>Math.hypot(p.x-a.x,p.y-a.y)<=r;
+        let at=null,text='';
+        if(near(EB_VAULT_EXIT,1)){at=EB_VAULT_EXIT;text='Archive exit nearby';}
+        else {const enemy=enemies.find(e=>near(e,1.5));
+            if(enemy){at=enemy;text='Challenge '+enemy.name;}
+            else if(!flag('gate')&&near(EB_VAULT_GATE,1.5)){at=EB_VAULT_GATE;text=flag('key')?'Iron gate nearby · use ward key':'Iron gate nearby · needs ward key';}
+            else {const relic=items.find(i=>i.type==='vault_relic'&&near(i,1));if(relic){at=relic;text=flag('guardian')?'Harvest Bell nearby · take it':'Harvest Bell nearby · still guarded';}}
+        }
+        if(!at)return '';const dx=at.x-p.x,dy=at.y-p.y,d=Math.hypot(dx,dy);
+        return d<.01||(-Math.sin(yaw)*dx-Math.cos(yaw)*dy)/d>=.6?text:'';
+    }
     const bumpGate=()=>openGate(true); // walking into the gate: opens with the ward key, a short note without it
-    return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon};
+    return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon,eyeHint};
 })();
 </script>
 <script data-source="farlands-life.js">
