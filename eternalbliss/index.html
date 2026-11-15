@@ -8599,9 +8599,65 @@ const EternalBlissArt = (() => {
         return {...model,group:baked.clone(true)};
     }
 
+    const authoredChapels=new Map();
+    function authoredChapel(footprint){
+        const w=footprint?.w??3,d=footprint?.h??2,key=w+':'+d;
+        if(authoredChapels.has(key)){const m=authoredChapels.get(key);return {...m,group:m.group.clone(true)};}
+        const g=new T.Group(),limestone=0xc6c5af,edge=0x949a8b,joint=0x727c71,wood=0x57594a,brass=0xb89d62,hw=(w-.52)/2,f=(d-.20)/2,eave=1.53,peak=2.43;
+        const face=(points,color,glow=0)=>{const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points.flat(),3));geo.computeVertexNormals();const m=new T.Mesh(geo,material(color,glow));m.castShadow=m.receiveShadow=true;g.add(m);};
+        const beam=(a,b,size,color)=>{const from=new T.Vector3(...a),v=new T.Vector3(...b).sub(from),m=box(g,size,v.length(),size,color);m.position.copy(from.addScaledVector(v,.5));m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());};
+        box(g,w,.17,d,edge,0,.085);box(g,hw*2,1.29,f*2,limestone,0,.825);box(g,hw*2+.05,.10,f*2+.04,edge,0,1.49);
+        // Cut limestone and corner buttresses stay on the existing blocked plot.
+        for(let row=0;row<5;row++)for(let col=0;col<10;col++)box(g,hw*2/10-.014,.22,.025,[0xb8bfac,0xc7c8b4,0xaeb9a7][(row+col)%3],-hw+(col+.5)*hw*2/10,.29+row*.235,f+.02);
+        for(const side of [-1,1])for(const z of [-f+.18,f-.18]){
+            const x=side*(hw+.10);box(g,.29,.26,.35,joint,x,.21,z);box(g,.21,.73,.28,edge,x,.69,z);box(g,.23,.07,.30,limestone,x,1.09,z);
+            beam([side*(hw+.11),1.12,z],[side*(hw-.035),1.46,z],.14,edge);
+        }
+        for(const side of [-1,1]){
+            box(g,.035,.38,.22,0x7faaa0,side*(hw+.024),.96,0,0x447768);
+            for(const z of [-.145,.145])box(g,.065,.47,.06,edge,side*(hw+.035),.96,z);
+            box(g,.08,.065,.36,limestone,side*(hw+.025),.72,0);box(g,.06,.055,.32,edge,side*(hw+.035),1.20,0);
+            box(g,.07,.38,.023,brass,side*(hw+.047),.97,0);
+        }
+        // A centred round arch keeps the original entrance readable from the square.
+        box(g,.50,.84,.035,0x37453c,0,.62,f+.045);
+        for(let i=0;i<5;i++)box(g,.078,.79,.026,i%2?0x646c52:0x566047,(i-2)*.09,.61,f+.07);
+        for(let i=0;i<12;i++){
+            const t0=i*Math.PI/12,t1=(i+1)*Math.PI/12;
+            face([[0,1.03,f+.071],[.25*Math.cos(t0),1.03+.25*Math.sin(t0),f+.071],[.25*Math.cos(t1),1.03+.25*Math.sin(t1),f+.071]],wood);
+            const t=(t0+t1)/2,m=box(g,.12,.10,.12,i%2?limestone:edge,.32*Math.cos(t),1.03+.32*Math.sin(t),f+.065);m.rotation.z=t-Math.PI/2;
+        }
+        for(const x of [-.32,.32])box(g,.11,.88,.12,edge,x,.59,f+.065);
+        box(g,.035,.035,.045,brass,.14,.67,f+.10);box(g,.74,.06,.26,edge,0,.13,f+.12);
+        // Front/back gables carry a steep slate roof, without floating roof joints.
+        for(const z of [-f,f]){const a=[-hw,eave,z],b=[hw,eave,z],c=[0,peak,z];face(z>0?[a,b,c]:[a,c,b],limestone);beam(a,c,.07,edge);beam(b,c,.07,edge);}
+        const rw=hw+.12,rd=f+.12;
+        for(const side of [-1,1]){
+            const a=[side*rw,eave-.014,-rd],b=[0,peak-.014,-rd],c=[0,peak-.014,rd],e=[side*rw,eave-.014,rd];face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],0x3f4f46);
+            for(let row=0;row<7;row++)for(let col=0;col<6;col++){
+                const t0=row/7,t1=(row+1)/7,x0=side*rw*(1-t0),x1=side*rw*(1-t1),y0=eave+(peak-eave)*t0,y1=eave+(peak-eave)*t1,z0=-rd+col*2*rd/6,z1=z0+2*rd/6-.009;
+                const a=[x0,y0,z0],b=[x1,y1,z0],c=[x1,y1,z1],e=[x0,y0,z1];face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],[0x566f64,0x61786b,0x4f655d,0x6d7d6c][(row+col)%4]);
+            }
+            beam([side*rw,eave,-rd],[side*rw,eave,rd],.065,edge);
+        }
+        beam([0,peak+.02,-rd],[0,peak+.02,rd],.07,edge);
+        // A small round glass light above the door uses the chapel's established warm/green palette.
+        const ring=new T.Mesh(cachedGeometry('chapel-light-ring',()=>new T.TorusGeometry(.225,.038,6,20)),material(edge));ring.position.set(0,1.94,f+.055);g.add(ring);
+        for(let i=0;i<12;i++){const t0=i*Math.PI/6,t1=(i+1)*Math.PI/6;face([[0,1.94,f+.057],[.203*Math.cos(t0),1.94+.203*Math.sin(t0),f+.057],[.203*Math.cos(t1),1.94+.203*Math.sin(t1),f+.057]],[0xb5c89b,0xe7c984,0x84aaa0][i%3],0x7c9669);}
+        for(const a of [0,Math.PI/3,2*Math.PI/3])beam([-.21*Math.cos(a),1.94-.21*Math.sin(a),f+.075],[.21*Math.cos(a),1.94+.21*Math.sin(a),f+.075],.015,brass);
+        // Supported lantern cote: a silhouette for Hearthlight, not another quest bell or new service.
+        const cz=f-.19;box(g,.45,.24,.30,edge,0,2.36,cz);
+        for(const x of [-.19,.19])box(g,.085,.58,.27,edge,x,2.73,cz);
+        box(g,.49,.075,.34,limestone,0,2.46,cz);box(g,.50,.07,.35,limestone,0,3.04,cz);
+        cylinder(g,.09,.11,.22,8,0xf0d49b,0,2.80,cz,0xd2a961);cylinder(g,.12,.12,.035,8,brass,0,2.67,cz);cylinder(g,.11,.11,.035,8,brass,0,2.93,cz);
+        for(const side of [-1,1]){const a=[side*.32,3.07,cz-.23],b=[0,3.28,cz-.23],c=[0,3.28,cz+.23],e=[side*.32,3.07,cz+.23];face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],0x52695e);}
+        const baked=bakeArchitecture(g),model={group:baked,width:w+.06,depth:d+.34,height:3.30};authoredChapels.set(key,model);return {...model,group:baked.clone(true)};
+    }
+
     function building(kind, variant, footprint = null, region, authoredRest = false) {
         if(authoredRest && kind==='inn')return authoredInn(footprint);
         if(authoredRest && kind==='shop')return authoredExchange(footprint);
+        if(authoredRest && kind==='temple')return authoredChapel(footprint);
         const group = new T.Group();
         const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
             amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
@@ -9879,7 +9935,7 @@ window.addEventListener('load', () => {
                         if (kind === 'building') model = data.realmId && data.landmark ?
                             art.landmark(data.landmark, buildingFootprint(data)) :
                             art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
-                                ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'));
+                                ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'||data.realmId==='rest-service-2'));
                         else if (kind === 'item') model = art.item(data.type);
                         else if (kind === 'remote') {
                             model = art.humanoid('remote','',variant);
