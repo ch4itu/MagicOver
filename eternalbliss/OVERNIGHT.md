@@ -8,13 +8,11 @@ Session began about 23:07 India time on 15 November. Requested end: 08:00 India 
 
 No Alerith reference assets/link were found in the workspace. Do not claim reference fidelity. Improve the existing single-file art with original authored geometry, coherent materials and readable human-scale spaces.
 
-## Working queue
+## Current checkpoint
 
-1. Portrait first-person combat weapon visibility and impact feedback. New blade-projection check reproduced the old weapon outside the phone frustum. Candidate validation in progress; no pass yet.
-2. Rework the existing Wayfarer's Rest inn as a crafted architectural asset, with unchanged footprint/entrance, shared geometry and bounded render cost. One building, no cloned settlements.
-3. Improve Farlands surface transitions and vegetation/atmosphere without changing authoritative terrain or collision.
-4. Add a meaningful activity/interaction to the existing settlement residents, preserving identities and using actual current NPC positions. Keep story rewards idempotent and local.
-5. Continue to dungeon/exploration and remaining regressions as execution permits. No speculative release claims; stop expanding a milestone once its focused checks pass.
+Milestones 1–15 below are complete. Latest implementation is `bd9677e` on `feat/eternalbliss-hearthlight-chapel`, draft PR #23. Final tested HTML is `f9faf30e118695aa3d93e1f058b0806978b250d58c6287a816fcc1575a61df08`. The final report/documentation commit changes no application code. See [consolidated report](OVERNIGHT-REPORT.md) for PRs, screenshots, retained failures and remaining release gates.
+
+Do not replay completed work on resume. Inspect the actual branch/SHA and ledger first; continue only new or affected checks. Physical Android, live two-client behavior and the final release-candidate matrix remain gates. Further safe visual work can target the existing Surveyors' Hall/cottage or a reproduced foreground occlusion issue, one authored asset at a time. No merge/deployment or chain write is authorized.
 
 ## Evidence discipline
 
