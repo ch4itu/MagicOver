@@ -9068,6 +9068,35 @@ window.addEventListener('load', () => {
         return texture;
     }
 
+    function farlandsSky() {
+        const material=new T.ShaderMaterial({side:T.BackSide,depthWrite:false,fog:false,toneMapped:false,
+            uniforms:{uHorizon:{value:new T.Color()},uZenith:{value:new T.Color()},uSun:{value:new T.Vector3()},uLight:{value:1},uWarm:{value:0},uTime:{value:0}},
+            vertexShader:`varying vec3 vSky;void main(){vSky=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+            fragmentShader:`
+                uniform vec3 uHorizon,uZenith,uSun;uniform float uLight,uWarm,uTime;varying vec3 vSky;
+                float hash(vec2 p){p=fract(p*vec2(123.34,345.45));p+=dot(p,p+34.345);return fract(p.x*p.y);}
+                float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.)),f.x),f.y);}
+                void main(){
+                    vec3 d=normalize(vSky);float height=smoothstep(0.0,.70,d.y);
+                    vec3 color=mix(uHorizon,uZenith,height);
+                    vec2 p=d.xz/max(.22,d.y+.24)*3.2+vec2(uTime*.003,uTime*.001);
+                    float n=noise(p)*.65+noise(p*2.17+8.3)*.35;
+                    float clouds=smoothstep(.53,.76,n)*smoothstep(.015,.18,d.y)*(1.-smoothstep(.65,.96,d.y));
+                    vec3 cloud=mix(vec3(.065,.085,.12),mix(vec3(.85,.89,.91),vec3(.95,.69,.46),uWarm*.55),uLight);
+                    color=mix(color,cloud,clouds*mix(.30,.72,uLight));
+                    float sunDot=max(0.,dot(d,uSun)),moonDot=max(0.,dot(d,-uSun));
+                    color+=vec3(1.,.75,.42)*smoothstep(.9997,.9999,sunDot)*uLight;
+                    color+=vec3(.72,.84,1.)*smoothstep(.99978,.99993,moonDot)*(1.-uLight)*.75;
+                    color+=vec3(.8,.35,.12)*pow(sunDot,80.)*uWarm*.15;
+                    vec2 stars=vec2(atan(d.z,d.x),asin(clamp(d.y,-1.,1.)))*140.;
+                    float star=step(.9955,hash(floor(stars)))*(1.-smoothstep(.02,.21,length(fract(stars)-.5)));
+                    color+=vec3(.65,.76,.90)*star*(1.-uLight)*smoothstep(.08,.4,d.y)*(1.-clouds);
+                    gl_FragColor=vec4(color,1.0);
+                    #include <encodings_fragment>
+                }`});
+        const mesh=new T.Mesh(new T.SphereGeometry(85,24,12),material);mesh.renderOrder=-1000;mesh.frustumCulled=false;mesh.visible=false;return mesh;
+    }
+
     function ocean() {
         const shader = new T.ShaderMaterial({
             uniforms: {
@@ -9275,6 +9304,7 @@ window.addEventListener('load', () => {
             this.world = world;
             this.scene = new T.Scene();
             this.scene.background = new T.Color(0x437c76);
+            this.atmosphere=farlandsSky();this.scene.add(this.atmosphere);
             this.camera = new T.OrthographicCamera(-1, 1, 1, -1, .1, 110);
             this.eyeCamera = new T.PerspectiveCamera(72, 1, .055, 110);
             this.eyeYaw = 0;
@@ -10428,6 +10458,14 @@ window.addEventListener('load', () => {
             this.hemisphere.color.copy(sky.nightHemi).lerp(sky.dayHemi, light);
             this.scene.background.copy(sky.night).lerp(ebFarlands.surface()?sky.farlandsDay:sky.day,light).lerp(sky.dusk, warmth * .42);
             if (indoors) this.scene.background.set(0x262c28);
+            const soloSky=ebFarlands.surface()&&!sharedWorld.active()&&!indoors;
+            this.atmosphere.visible=Boolean(soloSky&&this.eyeActive());
+            if(soloSky){
+                const u=this.atmosphere.material.uniforms,[h,m]=worldClimate.time.split(':').map(Number),angle=(h+m/60-6.6)*Math.PI/12;
+                u.uHorizon.value.copy(this.scene.background);u.uZenith.value.copy(this.scene.background).multiplyScalar(.48+.25*light);
+                u.uSun.value.set(Math.cos(angle)*.85,Math.sin(angle),Math.cos(angle)*.35).normalize();
+                u.uLight.value=Math.max(0,Math.min(1,light));u.uWarm.value=warmth;u.uTime.value=this.reduced?0:performance.now()/1000;
+            }
             // Keep sky, distance haze and sea horizon synchronized with the
             // existing day/night climate. No independent weather clock.
             if(this.eyeActive() && !indoors){
@@ -10700,7 +10738,10 @@ window.addEventListener('load', () => {
             this.camera.lookAt(cx, .15, cz);
             this.camera.updateMatrixWorld();
             this.frameCombat(combatFocus, dt); // R15.37: battle framing, after the follow camera
-            this.sun.position.set(cx - 10, 19, cz - 7);
+            if(ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior){
+                const d=this.atmosphere.material.uniforms.uSun.value,side=d.y>=0?1:-1;
+                this.sun.position.set(cx+d.x*25*side,8+Math.abs(d.y)*20,cz+d.z*25*side);
+            }else this.sun.position.set(cx - 10, 19, cz - 7);
             this.sun.target.position.set(cx, 0, cz);
             this.water.position.x = cx;
             this.water.position.z = cz;
@@ -10773,6 +10814,7 @@ window.addEventListener('load', () => {
                 this.eyeCamera.rotation.set(this.eyeRenderPitch,this.eyeRenderYaw,0);
                 this.eyeCamera.updateMatrixWorld();
             }
+            if(this.atmosphere.visible)this.atmosphere.position.copy(this.eyeCamera.position);
             this.renderEyeCombat(now,dt);
             const mountedEye=eyeEnabled && Boolean(this.combat?.eye) && ebHorseMounted && this.farlandsHorse.visible;
             if(mountedEye)this.farlandsHorse.visible=false;
