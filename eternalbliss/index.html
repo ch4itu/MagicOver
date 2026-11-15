@@ -2039,7 +2039,13 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
  [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
 }
 /* D-pad stays usable while filming. */
-body.eb-capture-clean #mobile-controls { display:block!important; }
+/* PR #2: retain touch movement only in compact/touch landscape layouts. */
+@media (max-width: 768px), (max-height: 520px) and (pointer: coarse) {
+    body.eb-capture-clean #mobile-controls { display:grid!important; }
+}
+@media (min-width: 769px) and (min-height: 521px) {
+    #mobile-controls, body.eb-capture-clean #mobile-controls { display:none!important; }
+}
 .location-info.eb-controls-collapsed #eb-world-actions,
 .location-info.eb-controls-collapsed #eb-farlands-hint,
 .location-info.eb-controls-collapsed #eb-room-exit,
@@ -9685,7 +9691,16 @@ window.addEventListener('load', () => {
                 const first=fx*across.x+fz*across.z<0 ? across.clone().negate() : across, second=first.clone().negate();
                 const dir=open(first) ? first : open(second) ? second : new T.Vector3(fx,0,fz);
                 if (dir.lengthSq()<1e-4) dir.set(Math.sin(hero.group.rotation.y),0,Math.cos(hero.group.rotation.y));
-                c=this.combat={foe,dir:dir.normalize(),base:at.clone(),started:now,model:null,own:false,downAt:0,heroDownAt:0,hidden:[],faded:[]};
+                // Solo Farlands FP stages on a clear line in front of the eye, without moving the saved player.
+                const eye=this.eyeMode && ebFarlands.inRealm() && !sharedWorld.active();
+                if (eye) {
+                    const forward=new T.Vector3(-Math.sin(this.eyeYaw),0,-Math.cos(this.eyeYaw));
+                    const clear=v=>[.6,1.2,2.1].every(d=>canEntityMoveTo(Math.round(at.x+v.x*d),Math.round(at.z+v.z*d)));
+                    const choices=[forward,dir.clone().normalize(),...[[0,-1],[1,0],[0,1],[-1,0]].map(([x,z])=>new T.Vector3(x,0,z))];
+                    const safe=choices.find(clear);
+                    if (safe) dir.copy(safe);
+                }
+                c=this.combat={foe,eye,dir:dir.normalize(),base:at.clone(),started:now,model:null,own:false,downAt:0,heroDownAt:0,hidden:[],faded:[]};
             }
             // The battle holds a copy of the enemy; its actor is the enemy record on the same tile.
             if (!c.record || this.actors.get(c.record.data)!==c.record)
@@ -9726,7 +9741,8 @@ window.addEventListener('load', () => {
             const dir=c.dir, beastLong=enemy.width>1 ? .55 : armed(enemy) ? 0 : .25;
             // Distance between the fighters at guard. A rider keeps the enemy beside the horse's shoulder on the
             // sword side, where the blade reaches down to it.
-            const rest=riding ? .75+beastLong*.8 : 1.45+beastLong;
+            const rest=c.eye ? 2.1+beastLong : riding ? .75+beastLong*.8 : 1.45+beastLong;
+            c.rest=rest;
             this.clearCombatView(c,rest);
             // Guard: sword raised in front, the off hand ready, feet apart, breathing.
             const guard=(m,phase,seated)=>{
@@ -9788,7 +9804,7 @@ window.addEventListener('load', () => {
             // height) and to the head of a beast (about 1.2 from a beast's centre, 1.05 from a crawler's), a beast to
             // its bite; nobody steps into a horse.
             const contactHero=rest-(armed(enemy) ? .66 : foe.crawler ? 1.05 : 1.2);
-            const contactEnemy=riding ? .1 : armed(enemy) ? rest-.66 : rest-.80-beastLong*.4;
+            const contactEnemy=c.eye ? Math.min(rest-1.15, .85) : riding ? .1 : armed(enemy) ? rest-.66 : rest-.80-beastLong*.4;
             if (v) {
                 const a=v.age, at=ebCombatHUD.impact(v.action);
                 if (v.action==='attack') {
@@ -9828,11 +9844,11 @@ window.addEventListener('load', () => {
             enemy.group.rotation.y=turn(c.enemyYaw,yaw+Math.PI,facing);
             // The hero holds its ground (a rider stays where the horse stands); the enemy walks to its place.
             const hp=hero.group.position, ep=enemy.group.position, b=c.base;
-            if (!riding) { hp.x=b.x+dir.x*(heroReach-heroPush); hp.z=b.z+dir.z*(heroReach-heroPush); }
+            if (!riding) { hp.x=b.x+dir.x*(c.eye ? 0 : heroReach-heroPush); hp.z=b.z+dir.z*(c.eye ? 0 : heroReach-heroPush); }
             if (!c.from) {
                 c.from=c.arrives ? new T.Vector3(b.x+dir.x*(rest+1.4),tileTop,b.z+dir.z*(rest+1.4)) : ep.clone();
                 const gap=Math.hypot(b.x+dir.x*rest-c.from.x,b.z+dir.z*rest-c.from.z);
-                c.entry=this.reduced || gap<.05 ? 0 : 250+300*Math.min(2,gap);
+                c.entry=c.eye || this.reduced || gap<.05 ? 0 : 250+300*Math.min(2,gap);
             }
             const enter=c.entry ? ease((now-c.started)/c.entry) : 1, ed=rest-enemyReach+enemyPush;
             ep.set(c.from.x+(b.x+dir.x*ed-c.from.x)*enter, tileTop, c.from.z+(b.z+dir.z*ed-c.from.z)*enter);
@@ -9909,7 +9925,8 @@ window.addEventListener('load', () => {
             this.restoreCombatView(c);
             c.land=this.land;
             const T=THREE, m=new T.Matrix4(), p=new T.Vector3(), none=new T.Matrix4().makeScale(0,0,0);
-            const across=new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2), toward=new T.Vector3(Math.SQRT1_2,0,Math.SQRT1_2);
+            const across=c.eye ? new T.Vector3(c.dir.z,0,-c.dir.x) : new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2);
+            const toward=c.eye ? c.dir : new T.Vector3(Math.SQRT1_2,0,Math.SQRT1_2);
             const enemyAt=c.dir.dot(across)*rest, low=Math.min(0,enemyAt)-.9, high=Math.max(0,enemyAt)+.9;
             const box=new T.Box3(), fade=material=>{ const f=material.clone(); f.transparent=true; f.opacity=.28; f.depthWrite=false; return f; };
             for (const record of this.actors.values()) {
@@ -9921,7 +9938,7 @@ window.addEventListener('load', () => {
                     const side=p.dot(across), depth=p.dot(toward);
                     sideMin=Math.min(sideMin,side); sideMax=Math.max(sideMax,side); depthMin=Math.min(depthMin,depth); depthMax=Math.max(depthMax,depth);
                 }
-                if (sideMax<low || sideMin>high || depthMax<.05 || depthMin>1.13*(box.max.y-tileTop)) continue;
+                if (sideMax<low || sideMin>high || depthMax<.05 || depthMin>(c.eye ? rest+.35 : 1.13*(box.max.y-tileTop))) continue;
                 record.model.group.traverse(o=>{
                     if (!o.isMesh || o.material===this.pickMaterial) return;
                     c.faded.push([o,o.material]);
@@ -9936,7 +9953,7 @@ window.addEventListener('load', () => {
                     mesh.getMatrixAt(i,m);
                     p.setFromMatrixPosition(m).sub(c.base);
                     const side=p.dot(across), depth=p.dot(toward);
-                    if (side<low || side>high || depth<-.35 || depth>2.4) continue;
+                    if (side<low || side>high || depth<(c.eye ? .1 : -.35) || depth>(c.eye ? rest+.6 : 2.4)) continue;
                     c.hidden.push([mesh,i,m.clone()]);
                     mesh.setMatrixAt(i,none);
                     changed=true;
@@ -10129,8 +10146,30 @@ window.addEventListener('load', () => {
             return hit?.object.userData.record || null;
         }
 
-        // R15.55: first person is drawn except while a battle is staged (the live battle camera shows the duel).
-        eyeActive() { return this.eyeMode && !this.combat; }
+        // Only solo Farlands uses the eye-level combat presentation; shared/legacy battle framing is unchanged.
+        eyeActive() { return this.eyeMode && (!this.combat || this.combat.eye); }
+
+        // A camera-local copy of the existing sword arm gives FP its own visible stroke. No combat rule or RNG here.
+        renderEyeCombat(now, dt) {
+            const c=this.combat, active=this.eyeActive() && c?.eye;
+            if (!active) { if(this.eyeHands)this.eyeHands.visible=false; return; }
+            if (!this.eyeHands) {
+                const hand=this.hero.arms[1].clone(true);
+                hand.position.set(0,0,0); hand.rotation.set(0,0,0);
+                this.eyeHands=new T.Group(); this.eyeHands.add(hand);
+                this.eyeCamera.add(this.eyeHands); this.scene.add(this.eyeCamera);
+                this.eyeSwordArm=hand;
+            }
+            const v=ebCombatHUD.visual(now), a=v?.age ?? 0;
+            const stroke=v?.action==='attack' ? Math.sin(Math.PI*Math.min(1,a/.85)) : 0;
+            const casting=v?.action==='magic' || v?.action==='heal';
+            const lift=casting ? Math.sin(Math.PI*Math.min(1,a)) : 0;
+            this.eyeHands.visible=!c.heroDownAt;
+            this.eyeHands.position.set(.30-stroke*.30,-.28+stroke*.19+lift*.10,-.55-stroke*.16);
+            this.eyeHands.rotation.set(-.45-stroke*.65-lift*.35,0,-.22+stroke*1.15);
+            const sword=this.eyeSwordArm.children.find(o=>o.isGroup);
+            if(sword)sword.rotation.x=0;
+        }
 
         useEyeTarget() {
             if(!this.active || !this.eyeMode || gameState.inBattle)return;
@@ -10576,18 +10615,30 @@ window.addEventListener('load', () => {
             this.walkTarget.visible = Boolean(walkRoute);
             if (walkRoute) this.walkTarget.position.set(walkRoute.x, tileTop + .018, walkRoute.y);
             // Eye-level camera (R15.38) shares the same scene, map, collisions, actor state, interior renderer
-            // and movement controls. It never moves the player. R15.55: a staged battle is shown by the battle camera.
+            // and movement controls. FP combat holds the eye at the same tile while the foe closes to strike.
             const eyeEnabled=this.eyeActive();
-            const eyeBattle=this.eyeMode && !eyeEnabled;
+            const eyeBattle=this.eyeMode && Boolean(this.combat);
             if (eyeBattle!==this.eyeBattle) document.documentElement.toggleAttribute('data-eb-eye-battle',this.eyeBattle=eyeBattle);
             if (eyeEnabled) {
-                const h=this.hero.group.position;
+                const h=this.hero.group.position, c=this.combat?.eye ? this.combat : null;
                 const eyeY=h.y+(afloat?.90:1.08);
-                this.eyeCamera.position.set(h.x,eyeY,h.z);
+                this.eyeCamera.position.set(c ? c.base.x : h.x,eyeY,c ? c.base.z : h.z);
                 this.eyeCamera.rotation.order='YXZ';
-                this.eyeCamera.rotation.set(this.eyePitch??-.055,this.eyeYaw,0);
+                const yaw=c ? Math.atan2(-c.dir.x,-c.dir.z) : this.eyeYaw;
+                // Smooth any necessary turn around an obstacle, and restore the player's unchanged look preference.
+                const blend=this.reduced ? 1 : 1-Math.exp(-10*dt);
+                this.eyeRenderYaw ??= this.eyeYaw;
+                this.eyeRenderYaw+=Math.atan2(Math.sin(yaw-this.eyeRenderYaw),Math.cos(yaw-this.eyeRenderYaw))*blend;
+                // A rider looks down to the foe's chest; keep it clear of the lower battle controls.
+                const pitch=c ? Math.atan2(tileTop+.65-eyeY,c.rest)-.10 : this.eyePitch??-.055;
+                this.eyeRenderPitch ??= this.eyePitch??-.055;
+                this.eyeRenderPitch+=(pitch-this.eyeRenderPitch)*blend;
+                this.eyeCamera.rotation.set(this.eyeRenderPitch,this.eyeRenderYaw,0);
                 this.eyeCamera.updateMatrixWorld();
             }
+            this.renderEyeCombat(now,dt);
+            const mountedEye=eyeEnabled && Boolean(this.combat?.eye) && ebHorseMounted && this.farlandsHorse.visible;
+            if(mountedEye)this.farlandsHorse.visible=false;
             const heroWasVisible=this.hero.group.visible;
             const tagWasHidden=this.heroTag.hidden;
             // FP boat: retain the vessel/horse in the world but prevent near-field
@@ -10615,6 +10666,7 @@ window.addEventListener('load', () => {
                 part[0].material.dispose();part[0].material=part[1];part[0].visible=part[2];
             }
             if(eyeEnabled){this.hero.group.visible=heroWasVisible;this.heroTag.hidden=tagWasHidden;}
+            if(mountedEye)this.farlandsHorse.visible=true;
             this.frame = requestAnimationFrame(next => this.draw(next));
         }
 
@@ -10736,7 +10788,7 @@ window.addEventListener('load', () => {
         // These do not intercept the existing joystick, tap-to-move or interactions.
         let lookDirection=0,lookFrame=0,lookLast=0;
         const stepLook=(time)=>{
-            if(!view?.eyeMode || !lookDirection){lookFrame=0;lookLast=0;return;}
+            if(!view?.eyeMode || gameState.inBattle || !lookDirection){lookFrame=0;lookLast=0;return;}
             const dt=lookLast?Math.min(.25,(time-lookLast)/1000):0;
             lookLast=time;
             view.eyeYaw+=lookDirection*dt*1.65;
@@ -10745,6 +10797,7 @@ window.addEventListener('load', () => {
         for(const [id,dir] of [['eb-look-left',1],['eb-look-right',-1]]){
             const button=document.getElementById(id);
             button.addEventListener('pointerdown',e=>{
+                if(gameState.inBattle)return;
                 e.preventDefault();button.setPointerCapture(e.pointerId);
                 view.eyeYaw+=dir*.12;
                 lookDirection=dir;if(!lookFrame)lookFrame=requestAnimationFrame(stepLook);
@@ -10755,7 +10808,7 @@ window.addEventListener('load', () => {
             button.addEventListener('lostpointercapture',stop);
         }
         window.addEventListener('keydown',e=>{
-            if(!view?.eyeMode || e.repeat || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;
+            if(!view?.eyeMode || gameState.inBattle || e.repeat || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;
             if(e.code==='KeyQ'){view.eyeYaw+=.24;e.preventDefault();}
             if(e.code==='KeyE'){view.eyeYaw-=.24;e.preventDefault();}
         });
