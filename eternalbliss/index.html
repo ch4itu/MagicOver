@@ -10302,6 +10302,7 @@ window.addEventListener('load', () => {
 
         animateActor(model, x, z, y, time, dt, stepping = false, staged = false) {
             const position = model.group.position;
+            const beforeX=position.x,beforeZ=position.z;
             const dx = x - position.x;
             const dz = z - position.z;
             const changed = x !== model.lastX || z !== model.lastZ;
@@ -10353,6 +10354,24 @@ window.addEventListener('load', () => {
                 else position.set(position.x + dx / distance * travel, y, position.z + dz / distance * travel);
             }
             if (!model.body) return;
+            // Solo hero/residents advance a stride only by their real rendered travel, not global time/tile phase.
+            // This changes joint poses only; authoritative locations and the movement interpolation above stay intact.
+            const localGait=ebFarlands.inRealm()&&!sharedWorld.active()&&!gameState.inBattle&&
+                (model===this.hero||model.ebResidentGait)&&!(model===this.hero&&(ebHorseMounted||gameState.sailingMoves>0));
+            if(localGait){
+                const moved=jump||this.reduced?0:Math.hypot(position.x-beforeX,position.z-beforeZ);
+                if(jump||this.reduced){model.gaitPhase=0;model.gaitBlend=0;}
+                model.gaitPhase=((model.gaitPhase||0)+moved*(model===this.hero?2.28:11))%(Math.PI*2);
+                const target=moved>.00001?1:0;
+                model.gaitBlend=(model.gaitBlend||0)+(target-(model.gaitBlend||0))*(1-Math.exp(-14*Math.min(dt,.1)));
+                const phase=model.gaitPhase,b=this.reduced?0:model.gaitBlend,swing=Math.sin(phase)*(model===this.hero ? .44 : .33)*b;
+                model.body.position.y=(1-Math.cos(phase*2))*.016*b+(this.reduced?0:Math.sin(time*2.6+x)*.006*(1-b));
+                model.body.rotation.z=Math.sin(phase)*.025*b;
+                model.legs.forEach((leg,i)=>leg.rotation.x=i%2?swing:-swing);
+                model.arms.forEach((arm,i)=>arm.rotation.x=i%2?-swing:swing);
+                model.ebGaitApplied=true;return;
+            }
+            if(model.ebGaitApplied){model.body.rotation.z=0;model.gaitPhase=model.gaitBlend=0;model.ebGaitApplied=false;}
             const renderTravel = Math.hypot(x - position.x, z - position.z) > .012;
             const walking = !this.reduced && (renderTravel || stepping || time < (model.stepUntil || 0));
             const phase = time * (model === this.hero ? 19 : 13) + x * .83 + z * .21;
@@ -10881,6 +10900,7 @@ window.addEventListener('load', () => {
                 // Remote player poses may be interpolated by the shared-world buffer.
                 // Do not force-snap those poses on every frame: that defeats 3D smoothing.
                 model.ebRemotePlayer = kind === 'remote';
+                model.ebResidentGait=kind==='npc'&&/^rest-resident-[0-6]$/.test(data.realmId||'');
                 if (model !== this.combat?.model) // R15.37: a battle poses its enemy itself
                     this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data && kind !== 'remote');
                 // Real resident, real scheduled location: only the idle hand pose changes while bundling herbs.
