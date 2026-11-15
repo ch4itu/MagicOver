@@ -1,0 +1,8 @@
+const t=require('./browser.cjs');
+(async()=>{const b=await t.launch();try{const p=await t.page(b,undefined,(1767225600+4*480+240)*1000);
+ const stock=await p.evaluate(()=>{const n=npcs.find(n=>n.realmId==='rest-resident-0');gameState.player.x=n.x+1;gameState.player.y=n.y;renderWorld();document.activeElement?.blur();return gameState.inventory.healthPotions;});await p.keyboard.press('Space');await p.click('#eb-herb-start');for(const h of ['Comfrey','Feverfew'])await p.getByRole('button',{name:h,exact:true}).click();
+ await p.evaluate(()=>{window.__realActive=sharedWorld.active;sharedWorld.active=()=>true;});await p.getByRole('button',{name:'Mint',exact:true}).click();
+ t.assert.deepEqual(await p.evaluate(()=>[gameState.inventory.healthPotions,ebFarlands.storyFlag('work-rest-herbs')]),[stock,false]);await p.evaluate(()=>{sharedWorld.active=window.__realActive;closeModal();});
+ const guards=await p.evaluate(()=>{const n=npcs.find(n=>n.realmId==='rest-resident-0');worldClimate.time='18:30';const hours=!ebVillageWork.working(n)&&!ebFarlands.completeHerbLesson(n);ebFarlands.leave();const outside=!ebVillageWork.working(n)&&!ebFarlands.completeHerbLesson(n);return {hours,outside,stock:gameState.inventory.healthPotions};});
+ t.assert.deepEqual(guards,{hours:true,outside:true,stock});t.assert.deepEqual(p.errors,[]);t.record('resident scope/time guards','PASS actual final answer refused under stubbed shared-active scope; completion refused after hours and outside Farlands; no reward/flag. This is not live multiplayer.');console.log('PASS',guards);
+}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});
