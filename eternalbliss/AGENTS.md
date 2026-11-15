@@ -21,6 +21,12 @@ These rules apply only to `eternalbliss/`. R15.56 live baseline: commit `77b0b43
 - Never disguise an untested hotfix as stable. Preserve rollback SHA and exact diff, and stop if a failure could affect saved state or shared-world protocol.
 - Finish a task with concise changes, precise tests newly run (not historical totals), skipped checks and known risks. The user's rule is: **No regressions. No hallucinations. No idea worms.**
 
+## Revenue and monetization policy
+
+- The player experience is free. Revenue, if introduced, comes **only from non-intrusive advertisements** that do not interrupt matches or exploration; see root `README.md` and `FOUNDERS.md`.
+- Do not introduce token or coin sales, entry fees, stakes, wagering, prizes, pay-to-win purchases, login charges, subscriptions, or additional ad SDKs without explicit authorization. No monetization feature is requested by this documentation change.
+- The costs in `FOUNDERS.md` are a Devnet measurement dated 4 November 2026 and must be rechecked before mainnet commitments; never silently treat them as guaranteed prices.
+
 ## Scope and starting point
 
 First address the unverified R15.56 interaction between Mira and nearby residents at the well. Then improve visual quality **one asset or authored location at a time**, on isolated branches. The living-world work must preserve the progress already made at Wayfarer's Rest.
