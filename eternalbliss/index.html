@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
-    <title>EternalBliss · R14.9 Three.js Horse Visibility Repair</title>
+    <title>EternalBliss</title>
     <style data-source="styles.css">
 /* ============================================
    ⚔️ ETERNALBLISS RPG - ENHANCED STYLES
@@ -2013,7 +2013,31 @@ body.eb-capture-clean .ui-panel,
 body.eb-capture-clean #eb-hero-open,
 body.eb-capture-clean #eb-menu-open,
 body.eb-capture-clean .eb-tools,
-body.eb-capture-clean #eb-scene-labels { display:none!important; }
+body.eb-capture-clean #eb-scene-labels,
+body.eb-capture-clean #eb-eye-reticle,
+body.eb-capture-clean #eb-eye-actions,
+body.eb-capture-clean #eb-immersive-look {display:none!important;}
+/* FP controls do not interfere with clean-view mode. */
+[data-eb-immersive="first"] #eb-joystick {width:118px;height:118px;touch-action:none;}
+[data-eb-immersive="first"] #eb-joystick::after {
+ content:"MOVE";position:absolute;left:50%;bottom:-20px;transform:translateX(-50%);
+ font:700 10px system-ui;letter-spacing:.13em;color:#fff4da;pointer-events:none;
+}
+[data-eb-immersive="first"] #eb-eye-reticle{font-size:20px;opacity:.75;}
+#eb-eye-reticle[hidden],#eb-eye-actions[hidden]{display:none!important}
+#eb-immersive-toggle.eb-solo-only-off{display:none!important}
+[data-eb-eye-battle] :is(#eb-eye-reticle,#eb-eye-actions,#eb-immersive-look){display:none!important}
+#eb-eye-reticle{position:absolute;z-index:9;left:50%;top:49%;transform:translate(-50%,-50%);
+ pointer-events:none;color:#f8e9c7;text-shadow:0 1px 5px #10252a;font:26px system-ui}
+#eb-eye-actions{position:absolute;z-index:13;right:14px;bottom:154px;pointer-events:auto}
+#eb-eye-use{border:1px solid #cbb482;border-radius:18px;padding:12px 16px;min-height:48px;
+ background:#19383ee8;color:#fff3d5;font-weight:700;touch-action:manipulation}
+[data-eb-immersive="first"] #eb-scene{touch-action:none}
+[data-eb-immersive="first"] #eb-immersive-look{bottom:75px;right:10px}
+@media(max-width:600px){
+ [data-eb-immersive="first"] #eb-eye-actions{right:12px;bottom:184px}
+ [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
+}
 /* D-pad stays usable while filming. */
 body.eb-capture-clean #mobile-controls { display:block!important; }
 .location-info.eb-controls-collapsed #eb-world-actions,
@@ -3018,7 +3042,8 @@ function renderAllEntities() {
             health_potion: '🧪',
             mana_potion: '🔮',
             key: '🗝️',
-            treasure: '📦'
+            treasure: '📦',
+            vault_relic: '🔔'
         };
         itemEl.textContent = Object.hasOwn(itemEmojis, item.type) ? itemEmojis[item.type] : '💰';
         
@@ -3315,6 +3340,10 @@ function canMoveTo(x, y) {
         return false;
     }
 
+    if (tileType === 'door' && buildingInterior?.questDungeon) {
+        ebStory.bumpGate(); // R15.55
+        return false;
+    }
     if (tileType === 'door') {
         if (gameState.inventory.keys > 0) {
             gameState.inventory.keys--;
@@ -3492,6 +3521,10 @@ function checkItemCollectionOptimized() {
             Math.pow(gameState.player.y - item.y, 2)
         );
         if (distance < 0.8) {
+            if (item.type==='vault_relic' && !ebFarlands.storyFlag('quest-vault-guardian')) {
+                showFloatingText('Defeat the Archive Warden first',item.x*32+16,item.y*32,'#fbbf24');
+                break;
+            }
             collectItem(i);
             break;
         }
@@ -3501,6 +3534,7 @@ function checkItemCollectionOptimized() {
 function collectItem(index) {
     const item = items[index];
     ebFarlands.consume(item);
+    if (item.realmId==='quest-vault-key') ebStory.movePin('mill');
     
     switch(item.type) {
         case 'gold':
@@ -3518,7 +3552,14 @@ function collectItem(index) {
             break;
         case 'key':
             gameState.inventory.keys += item.value;
-            showFloatingText(`+${item.value} Key!`, item.x * 32 + 16, item.y * 32, '#fbbf24');
+            showFloatingText(item.realmId==='quest-vault-key' ? 'Found: Old Tollhouse ward key' : `+${item.value} Key!`,
+                item.x * 32 + 16, item.y * 32, '#fbbf24');
+            if(item.realmId==='quest-vault-key') ebFarlands.refreshStoryHint();
+            break;
+        case 'vault_relic':
+            if (buildingInterior?.questDungeon && item.realmId==='quest-vault-relic') {
+                showFloatingText('Recovered the Harvest Bell!',item.x*32+16,item.y*32,'#fbbf24');
+            }
             break;
         default:
             gameState.inventory.gold += item.value;
@@ -3532,6 +3573,8 @@ function collectItem(index) {
     
     items.splice(index, 1);
     updateUI();
+    if(item.realmId==='quest-vault-key') ebFarlands.saveStoryNow();
+    if(item.realmId==='quest-vault-relic'){ebFarlands.markStory('quest-vault-relic');ebStory.movePin('toll');}
     renderWorld();
 }
 
@@ -3590,9 +3633,12 @@ function escapeMapText(value) {
 
 function talkToNPC(npc) {
     document.getElementById('modalTitle').textContent = npc.name;
+    const storyLine = npc.name==='Mira, the Cartographer' && ebFarlands.surface() && !sharedWorld.active()
+        ? ebStory.mira() : '';
     document.getElementById('modalContent').innerHTML = `
         <div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>
         <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(npc.dialogue)}"</div>
+        ${storyLine}
         ${typeof ebJournal !== 'undefined' ? ebJournal.hint(npc) : ''}
         <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
             Press ESC or click Close to continue your journey
@@ -3609,6 +3655,9 @@ function interactWithBuilding(building) {
     
     let content = `<div style="font-size: 32px; margin-bottom: 20px;">🏛️</div>`;
     if (building.realmId) content += `<p style="margin-bottom: 12px;">${escapeMapText(building.description)}</p>`;
+    if (ebStory.isVault(building) && ebFarlands.surface()) {
+        content += `<p style="margin-bottom:12px;">Beneath the broken tollhouse, an iron door bars the old harvest archive. The key lies near Millbend. The Archive Warden still guards the inner chamber.</p>`;
+    }
     
     switch (building.type) {
         case 'inn':
@@ -3686,7 +3735,7 @@ function interactWithBuilding(building) {
         const enter = document.createElement('button');
         enter.type = 'button';
         enter.className = 'btn btn-primary eb-enter-room';
-        enter.textContent = 'Enter building';
+        enter.textContent = ebStory.isVault(building) ? 'Descend into the vault' : 'Enter building';
         enter.addEventListener('click', () => enterBuilding(building));
         document.getElementById('modalContent').prepend(enter);
     }
@@ -4046,7 +4095,10 @@ function enemyTurn() {
 
 function enemyDefeated() {
     const enemy = gameState.currentEnemy;
-    ebFarlands.consume(enemy);
+    // R15.55: the vault is an interior, where consume() records nothing. The Warden's fall is a story flag.
+    if (enemy.realmId==='quest-vault-guardian' && buildingInterior?.questDungeon) ebFarlands.markStory('quest-vault-guardian');
+    else ebFarlands.consume(enemy);
+
     gameState.player.xp += enemy.xpReward;
     gameState.inventory.gold += enemy.goldReward;
     gameState.stats.enemiesDefeated++;
@@ -4077,6 +4129,9 @@ function playerDefeated() {
     gameState.inventory.gold = Math.max(0, Math.floor(gameState.inventory.gold * 0.85));
 
     setTimeout(() => {
+        // Returning from a solo dungeon must restore the exterior map first.
+        // The original non-Farlands/shared-world defeat path is unchanged.
+        if (buildingInterior?.questDungeon) closeBuildingInterior();
         const realm=ebFarlands.surface();
         const point=realm ? ebFarlands.rescuePoint() : {x:15,y:10};
         gameState.player.x = point.x;
@@ -4094,6 +4149,7 @@ function playerDefeated() {
 }
 
 function endBattle(victory) {
+    const questWin = victory && gameState.currentEnemy?.realmId==='quest-vault-guardian';
     gameState.inBattle = false;
     gameState.currentEnemy = null;
     document.getElementById('battleModal').style.display = 'none';
@@ -4101,6 +4157,7 @@ function endBattle(victory) {
     updateUI();
     renderWorld();
     centerCameraOnPlayer();
+    if(questWin)ebFarlands.saveStoryNow();
     
     if (victory) {
         createParticleEffect(gameState.player.x * 32 + 16, gameState.player.y * 32, '#10b981');
@@ -4332,6 +4389,41 @@ const movementKeys = {
     w: 'up', arrowup: 'up', s: 'down', arrowdown: 'down',
     a: 'left', arrowleft: 'left', d: 'right', arrowright: 'right'
 };
+// First-person inputs are camera-relative; the game still executes its original
+// discrete cardinal/diagonal tile steps. No world-state or network rule changes.
+let ebEyeDirectionProvider = null;
+function ebRelativeDirections(directions) {
+    if (!ebEyeDirectionProvider || document.documentElement.dataset.ebImmersive!=='first')
+        return directions;
+    const yaw=ebEyeDirectionProvider();
+    if(!Number.isFinite(yaw))return directions;
+    let forward=0,strafe=0;
+    for(const d of directions){
+        if(d==='up')forward+=1;
+        if(d==='down')forward-=1;
+        if(d==='right')strafe+=1;
+        if(d==='left')strafe-=1;
+    }
+    // Three.js camera forward=(-sin yaw, -cos yaw); grid north is negative Y.
+    const x=-Math.sin(yaw)*forward+Math.cos(yaw)*strafe;
+    const y=-Math.cos(yaw)*forward-Math.sin(yaw)*strafe;
+    if(Math.abs(x)<.001&&Math.abs(y)<.001){ebRelativeDirections.lastOctant=null;return directions;}
+    // 8 sectors in solo mode; shared rollup supports cardinal actions only.
+    const angle=Math.atan2(x,-y);
+    const rawOctant=angle/(Math.PI/4);
+    const nearest=Math.round(rawOctant);
+    const prior=ebRelativeDirections.lastOctant;
+    const stable=(prior!==null && Math.abs(rawOctant-prior)<.62) ? prior : nearest;
+    const octant=((stable%8)+8)%8;
+    ebRelativeDirections.lastOctant=stable;
+    const sectors=[['up'],['up','right'],['right'],['down','right'],
+      ['down'],['down','left'],['left'],['up','left']];
+    const chosen=sectors[octant];
+    if(sharedWorld.active()&&chosen.length===2)
+        return Math.abs(x)>=Math.abs(y)?[x>0?'right':'left']:[y>0?'down':'up'];
+    return chosen;
+}
+ebRelativeDirections.lastOctant=null;
 const heldMovement = new Map();
 let movementTimer = 0;
 let walkRoute = null;
@@ -4375,16 +4467,18 @@ function repeatMovement() {
         return;
     }
     const input = [...heldMovement.values()].at(-1);
+    if(!input)ebRelativeDirections.lastOctant=null;
     if (input) {
-        if (input.directions.length === 2 && !sharedWorld.active()) {
+        const directions=ebRelativeDirections(input.directions);
+        if (directions.length === 2 && !sharedWorld.active()) {
             // One actual diagonal grid step in solo mode, not a zig-zag.
-            const a = moveDirections[input.directions[0]], b = moveDirections[input.directions[1]];
+            const a = moveDirections[directions[0]], b = moveDirections[directions[1]];
             movePlayer(a[0] + b[0], a[1] + b[1]);
         } else {
             // R14.3: shared rollup supports cardinal steps only. Never alternate
             // axes for a held diagonal: that produces the unwanted zig-zag.
             // The joystick selects a stable dominant cardinal direction instead.
-            movePlayer(...moveDirections[input.directions[0]]);
+            movePlayer(...moveDirections[directions[0]]);
         }
     } else if (walkRoute) {
         const { x, y } = gameState.player;
@@ -4586,7 +4680,12 @@ function setupMobileControls() {
         button.addEventListener('click', event => {
             if (event.detail === 0 && !movementBlocked()) {
                 releaseMovement();
-                movePlayer(...moveDirections[direction]);
+                const relative=ebRelativeDirections([direction]);
+                const a=moveDirections[relative[0]];
+                if(relative.length===2&&!sharedWorld.active()){
+                    const b=moveDirections[relative[1]];
+                    movePlayer(a[0]+b[0],a[1]+b[1]);
+                } else movePlayer(...a);
             }
         });
         button.addEventListener('contextmenu', event => event.preventDefault());
@@ -5151,6 +5250,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     display: none;
 }
 #eb-scene { z-index: 1; }
+/* R15.38: optional eye-level camera, no gameplay or movement rule changes. */
+#eb-immersive-look[hidden] {display:none!important;}
+#eb-immersive-look {position:absolute;z-index:12;right:12px;bottom:82px;display:flex;
+ align-items:center;gap:8px;padding:6px 8px;border-radius:24px;background:#142b2bd9;
+ color:#e7dcc3;font:11px system-ui,sans-serif;pointer-events:auto;}
+#eb-immersive-look button {min-width:46px;min-height:46px;border:1px solid #b9a17a;
+ background:#274544;color:#fff;border-radius:50%;font-size:22px;touch-action:none;}
+[data-eb-immersive="first"] #eb-scene-labels {display:none!important;}
+@media(max-width:600px){#eb-immersive-look{right:8px;bottom:110px;}}
 #eb-scene-labels {
     z-index: 3;
     pointer-events: none;
@@ -6047,6 +6155,16 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
     .ui-panel .stat-block #quickInfo1, .ui-panel .stat-block #quickInfo2 { font-size: 9px !important; }
 }
 
+/* R15.55: on phones, overhead, the first-person switch is its icon and sits in the bottom row with 2D view and
+   Interact; the zoom pair sits above it. Only the buttons take taps, not the gaps between them. */
+@media (max-width: 600px) {
+    html:not([data-eb-immersive="first"]) #eb-immersive-toggle .eb-eye-word { display: none; }
+    #eb-immersive-toggle { min-width: 44px; }
+    .eb-tools { pointer-events: none; }
+    .eb-tools button { pointer-events: auto; }
+    html[data-eb-view="3d"]:not([data-eb-immersive="first"]) .eb-tools::after { content: ''; flex-basis: 100%; order: 1; }
+    html[data-eb-view="3d"]:not([data-eb-immersive="first"]) .eb-tools > :not(#eb-zoom) { order: 2; }
+}
 /* The Farlands chart uses the same ink and brass colors as the existing menu. */
 .eb-menu-options #eb-farlands-option {
     border-color: #9c8059;
@@ -6363,12 +6481,22 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
                 <div class="world-grid" id="worldGrid"></div><div id="eb-sky-tint" aria-hidden="true"></div>
         <canvas id="eb-scene" aria-label="EternalBliss world in 3D"></canvas>
         <div id="eb-scene-labels"></div>
+        <div id="eb-eye-reticle" hidden aria-hidden="true"><span>+</span></div>
+        <div id="eb-eye-actions" hidden aria-label="First-person actions">
+            <button type="button" id="eb-eye-use" aria-label="Interact with object ahead">✋ Use</button>
+        </div>
+        <div id="eb-immersive-look" hidden aria-label="First-person look controls">
+            <button type="button" id="eb-look-left" aria-label="Look left">↶</button>
+            <span>LOOK</span>
+            <button type="button" id="eb-look-right" aria-label="Look right">↷</button>
+        </div>
         <div class="eb-tools" aria-label="View controls">
             <div id="eb-zoom" hidden>
                 <button type="button" id="eb-zoom-out" aria-label="Zoom out">−</button>
                 <button type="button" id="eb-zoom-in" aria-label="Zoom in">+</button>
             </div>
             <button type="button" id="eb-view-toggle" title="Switch between 2D and 3D">3D view</button>
+            <button type="button" id="eb-immersive-toggle" aria-pressed="false" title="Switch between overhead and first-person view" aria-label="First-person view" hidden>👁<span class="eb-eye-word"> First person</span></button>
             <button type="button" id="eb-interact">Interact</button>
         </div>
         <div id="mobile-controls">
@@ -8348,6 +8476,20 @@ const EternalBlissArt = (() => {
                 box(group, .43, .11, .06, kind === 'shop' ? 0x416c51 : 0x833e31, 0, .895, .465);
                 box(group, .19, .021, .022, brass, 0, .895, .507);
             }
+            // Readable frontage: timber beams, lanterns and a sheltered threshold.
+            // Decorative only; no new obstacles or changed entry coordinates.
+            for (const x of [-width*.44,width*.44]) {
+                box(group,.055,.74,.060,0x674735,x,.52,.438);
+                box(group,.12,.09,.10,0x9c784e,x,.87,.445);
+            }
+            box(group,width+.06,.065,.095,0x674735,0,.78,.453);
+            box(group,.42,.055,.22,0x96806a,0,.095,.56);
+            if(kind==='inn'||kind==='shop') {
+                for(const x of [-width*.44,width*.44]) {
+                    box(group,.10,.18,.10,0x70583d,x,.68,.51);
+                    box(group,.065,.11,.068,0xf4c777,x,.65,.515,0xe6a14d);
+                }
+            }
         }
         const [width,depth,height] = {
             castle:[1.56,1.46,1.92], temple:[1.31,1.42,1.63],
@@ -8656,7 +8798,13 @@ const EternalBlissArt = (() => {
 
     function item(type) {
         const group = new T.Group();
-        if (type === 'treasure') {
+        if (type === 'vault_relic') {
+            // A distinct harvest bell, not a generic coin.
+            cylinder(group,.105,.17,.23,10,0xd9ad57,0,.22,0,0x997331);
+            cylinder(group,.168,.168,.045,10,0xf2cf75,0,.11);
+            cylinder(group,.035,.035,.085,8,0x744b2a,0,.065);
+            cylinder(group,.04,.04,.055,8,0xe6bc70,0,.37);
+        } else if (type === 'treasure') {
             box(group, .32, .20, .24, 0x75513b, 0, .10);
             box(group, .34, .07, .25, 0x956646, 0, .223);
             box(group, .065, .075, .028, 0xebbf70, 0, .172, .13);
@@ -8764,7 +8912,7 @@ window.addEventListener('load', () => {
         Winter: { grass: 0xb9c9c5, forest: 0x7e9693, crowns: [0x45675d, 0x748c82, 0xb5c8c1], sprouts: 0xa4b8ac, shore: 0xa5ada2, mountain: 0xa1afae }
     };
     const sky = {
-        night: new T.Color(0x263e51), day: new T.Color(0x437c76), dusk: new T.Color(0x7a605d),
+        night: new T.Color(0x263e51), day: new T.Color(0x437c76), farlandsDay: new T.Color(0x83b6d3), dusk: new T.Color(0x7a605d),
         moon: new T.Color(0xa8c8ff), sun: new T.Color(0xffdda6), sunset: new T.Color(0xffa872),
         nightHemi: new T.Color(0xb7cce8), dayHemi: new T.Color(0xe3efe3),
         nightSea: new T.Color(0x173547), daySea: new T.Color(0x216e73),
@@ -8802,7 +8950,10 @@ window.addEventListener('load', () => {
             uniforms: {
                 time: { value: 0 },
                 dark: { value: new T.Color(0x216e73) },
-                pale: { value: new T.Color(0x58a19a) }
+                pale: { value: new T.Color(0x58a19a) },
+                eyeBlend: { value: 0 },
+                eyeOrigin: { value: new T.Vector2() },
+                horizonColor: { value: new T.Color(0x437c76) }
             },
             vertexShader: [
                 'varying vec2 surface;',
@@ -8816,6 +8967,9 @@ window.addEventListener('load', () => {
                 'uniform float time;',
                 'uniform vec3 dark;',
                 'uniform vec3 pale;',
+                'uniform float eyeBlend;',
+                'uniform vec2 eyeOrigin;',
+                'uniform vec3 horizonColor;',
                 'varying vec2 surface;',
                 'void main(){',
                 '  vec2 p = surface;',
@@ -8825,6 +8979,11 @@ window.addEventListener('load', () => {
                 '  float glint = pow(max(0.0, detail*.54 + crosswave*.46), 10.0);',
                 '  vec3 color = mix(dark,pale,clamp(.43 + swell*.26 + detail*.028,0.,1.));',
                 '  color += vec3(.35,.31,.19)*glint*.28;',
+                // In FP, fade only distant ocean into the ACTUAL time-of-day sky.
+                // Near water, rivers and sailing remain unchanged.
+                '  float distanceFromEye = distance(surface,eyeOrigin);',
+                '  float horizonFade = eyeBlend*smoothstep(18.0,41.0,distanceFromEye);',
+                '  color = mix(color,horizonColor,horizonFade);',
                 '  gl_FragColor = vec4(color,1.0);',
                 '  #include <tonemapping_fragment>',
                 '  #include <encodings_fragment>',
@@ -8886,6 +9045,9 @@ window.addEventListener('load', () => {
             this.scene = new T.Scene();
             this.scene.background = new T.Color(0x437c76);
             this.camera = new T.OrthographicCamera(-1, 1, 1, -1, .1, 110);
+            this.eyeCamera = new T.PerspectiveCamera(72, 1, .055, 110);
+            this.eyeYaw = 0;
+            this.eyeMode = false;
             this.mobile = matchMedia('(pointer: coarse), (max-width: 768px)').matches;
             this.renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: this.mobile ? 'default' : 'high-performance' });
             this.renderer.outputEncoding = T.sRGBEncoding;
@@ -9076,6 +9238,8 @@ window.addEventListener('load', () => {
             this.renderer.setPixelRatio(ratio);
             this.renderer.setSize(this.width, this.height, false);
             const aspect = this.width / this.height;
+            this.eyeCamera.aspect = aspect;
+            this.eyeCamera.updateProjectionMatrix();
             const halfHeight = (aspect < .7 ? 7.1 : 7.5) / this.zoom;
             this.camera.left = -halfHeight * aspect;
             this.camera.right = halfHeight * aspect;
@@ -9106,7 +9270,7 @@ window.addEventListener('load', () => {
                 }
                 if (this.room) this.scene.add(this.roomDecor);
             }
-            const radius = Math.max(this.mobile ? 17 : 25, this.visibleRadius() + 2);
+            const radius = Math.max(this.eyeMode ? (this.mobile ? 48 : 60) : (this.mobile ? 17 : 25), this.visibleRadius() + 2);
             const x0 = Math.floor(gameState.player.x / chunkSize) * chunkSize - radius;
             const z0 = Math.floor(gameState.player.y / chunkSize) * chunkSize - radius;
             const width = gameState.world.width;
@@ -9115,7 +9279,7 @@ window.addEventListener('load', () => {
             const top = Math.max(0, z0);
             const right = Math.min(width, x0 + radius * 2 + chunkSize);
             const bottom = Math.min(height, z0 + radius * 2 + chunkSize);
-            const signature = [left, top, right, bottom, minimapTerrainRevision, buildingFootprintRevision, worldClimate.season].join(',');
+            const signature = [left, top, right, bottom, minimapTerrainRevision, buildingFootprintRevision, worldClimate.season, this.eyeMode].join(',');
             if (signature === this.terrainSignature) return;
 
             this.terrainSignature = signature;
@@ -9195,10 +9359,14 @@ window.addEventListener('load', () => {
                     } else if (type==='forest' && biome?.flora==='orchard' && r>.24) {
                         // orchard trees grow by the same proportion as forest trees
                         const h=(.74+r*.48)*1.3;
-                        logs.push([x+offset,.40,z,.084,.74,.096,rotation,0x7c573d]);
+                        // The old orchard trunk stayed at 0.74 units while the
+                        // FP canopy rose to 3-4 units: crowns appeared airborne.
+                        // Keep the trunk rooted and its top inside the canopy.
+                        const trunkHeight=h*.79;
+                        logs.push([x+offset,tileTop+trunkHeight*.5,z,.12,trunkHeight,.13,rotation,0x7c573d]);
                         const blooms=worldClimate.season==='Spring' ? 0xd59680 : biome.forest;
-                        stones.push([x+offset,h,z,.47,.32,.49,rotation,blooms]);
-                        stones.push([x+offset-.25,h-.07,z-.23,.31,.22,.35,rotation,season.crowns[1]]);
+                        stones.push([x+offset,tileTop+h*.83,z,.47,.32,.49,rotation,blooms]);
+                        stones.push([x+offset-.25,tileTop+h*.77,z-.23,.31,.22,.35,rotation,season.crowns[1]]);
                     } else if (type === 'forest' && (!biome || r>.20)) {
                         // trees stand well above the heroes walking among them
                         const h = (1.02 + .63 * r) * 1.3;
@@ -9233,8 +9401,16 @@ window.addEventListener('load', () => {
                         }
                         if (r > .96) stones.push([x + .30, .11, z - .32, .105, .075, .115, rotation, 0x9ca18b]);
                     } else if (type === 'door') {
-                        logs.push([x - .35, .45, z, .11, .82, .11, 0, 0x8e6447]);
-                        logs.push([x + .35, .45, z, .11, .82, .11, 0, 0x8e6447]);
+                        if(this.room?.questDungeon) {
+                            // Iron bars, crosspieces and a lintel only in the vault.
+                            roomBlocks.push([x,tileTop+.78,z,.92,.13,.14,0,0x786d60]);
+                            roomBlocks.push([x,tileTop+.14,z,.92,.12,.14,0,0x786d60]);
+                            for (let k=-2;k<=2;k++)
+                                roomBlocks.push([x+k*.19,tileTop+.45,z,.075,.76,.13,0,0x525861]);
+                        } else {
+                            logs.push([x - .35, .45, z, .11, .82, .11, 0, 0x8e6447]);
+                            logs.push([x + .35, .45, z, .11, .82, .11, 0, 0x8e6447]);
+                        }
                     }
                 }
             }
@@ -9268,7 +9444,7 @@ window.addEventListener('load', () => {
 
         syncActors() {
             const player = gameState.player;
-            const radius = this.visibleRadius();
+            const radius = this.eyeMode ? Math.max(48,this.visibleRadius()) : this.visibleRadius();
             const visible = new Set();
             this.targets = [];
             for (const [kind, group] of [
@@ -9743,7 +9919,7 @@ window.addEventListener('load', () => {
         }
 
         screenPoint(x, y, z) {
-            const point = this.projection.set(x, y, z).project(this.camera);
+            const point = this.projection.set(x, y, z).project(this.eyeActive() ? this.eyeCamera : this.camera);
             return [(point.x + 1) * this.width / 2, (1 - point.y) * this.height / 2, point.z];
         }
 
@@ -9790,11 +9966,83 @@ window.addEventListener('load', () => {
             const bounds = this.canvas.getBoundingClientRect();
             this.pointer.set(2 * (event.clientX - bounds.left) / bounds.width - 1,
                 1 - 2 * (event.clientY - bounds.top) / bounds.height);
-            this.ray.setFromCamera(this.pointer, this.camera);
-            return this.ray.intersectObjects(this.targets || [], false)[0]?.object.userData.record || null;
+            this.ray.setFromCamera(this.eyeMode ? new T.Vector2(0,0) : this.pointer,
+                this.eyeMode ? this.eyeCamera : this.camera);
+            const hit=this.ray.intersectObjects(this.targets || [], false)[0];
+            if(this.eyeMode && (!hit || hit.distance>4.4))return null;
+            return hit?.object.userData.record || null;
+        }
+
+        // R15.55: first person is drawn except while a battle is staged (the live battle camera shows the duel).
+        eyeActive() { return this.eyeMode && !this.combat; }
+
+        useEyeTarget() {
+            if(!this.active || !this.eyeMode || gameState.inBattle)return;
+            this.ray.setFromCamera(new T.Vector2(0,0),this.eyeCamera);
+            const hits=this.ray.intersectObjects(this.targets||[],false);
+            const hit=hits.find(h=>h.distance<=4.4);
+            if(hit?.object?.userData?.record){
+                this.activate(hit.object.userData.record);
+                return;
+            }
+            // Large touch targets: find the closest reachable object inside
+            // a narrow forward cone, even when its pick box is below eye level.
+            const origin=this.eyeCamera.position;
+            const forward=new T.Vector3(0,0,-1).applyQuaternion(this.eyeCamera.quaternion);
+            let best=null,bestScore=Infinity;
+            for(const record of this.actors.values()){
+                if(record.kind==='remote'||record.kind==='item')continue;
+                const pos=record.model.group.position;
+                const v=new T.Vector3(pos.x-origin.x,Math.max(.6,record.model.height*.55)-origin.y,pos.z-origin.z);
+                const distance=v.length();
+                if(distance>3.4||distance<.01)continue;
+                const dot=v.normalize().dot(forward);
+                if(dot<.72)continue;
+                const score=distance+(1-dot)*5;
+                if(score<bestScore){best=record;bestScore=score;}
+            }
+            if(best){this.activate(best);return;}
+            // Only use a vehicle when the player actually aims at it. Proximity
+            // alone must never override a building, NPC or other target.
+            if(ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior){
+                const player=gameState.player;
+                const within=(pos,r)=>Math.hypot(player.x-pos.x,player.y-pos.z)<=r;
+                const aimed=mesh=>mesh?.visible&&this.ray.intersectObject(mesh,true)
+                    .some(hit=>hit.distance<=5.5);
+                if(gameState.sailingMoves>0){
+                    if(aimed(this.ship))this.canvas.dispatchEvent(new CustomEvent('eb-world-vehicle',
+                        {detail:{type:'dock'}}));
+                    else interact();
+                    return;
+                }
+                const horse=ebFarlands.horseState?.();
+                if(horse?.owned&&aimed(this.farlandsHorse)&&within(this.farlandsHorse.position,3.5)){
+                    this.canvas.dispatchEvent(new CustomEvent('eb-world-vehicle',
+                        {detail:{type:'horse'}}));return;
+                }
+                const parked=window.__ebParkedBoat;
+                if(parked&&aimed(this.parkedShip)&&Math.hypot(player.x-parked.x,player.y-parked.y)<4.5){
+                    this.canvas.dispatchEvent(new CustomEvent('eb-world-vehicle',
+                        {detail:{type:'boat',x:parked.x,y:parked.y}}));return;
+                }
+                for(const boat of [...this.coastalBoats.values(),...this.harborVessels]){
+                    if(aimed(boat.model)&&boat.position&&
+                        Math.hypot(player.x-boat.position.x,player.y-boat.position.y)<4.5){
+                        this.canvas.dispatchEvent(new CustomEvent('eb-world-vehicle',
+                            {detail:{type:'boat',x:boat.position.x,y:boat.position.y}}));return;
+                    }
+                }
+            }
+            interact(); // use established proximity-based world interaction
+
         }
 
         pick(event) {
+            if(this.eyeMode){
+                if(performance.now()<(this.suppressEyeClickUntil||0))return;
+                this.useEyeTarget();
+                return;
+            }
             if (this.active && ebFarlands.surface() && !sharedWorld.active() && !buildingInterior) {
                 const bounds=this.canvas.getBoundingClientRect();
                 this.pointer.set(2*(event.clientX-bounds.left)/bounds.width-1,
@@ -9852,8 +10100,18 @@ window.addEventListener('load', () => {
             this.sun.color.copy(sky.moon).lerp(sky.sun, light).lerp(sky.sunset, warmth * .65);
             this.hemisphere.intensity = .82 + .50 * light;
             this.hemisphere.color.copy(sky.nightHemi).lerp(sky.dayHemi, light);
-            this.scene.background.copy(sky.night).lerp(sky.day, light).lerp(sky.dusk, warmth * .42);
+            this.scene.background.copy(sky.night).lerp(ebFarlands.surface()?sky.farlandsDay:sky.day,light).lerp(sky.dusk, warmth * .42);
             if (indoors) this.scene.background.set(0x262c28);
+            // Keep sky, distance haze and sea horizon synchronized with the
+            // existing day/night climate. No independent weather clock.
+            if(this.eyeActive() && !indoors){
+                if(!this.scene.fog)this.scene.fog=new T.Fog(this.scene.background.clone(),26,62);
+                this.scene.fog.color.copy(this.scene.background);
+            }else this.scene.fog=null;
+            const horizon=this.water.material.uniforms;
+            horizon.eyeBlend.value=this.eyeActive() && !indoors ? 1 : 0;
+            horizon.eyeOrigin.value.set(gameState.player.x,gameState.player.y);
+            horizon.horizonColor.value.copy(this.scene.background);
             this.water.visible = !indoors;
             const water = this.water.material.uniforms;
             water.dark.value.copy(sky.nightSea).lerp(sky.daySea, light);
@@ -10126,6 +10384,10 @@ window.addEventListener('load', () => {
             this.project(this.heroTag,here.x,here.y+this.hero.height+.19,here.z,labels);
             for (const record of this.actors.values()) {
                 const { data, model, kind, label } = record;
+                // Original/shared world scaling remains as before. Only
+                // Farlands buildings preserve art.building() footprint scale.
+                if(kind==='building' && !buildingInterior && !ebFarlands.surface())
+                    model.group.scale.setScalar(this.eyeMode ? 1.28 : 1);
                 if (model.wheel && !this.reduced) model.wheel.rotation.z=time*.78;
                 const lift = kind === 'item' && !this.reduced ? .055 * Math.sin(time * 3 + data.x) + .06 : 0;
                 const pose = kind === 'building' ? buildingCentre(data) : sharedWorld.actorPose(data,now);
@@ -10156,7 +10418,46 @@ window.addEventListener('load', () => {
 
             this.walkTarget.visible = Boolean(walkRoute);
             if (walkRoute) this.walkTarget.position.set(walkRoute.x, tileTop + .018, walkRoute.y);
-            this.renderer.render(this.scene, this.camera);
+            // Eye-level camera (R15.38) shares the same scene, map, collisions, actor state, interior renderer
+            // and movement controls. It never moves the player. R15.55: a staged battle is shown by the battle camera.
+            const eyeEnabled=this.eyeActive();
+            const eyeBattle=this.eyeMode && !eyeEnabled;
+            if (eyeBattle!==this.eyeBattle) document.documentElement.toggleAttribute('data-eb-eye-battle',this.eyeBattle=eyeBattle);
+            if (eyeEnabled) {
+                const h=this.hero.group.position;
+                const eyeY=h.y+(afloat?.90:1.08);
+                this.eyeCamera.position.set(h.x,eyeY,h.z);
+                this.eyeCamera.rotation.order='YXZ';
+                this.eyeCamera.rotation.set(this.eyePitch??-.055,this.eyeYaw,0);
+                this.eyeCamera.updateMatrixWorld();
+            }
+            const heroWasVisible=this.hero.group.visible;
+            const tagWasHidden=this.heroTag.hidden;
+            // FP boat: retain the vessel/horse in the world but prevent near-field
+            // sail/deck and horse from occupying the entire view.
+            const boatEye=eyeEnabled&&afloat;
+            const boatParts=[];
+            if(boatEye){
+                this.ship.traverse(node=>{
+                    if(node.isMesh && node.material){
+                        boatParts.push([node,node.material,node.visible]);
+                        const mat=node.material.clone();
+                        mat.transparent=true;mat.opacity=.20;mat.depthWrite=false;
+                        node.material=mat;
+                    }
+                });
+                if(this.farlandsHorse.visible){
+                    this.farlandsHorse.visible=false;
+                    boatParts.push(['horse',true]);
+                }
+            }
+            if(eyeEnabled){this.hero.group.visible=false;this.heroTag.hidden=true;}
+            this.renderer.render(this.scene,eyeEnabled?this.eyeCamera:this.camera);
+            if(boatEye)for(const part of boatParts){
+                if(part[0]==='horse'){this.farlandsHorse.visible=part[1];continue;}
+                part[0].material.dispose();part[0].material=part[1];part[0].visible=part[2];
+            }
+            if(eyeEnabled){this.hero.group.visible=heroWasVisible;this.heroTag.hidden=tagWasHidden;}
             this.frame = requestAnimationFrame(next => this.draw(next));
         }
 
@@ -10182,7 +10483,21 @@ window.addEventListener('load', () => {
         const layer = document.getElementById('eb-scene-labels');
         const toggle = document.getElementById('eb-view-toggle');
         const controls = document.getElementById('eb-zoom');
+        const immersiveButton=document.getElementById('eb-immersive-toggle');
+        const lookControls=document.getElementById('eb-immersive-look');
         let view;
+        function immersive(enabled){
+            if(!view)return;
+            view.eyeMode=Boolean(enabled);
+            root.dataset.ebImmersive=enabled?'first':'overhead';
+            immersiveButton.setAttribute('aria-pressed',String(Boolean(enabled)));
+            immersiveButton.innerHTML=enabled?'◈ Overhead':'👁<span class="eb-eye-word"> First person</span>';
+            immersiveButton.setAttribute('aria-label',enabled?'Overhead view':'First-person view');
+            lookControls.hidden=!enabled;
+            document.getElementById('eb-eye-reticle').hidden=!enabled;
+            document.getElementById('eb-eye-actions').hidden=!enabled;
+            controls.hidden=enabled || root.dataset.ebView!=='3d';
+        }
 
         function display(mode) {
             const previous = root.dataset.ebView;
@@ -10195,7 +10510,9 @@ window.addEventListener('load', () => {
             }
             toggle.textContent = mode === '3d' ? '2D view' : '3D view';
             toggle.setAttribute('aria-label', mode === '3d' ? 'Switch to 2D view' : 'Switch to 3D view');
-            controls.hidden = mode !== '3d';
+            if(mode!=='3d')immersive(false);
+            immersiveButton.hidden=mode!=='3d';
+            controls.hidden = mode !== '3d' || Boolean(view?.eyeMode);
             view?.setActive(mode === '3d');
         }
 
@@ -10209,6 +10526,7 @@ window.addEventListener('load', () => {
 
         try {
             view = new WorldView(canvas, layer, world);
+            ebEyeDirectionProvider=()=>view.eyeYaw;
             display('3d');
         } catch (error) {
             console.warn('EternalBliss 3D view unavailable:', error);
@@ -10226,6 +10544,64 @@ window.addEventListener('load', () => {
             toggle.setAttribute('aria-label', 'Switch to 3D view');
         });
         toggle.addEventListener('click', () => display(root.dataset.ebView === '3d' ? '2d' : '3d'));
+        immersiveButton.addEventListener('click',()=>{ if(!sharedWorld.active())immersive(!view?.eyeMode); });
+        setInterval(()=>{
+            const shared=sharedWorld.active();
+            if(shared && view?.eyeMode)immersive(false);
+            immersiveButton.classList.toggle('eb-solo-only-off',shared);
+        },500);
+        document.getElementById('eb-eye-use').addEventListener('click',()=>view?.useEyeTarget());
+        // Swipe on the canvas to look, without stealing the movement joystick.
+        // Do not alter world coordinates or the accepted movement cadence.
+        let eyeDrag=null;
+        canvas.addEventListener('pointerdown',e=>{
+            if(!view?.eyeMode || gameState.inBattle || e.button!==0)return;
+            eyeDrag={id:e.pointerId,x:e.clientX,y:e.clientY,travel:0};
+            canvas.setPointerCapture(e.pointerId);
+        });
+        canvas.addEventListener('pointermove',e=>{
+            if(!eyeDrag || e.pointerId!==eyeDrag.id || !view?.eyeMode)return;
+            const dx=e.clientX-eyeDrag.x,dy=e.clientY-eyeDrag.y;
+            eyeDrag.travel+=Math.abs(dx)+Math.abs(dy);
+            view.eyeYaw-=dx*.0045;
+            view.eyePitch=Math.max(-1.1,Math.min(.85,(view.eyePitch??-.055)-dy*.003));
+            eyeDrag.x=e.clientX;eyeDrag.y=e.clientY;
+        });
+        const stopEyeDrag=e=>{
+            if(!eyeDrag || eyeDrag.id!==e.pointerId)return;
+            if(eyeDrag.travel>12)view.suppressEyeClickUntil=performance.now()+350;
+            eyeDrag=null;
+        };
+        canvas.addEventListener('pointerup',stopEyeDrag);
+        canvas.addEventListener('pointercancel',stopEyeDrag);
+
+        // Large touch targets and keyboard controls for looking around.
+        // These do not intercept the existing joystick, tap-to-move or interactions.
+        let lookDirection=0,lookFrame=0,lookLast=0;
+        const stepLook=(time)=>{
+            if(!view?.eyeMode || !lookDirection){lookFrame=0;lookLast=0;return;}
+            const dt=lookLast?Math.min(.25,(time-lookLast)/1000):0;
+            lookLast=time;
+            view.eyeYaw+=lookDirection*dt*1.65;
+            lookFrame=requestAnimationFrame(stepLook);
+        };
+        for(const [id,dir] of [['eb-look-left',1],['eb-look-right',-1]]){
+            const button=document.getElementById(id);
+            button.addEventListener('pointerdown',e=>{
+                e.preventDefault();button.setPointerCapture(e.pointerId);
+                view.eyeYaw+=dir*.12;
+                lookDirection=dir;if(!lookFrame)lookFrame=requestAnimationFrame(stepLook);
+            });
+            const stop=()=>{lookDirection=0;lookLast=0;if(lookFrame)cancelAnimationFrame(lookFrame);lookFrame=0;};
+            button.addEventListener('pointerup',stop);
+            button.addEventListener('pointercancel',stop);
+            button.addEventListener('lostpointercapture',stop);
+        }
+        window.addEventListener('keydown',e=>{
+            if(!view?.eyeMode || e.repeat || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;
+            if(e.code==='KeyQ'){view.eyeYaw+=.24;e.preventDefault();}
+            if(e.code==='KeyE'){view.eyeYaw-=.24;e.preventDefault();}
+        });
         document.getElementById('eb-zoom-in').addEventListener('click', () => view?.changeZoom(1.16));
         document.getElementById('eb-zoom-out').addEventListener('click', () => view?.changeZoom(1 / 1.16));
 
@@ -11777,7 +12153,28 @@ const roomPropIcons = {
     brazier:'🕯️',altar:'✦',bench:'▰',banner:'⚑',throne:'♛',rack:'⚔',counter:'▰'
 };
 
+const EB_VAULT_LAYOUT = [
+    '#################',
+    '#.......#.......#',
+    '#.......#.......#',
+    '#.......#....T..#',
+    '#.......#.......#',
+    '#.......#.......#',
+    '#.......D.......#',
+    '#.......#.......#',
+    '#.......#.......#',
+    '#.......#.......#',
+    '#.......#.......#',
+    '#.......#.......#',
+    '#.......#.......#',
+    '#...E...#.......#',
+    '#################'
+];
+const EB_VAULT_GATE = {x:8,y:6};
+const EB_VAULT_EXIT = {x:4,y:13};
+
 function roomLayout(building) {
+    if (building?.realmId==='toll-structure') return EB_VAULT_LAYOUT;
     return building && Object.hasOwn(EB_SHARED_MAP.rooms, building.type) ? EB_SHARED_MAP.rooms[building.type] : null;
 }
 
@@ -11790,6 +12187,8 @@ function setInteriorState(room) {
 }
 
 function openBuildingInterior(building, position) {
+    if (building?.realmId==='toll-structure' && ebFarlands.surface() && !sharedWorld.active())
+        return ebStory.openDungeon(building,position);
     const layout = roomLayout(building);
     if (!layout || buildingInterior) return false;
     const width = layout[0].length, height = layout.length;
@@ -11823,6 +12222,7 @@ function closeBuildingInterior(position) {
 }
 
 function interactInside(host = null) {
+    if (buildingInterior?.questDungeon) { ebStory.interactDungeon(); return; }
     const { door, service, building } = buildingInterior;
     const { x, y } = gameState.player;
     if (!host && x === door.x && y === door.y) exitBuilding();
@@ -12244,7 +12644,7 @@ const Farlands = (() => {
                 actors.npcs.push(
                     {name:site===start ? 'Mira, the Cartographer' : name+' Waykeeper',class:'elder',x:x-1,y:y+1,
                         dialogue:site===start ?
-                            'Welcome to the Farlands. Open the Atlas for caravan and ferry routes. For your First Survey, walk to Millbend, Bell Orchard and the Old Tollhouse.' :
+                            'Welcome to the Farlands. The Atlas shows the caravan and ferry routes.' :
                             story+' Use the Atlas while you’re here to catch a route to another waystation.'},
                     {name:site===start ? 'Ivo, the Millwright' : name+' Provisioner',class:'merchant',x:x+4,y:y-2,
                         movable:true,dialogue:regions[region].note},
@@ -12273,7 +12673,7 @@ const Farlands = (() => {
                         [-4,6,'Baker','Our ovens are busiest when the caravans arrive.'],
                         [5,-6,'Gardener','We tend the orchards and vegetable patches.'],
                         [-7,-4,'Merchant','Travelers bring news and supplies from the nearby waystation.'],
-                        [7,5,'Village Elder',site.story]
+                        [9,7,'Village Elder',site.story]
                     ];
                     for (let i=0;i<residents.length;i++) {
                         const [dx,dy,role,dialogue]=residents[i];
@@ -12300,6 +12700,13 @@ const Farlands = (() => {
                 structure.landmark={mill:'mill',toll:'ruin',shaft:'mine',wreck:'wreck',beacon:'beacon',beach:'beacon'}[id] ?? 'marker';
                 actors.buildings.push(structure);
                 actors.items.push(cache(x-2,y,id+'-cache',id==='mill' ? 14 : 26));
+                if (id==='mill') {
+                    // One authored key on the original Millbend roadside, collected
+                    // using the existing inventory and consumed only by its vault gate.
+                    const kx=x-3,ky=y+2;
+                    if (!['water','mountain','lava'].includes(sample(kx,ky)))
+                        actors.items.push({x:kx,y:ky,type:'key',value:1,realmId:'quest-vault-key'});
+                }
                 if (!survey.includes(id)) actors.enemies.push(hostile(region,x+4,y+2,hash(x,y,46),id+'-guard',site));
                 actors.npcs.push(wildlife(region,x-3,y+3,hash(x,y,43),id+'-animal'));
             }
@@ -12322,6 +12729,9 @@ const Farlands = (() => {
                 });
             }
         }
+        // R15.54: use the original authored waystations, 27 named villages,
+        // waterfront settlements and landmarks. Do not spray new copies of
+        // the same inn/shop/chapel template across every terrain cell.
         fitFootprints(actors);
         return actors;
     }
@@ -12332,7 +12742,7 @@ const Farlands = (() => {
     // keeps the walkable ground around it in one piece, and leaves at least two tiles within reach (two steps), one of
     // them not beside an NPC. Otherwise the next smaller size is tried, then the single tile. It depends only on the
     // cell, so it never changes.
-    const footprintSizes = {castle:[[3,3],[3,2],[2,2]],temple:[[2,2]],inn:[[2,2],[2,1]],shop:[[2,1]],house:[[2,1]],
+    const footprintSizes = {castle:[[3,3],[3,2],[2,2]],temple:[[3,2],[2,2]],inn:[[3,2],[2,2]],shop:[[3,2],[2,2],[2,1]],house:[[2,2],[2,1]],
         landmark:[[2,2],[2,1]]};
     const footprintOrder = ['castle','temple','inn','shop','landmark','house'];
     const coverable = new Set(['grass','forest','sand','snow','stone','mud','swamp','road']);
@@ -12531,7 +12941,8 @@ const ebFarlands = (() => {
 
     function pack(state) {
         if (!journey) return state;
-        const active=state.map.terrain instanceof Farlands.Terrain;
+        const active=state.map.terrain instanceof Farlands.Terrain ||
+            buildingInterior?.outside.map.terrain instanceof Farlands.Terrain;
         state.farlands={version:1,active,place:active ? recordLocation() : journey.place,
             station:journey.station,pin:journey.pin,horseOwned:journey.horseOwned,horsePlace:journey.horsePlace,visited:[...journey.visited],spent:[...journey.spent],
             edits:[...journey.terrain.edits]};
@@ -12580,6 +12991,15 @@ const ebFarlands = (() => {
     function consume(actor) {
         if (surface() && actor.realmId) journey.spent.add(actor.realmId);
     }
+    function storyFlag(id) { return !!journey?.spent.has(id); }
+    function markStory(id) {
+        if (!journey || !/^quest-vault-[a-z-]+$/.test(id) || journey.spent.has(id)) return false;
+        journey.spent.add(id);
+        updateHint();saveNow();
+        return true;
+    }
+    function refreshStoryHint() { if(journey)updateHint(); }
+    function saveStoryNow() { if(journey)saveNow(); }
 
     function location(announce) {
         const {x,y}=gameState.player;
@@ -13327,9 +13747,125 @@ const ebFarlands = (() => {
     });
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
-    return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
+    return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
+        storyFlag,markStory,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
+</script>
+<script data-source="farlands-story.js">
+// R15.54 with R15.55 repairs: one authored, completable quest. Solo Farlands only.
+// Progress is stored as idempotent flags in the existing Farlands `spent` journal.
+const ebStory = (() => {
+    const flag=id=>ebFarlands.storyFlag('quest-vault-'+id);
+    const mark=id=>ebFarlands.markStory('quest-vault-'+id);
+    const isVault=b=>b?.realmId==='toll-structure';
+    const active=()=>ebFarlands.inRealm() && !sharedWorld.active();
+    function objective() {
+        if(!active())return null;
+        if(flag('reward'))return {label:'The Harvest Bell sings again · chapter complete',done:true};
+        if(flag('relic'))return {label:'Bring the Harvest Bell to Mira',site:Farlands.byId.get('rest')};
+        if(buildingInterior?.questDungeon){
+            if(!flag('gate'))return {label:'Open the iron gate'};
+            if(!flag('guardian'))return {label:'Defeat the Archive Warden'};
+            return {label:'Take the Harvest Bell'};
+        }
+        if(!flag('met') && !flag('key'))return null; // not yet told
+        if(!flag('key'))return {label:'Find the ward key at Millbend',site:Farlands.byId.get('mill')};
+        return {label:'Descend beneath the Old Tollhouse',site:Farlands.byId.get('toll')};
+    }
+    function mira() {
+        if (!active())return '';
+        if(flag('reward'))return '<p style="margin:12px 0">The bell rings again at harvest. You have restored the valley’s promise.</p>';
+        if(flag('relic')) {
+            if(!flag('reward')) {
+                gameState.inventory.gold+=65;
+                gameState.player.xp+=85;
+                checkLevelUp();updateUI();
+                mark('reward'); // The existing save now includes the reward.
+            }
+            return '<p style="margin:12px 0"><strong>🔔 The Harvest Bell restored!</strong> Mira records the recovered relic. You earned 65 gold and 85 XP. The valley remembers your courage.</p>';
+        }
+        mark('met');
+        return '<p style="margin:12px 0"><strong>🔔 The Silent Harvest</strong><br>The bell at Bell Orchard stopped ringing. A brass ward key was lost by the creek at Millbend. Follow the old road to Millbend, retrieve it, then explore the locked archive beneath the Old Tollhouse. Bring the Harvest Bell back to me.</p>';
+    }
+    function openDungeon(building,position) {
+        if(!isVault(building)||!active()||buildingInterior)return false;
+        const unlocked=flag('gate');
+        const layout=EB_VAULT_LAYOUT;
+        const terrain=layout.map(row=>[...row].map(char=>({
+            '#':'wall','.':'floor','E':'exit','D':unlocked?'floor':'door','T':'floor'
+        })[char]));
+        const outside={map:captureAdventureMap(),x:gameState.player.x,y:gameState.player.y};
+        const furniture=[
+            {kind:'brazier',x:2,y:2},{kind:'rack',x:6,y:4},
+            {kind:'brazier',x:13,y:11},{kind:'trunk',x:12,y:2},
+            {kind:'banner',x:10,y:2}
+        ];
+        const guardian=flag('guardian')?[]:[{
+            name:'Archive Warden',class:'enemy-spawn enemy-goblin',realmId:'quest-vault-guardian',
+            x:11,y:7,hp:55,maxHp:55,attack:10,defense:3,xpReward:75,goldReward:35,
+            movable:false
+        }];
+        const relic=flag('relic')?[]:[{
+            x:13,y:3,type:'vault_relic',value:1,realmId:'quest-vault-relic'
+        }];
+        const map={width:layout[0].length,height:layout.length,terrain,
+            metadata:{buildingInterior:true,storyDungeon:true},
+            areas:[{x:0,y:0,width:layout[0].length,height:layout.length,name:'Old Tollhouse · Harvest Archive'}],
+            npcs:[],enemies:guardian,items:relic,buildings:[]};
+        const door={...EB_VAULT_EXIT};
+        const interior={building,outside,door,service:{x:-10,y:-10},furniture,
+            decorTiles:new Set(),questDungeon:true};
+        setInteriorState(interior);
+        const valid=position && Number.isInteger(position.x)&&Number.isInteger(position.y)&&
+            position.x>0&&position.y>0&&position.x<layout[0].length-1&&position.y<layout.length-1&&
+            terrain[position.y][position.x]!=='wall'&&terrain[position.y][position.x]!=='door'&&
+            (unlocked || position.x<EB_VAULT_GATE.x);
+        applyAdventureMap(map,{...gameState.player,...(valid?position:door)});
+        ebFarlands.refreshStoryHint();
+        return true;
+    }
+    function openGate(quiet=false) {
+        if(!buildingInterior?.questDungeon || !active() ||
+            Math.hypot(gameState.player.x-EB_VAULT_GATE.x,gameState.player.y-EB_VAULT_GATE.y)>1.5)return;
+        if(flag('gate'))return;
+        // R15.55: the ward key is the story flag, not the key count: a key spent on some other door cannot strand the quest.
+        if(!flag('key')){
+            if(quiet){showFloatingText('Locked. It needs the ward key from Millbend',gameState.player.x*32+16,gameState.player.y*32-20,'#fbbf24');return;}
+            document.getElementById('modalTitle').textContent='The iron gate';
+            document.getElementById('modalContent').textContent='The iron gate needs the brass ward key. Search the creekside at Millbend.';
+            document.getElementById('interactionModal').style.display='flex';
+            return;
+        }
+        if(gameState.inventory.keys>0)gameState.inventory.keys--;
+        changeAdventureTile(EB_VAULT_GATE.x,EB_VAULT_GATE.y,'floor');
+        mark('gate'); // Persist both the spent key and the unlocked gate.
+        closeModal();updateUI();
+        resetWorldRenderCache();initializeMinimap();renderWorld();
+        showFloatingText('The iron gate opens',gameState.player.x*32+16,gameState.player.y*32-20,'#fbbf24');
+        ebSound.play('pickup');
+    }
+    function interactDungeon() {
+        if(!buildingInterior?.questDungeon)return;
+        const {x,y}=gameState.player;
+        if(Math.hypot(x-EB_VAULT_EXIT.x,y-EB_VAULT_EXIT.y)<=1){exitBuilding();return;}
+        const enemy=enemies.find(e=>Math.hypot(x-e.x,y-e.y)<=1.5);
+        if(enemy){tryBattleEnemy(enemy);return;}
+        const gate=Math.hypot(x-EB_VAULT_GATE.x,y-EB_VAULT_GATE.y);
+        if(gate<=1.5 && !flag('gate')){openGate();return;}
+        const relic=items.find(i=>i.type==='vault_relic'&&Math.hypot(x-i.x,y-i.y)<=1);
+        if(relic){
+            if(!flag('guardian'))showFloatingText('Defeat the Archive Warden first',x*32+16,y*32,'#fbbf24');
+            else collectItem(items.indexOf(relic));
+            return;
+        }
+        showFloatingText(flag('guardian')?'Find the bell in the eastern chamber':'The archive still has a guardian',x*32+16,y*32,'#d3b483');
+    }
+    // The pin follows the quest: if the place just finished was pinned, the next place is pinned instead.
+    const movePin=from=>{const to=objective()?.site?.id; if(to && to!==from && ebFarlands.pinned()===from)ebFarlands.pin(to);};
+    const bumpGate=()=>openGate(true); // walking into the gate: opens with the ward key, a short note without it
+    return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon};
+})();
 </script>
 <script data-source="r14-adventure-journal.js">
 // R14: read-only Farlands exploration stories. Uses the existing saved discovery set;
@@ -13354,7 +13890,9 @@ const ebJournal = (() => {
                 return `<section style="padding:12px;margin:10px 0;border:1px solid rgba(180,200,180,.25);border-radius:10px;text-align:left"><strong>${escapeMapText(chapter.title)}</strong> <small>(${done}/${sites.length})</small><p style="margin:8px 0">${escapeMapText(chapter.intro)}</p><ul style="padding-left:20px">${entries}</ul><small>${done===sites.length?'✓ Chapter explored. ':''}${escapeMapText(chapter.note)}</small></section>`;
             }).join('');
             document.getElementById('modalTitle').textContent = '📖 Explorer’s Journal';
-            document.getElementById('modalContent').innerHTML = `<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
+            const quest=ebStory.objective();
+            const storyCard=quest ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.5);border-radius:10px;text-align:left"><strong>🔔 The Silent Harvest · Story Quest</strong><p style="margin:8px 0">The Harvest Bell lies in the locked archive beneath the Old Tollhouse. Find the ward key at Millbend, defeat the Archive Warden, recover the bell and return it to Mira at Wayfarer’s Rest.</p><p style="margin:0"><strong>Now:</strong> ${escapeMapText(quest.label)}</p></section>` : '';
+            document.getElementById('modalContent').innerHTML = storyCard+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
         }
         releaseMovement();
         document.getElementById('interactionModal').style.display='flex';
@@ -13369,6 +13907,9 @@ const ebJournal = (() => {
     // R15.36: the HUD goal: the first unfinished chapter and its next landmark. A tap pins that landmark (the Atlas pin,
     // so the card shows its distance and direction); a second tap opens this journal.
     function nextGoal() {
+        const quest=ebStory.objective();
+        if (quest && !quest.done) return {quest,next:quest.site??null};
+        if (!ebFarlands.surface()) return null;
         const visited=ebFarlands.discoveries();
         for (const chapter of chapters) {
             const sites=chapter.ids.map(id=>Farlands.byId.get(id)).filter(Boolean);
@@ -13383,7 +13924,8 @@ const ebJournal = (() => {
         const goal = visible ? nextGoal() : null;
         chip.hidden = !goal;
         if (!goal) return;
-        const text = (ebFarlands.pinned()===goal.next.id ? '📍 ' : '📖 ')+goal.chapter.title.replace(/^The /,'')+' '+goal.done+'/'+goal.total+' · '+goal.next.name;
+        const text = goal.quest ? (goal.next && ebFarlands.pinned()===goal.next.id ? '📍 ' : '🔔 ')+goal.quest.label
+            : (ebFarlands.pinned()===goal.next.id ? '📍 ' : '📖 ')+goal.chapter.title.replace(/^The /,'')+' '+goal.done+'/'+goal.total+' · '+goal.next.name;
         if (chip.textContent !== text) chip.textContent = text;
     }
     function syncVisibility() {
@@ -13392,14 +13934,14 @@ const ebJournal = (() => {
         const visible = ebFarlands.inRealm() && !sharedWorld.active();
         button.hidden = !visible;
         button.style.display = visible ? '' : 'none';
-        syncGoal(visible && ebFarlands.surface());
+        syncGoal(visible && (ebFarlands.surface() || !!buildingInterior?.questDungeon));
     }
     document.getElementById('eb-goal-chip')?.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
         const goal = nextGoal();
         if (!goal) return;
-        if (ebFarlands.pinned()===goal.next.id) open(); else ebFarlands.pin(goal.next.id);
+        if (!goal.next || !ebFarlands.surface() || ebFarlands.pinned()===goal.next.id) open(); else ebFarlands.pin(goal.next.id);
         syncVisibility();
     });
     // UI-only polling: no writes to game state, accounts, or movement.

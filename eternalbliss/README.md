@@ -6,7 +6,7 @@ EternalBliss is an RPG in 3D or 2D. Its shared world and its duels run on Solana
 
 - **Solo adventure**: no sign-in; progress saves on your device. There are two maps, and a new player starts in the Farlands. The Eternal Kingdom is 300 × 300 tiles. The Farlands is a 10,000 × 10,000 realm with nine regions, nine waystations and 28 named places, made as you walk. Its Atlas pins a place or takes a caravan or ferry between waystations, and the First Survey sends you to three landmarks near the start. Both maps share one character and inventory.
 - **Shared worlds**: the Eternal Kingdom, up to 32 players in a world at a time. Characters are kept in character books on the rollup, and a world seat is taken only while you play, so everyone online plays in the first world until 32 are there together; then the next world opens. Five worlds are open, so there are seats for 160 players at once, and two character books of 80 hold 160 characters. The program allows 64 worlds and 256 books, and the page finds new ones by itself, so opening more needs no change to the program or the page. Players in different worlds don't see each other. In a world, enemies, treasure and shops are shared, and everyone sees the same season and time of day, set by the rollup's clock. Leaving writes your character back to its book with all its progress.
-- **Buildings** cover tiles by what they are: castles 3×3 (the island castle 3×2), temples and inns 2×2, shops and houses 2×1. In the Farlands the same sizes apply, and landmarks such as the mill and the beacons cover 2×2. Stand up to two tiles from a building and press Space or click it.
+- **Buildings** cover tiles by what they are: castles 3×3 (the island castle 3×2), temples and inns 2×2, shops and houses 2×1. In the Farlands they are larger where the ground allows: inns, shops and temples up to 3×2, houses up to 2×2, and landmarks such as the mill and the beacons 2×2. Stand up to two tiles from a building and press Space or click it.
 - **Trees** stand well above the heroes in 3D.
 - **Duels**: walk up to another player and challenge them. Turn based, no stakes: attack, magic or a healing potion.
 - **Saved to Solana**: every few minutes while people play, and when a player leaves, the page asks for the world to be saved to Solana, and after leaving, the player's character book too. Each pays MagicBlock's fee from its own reserve, never the player. If a reserve runs low, anyone can take that world or book off the rollup, top it up on Solana and put it back.
@@ -27,6 +27,16 @@ World n is the account at `["eb-land", n]`. World w's duel tables are 4w to 4w+3
 
 - `index.html`: the whole game in one file.
 - `program/`: the Rust program, its local checks and the deployed build. A clean build gives sha256 `0a1ccaf1c9783671ad1d90afe9dd863e7bc38d5f28ac4068c007ba31951671dd`, the bytes on Devnet. [program/README.md](program/README.md) lists what changed in each release and what was tested.
+
+## Changes in R15.55
+
+R15.55 adds the best parts of a later candidate (R15.54) to the live game. The live game stays the base, so everything from R15.33 to R15.37 is kept.
+
+- **The Silent Harvest, a story quest in the Farlands.** Mira at Wayfarer's Rest tells it. Find the ward key at Millbend, go down into the vault under the Old Tollhouse, open the iron gate, defeat the Archive Warden, take the Harvest Bell and bring it back to Mira for 65 gold and 85 XP. Progress is saved at every step.
+- **The goal tag follows the quest.** Until Mira tells it, the tag shows the First Survey as before. After that it shows the next step of the quest. Tapping it pins the place, so the card shows its distance and direction, and the pin moves on as the quest does. The Explorer's Journal shows the quest too.
+- **First person.** In the 3D view, solo, the eye button switches to an eye-level view. Movement follows where you look. Turn with the Look buttons, by dragging, or with Q and E. Use acts on what is in front of you. A battle is shown by the battle camera and the view returns to first person afterwards. First person is not offered in shared worlds in this release.
+- **Larger buildings in the Farlands.** Inns, shops and temples take up to 3×2 tiles and houses up to 2×2 where the ground allows, with the entrance marked on the model. The walls block exactly the tiles the building covers.
+- **Fixed from the candidate.** The quest could not be finished there: the Warden's defeat was not recorded inside the vault, and walking into the gate spent the key without opening it for good. Both are repaired. Look left and Look right were swapped and are corrected.
 
 ## Changes in R15.37
 
