@@ -8441,7 +8441,81 @@ const EternalBlissArt = (() => {
         box(group, .23, .035, .085, 0xb69a6c, x, y - .105, z + .016);
     }
 
+    // The authored inn uses real footprint units. Static parts are baked by material and cached;
+    // more craft detail does not mean a draw call per plank, stone or roof course.
+    const authoredInns=new Map();
+    function authoredInn(footprint) {
+        const w=footprint?.w??3, d=footprint?.h??2, key=w+':'+d;
+        if(authoredInns.has(key)){const m=authoredInns.get(key);return {...m,group:m.group.clone(true)};}
+        const g=new T.Group(), wood=0x594334, trim=0x896345, plaster=0xd1bfa0, stoneColor=0x8b8778;
+        const half=w/2-.06, front=d/2-.07, eave=1.72, peak=2.52;
+        const beam=(a,b,size,color=wood)=>{const from=new T.Vector3(...a),to=new T.Vector3(...b),v=to.sub(from),m=box(g,size,v.length(),size,color,0,0,0);m.position.copy(from.addScaledVector(v,.5));m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());};
+        const face=(points,color)=>{const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points.flat(),3));geo.computeVertexNormals();const m=new T.Mesh(geo,material(color));m.castShadow=m.receiveShadow=true;g.add(m);};
+        // Stone footing, low plaster walls and a readable human-height door.
+        box(g,w,.16,d,stoneColor,0,.08);
+        box(g,w-.12,1.53,d-.14,plaster,0,.925);
+        for(let row=0;row<2;row++)for(let i=0;i<8;i++){
+            const x=-half+(i+.5)*(2*half/8);box(g,2*half/8-.025,.11,.045,i%3?0x9b9584:0x777568,x,.20+row*.125,front+.027);
+        }
+        box(g,w-.10,.10,d-.10,wood,0,1.26);
+        for(const x of [-half,-half*.5,0,half*.5,half])box(g,.065,1.48,.065,wood,x,.96,front+.03);
+        for(const x of [-half,half])for(const z of [-front,0,front])box(g,.075,1.48,.075,wood,x,.96,z);
+        box(g,.48,1.04,.05,0x352d27,0,.68,front+.045);
+        for(let i=-2;i<=2;i++)box(g,.075,.92,.025, i%2?0x70513a:0x654a36,i*.082,.65,front+.08);
+        for(const x of [-.28,.28])box(g,.07,1.14,.085,trim,x,.70,front+.075);
+        box(g,.63,.085,.095,trim,0,1.23,front+.08);
+        box(g,.035,.035,.045,0xc1a46d,.155,.70,front+.11);
+        box(g,.72,.07,.27,0xa49b87,0,.16,front+.14);
+        for(const x of [-half*.68,half*.68]){
+            windowPane(g,x,.87,front+.05);
+            box(g,.35,.055,.15,stoneColor,x,.73,front+.075);
+            for(const side of [-1,1]){box(g,.10,.30,.035,0x677061,x+side*.18,.89,front+.075);beam([x+side*.18,.77,front+.10],[x+side*.18,.99,front+.10],.016,trim);}
+            windowPane(g,x,1.49,front+.05);
+            beam([x-.19,1.30,front+.05],[x+.19,1.67,front+.05],.045);
+        }
+        // Long pitched roof, contrasting tile courses, and true gable ends instead of a repeated hip-roof box.
+        const rw=half+.14, rd=front+.15;
+        // Continuous dark roof under the tile joints: seams must not open onto the sky.
+        for(const side of [-1,1]){
+            const a=[-rw,eave-.014,side*rd],b=[rw,eave-.014,side*rd],c=[rw,peak-.014,0],e=[-rw,peak-.014,0];
+            face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],0x463d36);
+        }
+        for(const side of [-1,1])for(let row=0;row<7;row++){
+            const t0=row/7,t1=(row+1)/7,z0=side*rd*(1-t0),z1=side*rd*(1-t1),y0=eave+(peak-eave)*t0,y1=eave+(peak-eave)*t1;
+            for(let col=0;col<9;col++){
+                const x0=-rw+col*2*rw/9,x1=x0+2*rw/9-.012, color=[0x765048,0x80574b,0x6d4b43,0x895d50][(row*3+col)%4];
+                const a=[x0,y0,z0],b=[x1,y0,z0],c=[x1,y1,z1],e=[x0,y1,z1];
+                face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],color);
+            }
+        }
+        for(const x of [-half,half]){
+            const a=[x,eave,-front],b=[x,eave,front],c=[x,peak,0];face(x>0?[a,c,b]:[a,b,c],plaster);
+            beam(a,c,.065);beam(b,c,.065);beam([x,eave,0],c,.065);beam([x,eave,-front],[x,eave,front],.07);
+        }
+        beam([-rw,peak+.025,0],[rw,peak+.025,0],.085,trim);
+        for(const side of [-1,1])beam([-rw,eave,side*rd],[rw,eave,side*rd],.07,wood);
+        // A shallow, supported shelter sits over the same original threshold; its centre stays clear.
+        const pf=front+.19;
+        for(const x of [-.43,.43]){box(g,.065,1.14,.065,wood,x,.72,pf);box(g,.12,.12,.12,stoneColor,x,.20,pf);}
+        box(g,1.02,.085,.48,trim,0,1.32,front+.05);
+        box(g,.84,.24,.07,0x503d31,0,1.47,front+.055);
+        box(g,.63,.12,.02,0xc6aa72,0,1.47,front+.10); // existing inn's sign, no advertising
+        for(const x of [-.55,.55]){box(g,.07,.19,.08,wood,x,1.25,front+.15);box(g,.045,.12,.05,0xf0c47c,x,1.24,front+.20,0xe0a457);}
+        // A stone chimney anchors one end; keep it within the footprint instead of adding a separate obstacle.
+        box(g,.30,1.02,.35,0x908a7c,-half*.72,2.28,-front*.40);
+        for(let i=0;i<5;i++)box(g,.32,.035,.37,0xb0a38e,-half*.72,1.83+i*.20,-front*.40);
+        box(g,.39,.09,.43,0x716b60,-half*.72,2.83,-front*.40);
+        box(g,.22,.025,.25,0x393b35,-half*.72,2.89,-front*.40);
+        // Bake only this static asset; never dispose globally cached helper geometry/materials.
+        g.updateMatrixWorld(true);const batches=new Map();
+        g.traverse(o=>{if(!o.isMesh)return;const geo=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();geo.applyMatrix4(o.matrixWorld);let batch=batches.get(o.material);if(!batch)batches.set(o.material,batch={p:[],n:[]});batch.p.push(...geo.attributes.position.array);batch.n.push(...geo.attributes.normal.array);geo.dispose();});
+        const baked=new T.Group();for(const [mat,b]of batches){const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(b.p,3));geo.setAttribute('normal',new T.Float32BufferAttribute(b.n,3));const m=new T.Mesh(geo,mat);m.castShadow=m.receiveShadow=true;baked.add(m);}
+        const model={group:baked,width:w+.16,depth:d+.24,height:2.94};authoredInns.set(key,model);
+        return {...model,group:baked.clone(true)};
+    }
+
     function building(kind, variant, footprint = null, region, wayfarerInn = false) {
+        if(wayfarerInn && kind==='inn')return authoredInn(footprint);
         const group = new T.Group();
         const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
             amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
@@ -8506,8 +8580,8 @@ const EternalBlissArt = (() => {
             }
             windowPane(group, -width * .32, .57, .429);
             windowPane(group, width * .32, .57, .429);
-            roof(group, width + .19, 1.03, .94, wayfarerInn ? .44 : .32, roofColor);
-            box(group, .046, .052, .82, roofColor, 0, wayfarerInn ? 1.38 : 1.26);
+            roof(group, width + .19, 1.03, .94, .32, roofColor);
+            box(group, .046, .052, .82, roofColor, 0, 1.26);
             box(group, .14, .35, .15, 0x765749, width * .30, 1.11, -.25);
             box(group, .18, .05, .19, 0xa18066, width * .30, 1.30, -.25);
             if (broad && kind !== 'house') {
@@ -8529,32 +8603,9 @@ const EternalBlissArt = (() => {
                 }
             }
         }
-        // One authored prototype: the existing Wayfarer's Rest inn, with the same walls, footprint and door.
-        // Its steeper roof, braced plaster frontage and recessed porch stay inside the existing model envelope.
-        if (wayfarerInn) {
-            const timber=0x674735, sill=0x9e8e76;
-            for (const x of [-.40,.40]) {
-                const brace=box(group,.045,.30,.045,timber,x,.68,.46);
-                brace.rotation.z=x<0 ? -.66 : .66;
-                box(group,.23,.04,.12,sill,x,.425,.47);
-                box(group,.035,.22,.035,timber,x-.12,.57,.46);
-                box(group,.035,.22,.035,timber,x+.12,.57,.46);
-            }
-            // Shallow shelter over the original threshold; the middle remains open for entry.
-            const porch=new T.Group();porch.position.set(0,.95,.53);group.add(porch);
-            const canopy=box(porch,.52,.045,.24,roofColors.hearth,0,0,0);
-            canopy.rotation.x=.16;
-            for (const x of [-.23,.23]) {
-                box(group,.035,.76,.035,timber,x,.50,.61);
-                box(group,.065,.08,.065,sill,x,.16,.61);
-            }
-            box(group,.51,.045,.045,timber,0,.90,.62);
-            // Small paired gable vents break up the roof without adding another building or a remote asset.
-            for (const x of [-.07,.07]) box(group,.035,.10,.025,0x51463c,x,1.06,.485);
-        }
         const [width,depth,height] = {
             castle:[1.56,1.46,1.92], temple:[1.31,1.42,1.63],
-            inn:[1.41,1.06,wayfarerInn ? 1.43 : 1.33], shop:[1.41,1.06,1.33]
+            inn:[1.41,1.06,1.33], shop:[1.41,1.06,1.33]
         }[kind === 'house' && (footprint?.w ?? 1) > 1 ? 'shop' : kind] ?? [1.11,1.06,1.33];
         const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
         if (across === 1 && deep === 1) {
