@@ -2585,6 +2585,7 @@ function updateMovingEntities() {
         }
     });
 
+    ebLife.tick(now); // R15.56: residents with a day walk to where the hour takes them
     npcs.forEach(npc => {
         if (!npc.patrol || !npc.patrol.enabled) return;
 
@@ -2818,6 +2819,8 @@ function updateBuildingFootprints() {
             if (tx >= 0 && tx < width && ty >= 0 && ty < height) buildingFootprints.add(ty*width+tx);
         }
     }
+    // R15.56: street furniture of the Farlands (a well, a lamp post) blocks its tile like a wall.
+    if (ebFarlands.surface()) for (const prop of Farlands.restProps.values()) if (prop.solid) buildingFootprints.add(prop.y*width+prop.x);
     if (before.size !== buildingFootprints.size || [...buildingFootprints].some(tile => !before.has(tile))) buildingFootprintRevision++;
 }
 
@@ -2962,6 +2965,17 @@ function renderWorld() {
 
 function renderAllEntities() {
     const worldGrid = document.getElementById('worldGrid');
+    if (ebFarlands.surface()) for (const {kind,x,y} of Farlands.restProps.values()) { // R15.56: street furniture in the 2D view
+        if (Math.abs(x-gameState.player.x)>48 || Math.abs(y-gameState.player.y)>48) continue;
+        const prop = document.createElement('span');
+        prop.className = 'eb-room-prop';
+        prop.dataset.prop = 'street';
+        prop.setAttribute('aria-hidden','true');
+        prop.textContent = streetPropIcons[kind];
+        prop.style.left = (x*32+16) + 'px';
+        prop.style.top = (y*32+16) + 'px';
+        worldGrid.append(prop);
+    }
     for (const {kind,x,y} of buildingInterior?.furniture ?? []) {
         const prop = document.createElement('span');
         prop.className = 'eb-room-prop';
@@ -3622,8 +3636,17 @@ function interact() {
             return;
         }
     }
+    const prop = ebFarlands.surface() && Farlands.propNear(gameState.player.x, gameState.player.y);
+    if (prop) { // R15.56: the well, the signpost, the stall, the shrine
+        document.getElementById('modalTitle').textContent = prop.name;
+        document.getElementById('modalContent').innerHTML = `<div style="font-size: 32px; margin-bottom: 20px;">${streetPropIcons[prop.kind]}</div>
+            <p style="line-height: 1.6;">${escapeMapText(prop.text)}</p>`;
+        document.getElementById('interactionModal').style.display = 'flex';
+        return;
+    }
     showFloatingText('Nothing nearby', gameState.player.x * 32 + 16, gameState.player.y * 32 - 20, '#94a3b8');
 }
+const streetPropIcons = {well:'⛲',oak:'🌳',bench:'🪑',stall:'🍎',barrel:'🛢️',signpost:'🪧',lamp:'🏮',flowers:'🌼',garden:'🥬',shrine:'🪦',crates:'📦',mooring:'⚓'};
 
 function escapeMapText(value) {
     const span = document.createElement('span');
@@ -6068,6 +6091,9 @@ body { height: 100dvh; }
     color: #f7da92; background: #6f4d37; border: 1px solid #c19663; border-radius: 3px;
     box-shadow: 0 2px 3px #2a201980; font: 17px/1 system-ui, sans-serif;
 }
+.eb-room-prop[data-prop="street"] { font-size: 17px; }
+.eb-volume { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; opacity: .9; }
+.eb-volume input { width: 110px; min-height: 28px; accent-color: #c5a367; }
 .eb-room-prop[data-prop="counter"] { width: 28px; height: 9px; color: transparent; background: #946644; }
 @media (max-width: 768px), (max-height: 520px) and (pointer: coarse) {
     .left-panel { position: fixed; }
@@ -6432,6 +6458,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
                 <div class="eb-save-actions">
                     <button type="button" class="btn" id="eb-rank-open">Leaderboard</button>
                     <button type="button" class="btn" id="eb-audio" aria-pressed="false">Sound off</button>
+                    <label class="eb-volume">Volume <input type="range" id="eb-volume" min="0" max="100" step="5" value="60" aria-label="Sound volume"></label>
                 </div>
                 <p id="eb-shared-detail" role="status"></p>
                 <p id="eb-save-status" role="status">Adventure saves stay in this browser.</p>
@@ -8925,6 +8952,16 @@ window.addEventListener('load', () => {
         return ((n ^ (n >>> 13)) >>> 0) / 4294967296;
     }
 
+    function glowTexture() { // R15.56: soft round falloff for lamp light
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        const fade = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        fade.addColorStop(0, 'rgba(255,255,255,1)'); fade.addColorStop(.35, 'rgba(255,255,255,.55)'); fade.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = fade; ctx.fillRect(0, 0, 64, 64);
+        return new T.CanvasTexture(canvas);
+    }
+
     function grainTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = canvas.height = 128;
@@ -9016,6 +9053,106 @@ window.addEventListener('load', () => {
         }
     }
 
+    // R15.56: street furniture. Each piece is [x, y, z, sx, sy, sz, turn, colour] for the trunk (tapered post), crown
+    // (cone), rock (round), block (box) or lantern (glowing box) batches the ground already draws.
+    function streetProp(prop, batch, season, top) {
+        const {logs, leaves, stones, sprouts, lanterns, roomBlocks:blocks} = batch;
+        const {x, y:z, kind, turn} = prop;
+        const cos=Math.cos(turn), sin=Math.sin(turn);
+        const at=(dx,dz)=>[x+dx*cos+dz*sin, z-dx*sin+dz*cos]; // offset turned with the piece
+        const block=(dx,h,dz,sx,sy,sz,color,extra=0)=>{ const [px,pz]=at(dx,dz); blocks.push([px,top+h,pz,sx,sy,sz,turn+extra,color]); };
+        const post=(dx,h,dz,r,len,color)=>{ const [px,pz]=at(dx,dz); logs.push([px,top+h,pz,r,len,r,0,color]); };
+        const round=(dx,h,dz,sx,sy,sz,color)=>{ const [px,pz]=at(dx,dz); stones.push([px,top+h,pz,sx,sy,sz,turn,color]); };
+        const oak=0x8d593a, dark=0x5d4630, stone=0xa39b8c, iron=0x3d3a36;
+        switch (kind) {
+            case 'well':
+                for (const [dx,dz,sx,sz] of [[0,-.30,.76,.16],[0,.30,.76,.16],[-.30,0,.16,.46],[.30,0,.16,.46]]) block(dx,.17,dz,sx,.34,sz,stone);
+                for (const [dx,dz,sx,sz] of [[0,-.30,.82,.20],[0,.30,.82,.20],[-.30,0,.20,.50],[.30,0,.20,.50]]) block(dx,.36,dz,sx,.05,sz,0xbdb5a4);
+                block(0,.22,0,.46,.04,.46,0x3f7fa3);
+                post(-.36,.62,0,.05,.92,dark); post(.36,.62,0,.05,.92,dark);
+                block(0,1.06,0,.86,.07,.10,dark);
+                block(0,1.16,-.13,.98,.05,.34,0x7b4834,0); block(0,1.16,.13,.98,.05,.34,0x8a5540,0);
+                post(.10,.52,0,.075,.13,0x8a6a44);
+                break;
+            case 'oak':
+                post(0,.80,0,.21,1.60,0x6b4d33);
+                round(0,2.15,0,1.20,.90,1.20,season.crowns[0]);
+                round(.52,2.55,-.30,.82,.66,.82,season.crowns[1]);
+                round(-.48,2.50,.36,.78,.62,.78,season.crowns[1]);
+                round(.05,2.98,.05,.70,.56,.70,season.crowns[2]);
+                round(.34,.07,.30,.16,.07,.14,0x8f8a78);
+                break;
+            case 'bench':
+                block(0,.27,0,.82,.06,.30,oak);
+                block(0,.43,-.14,.82,.20,.05,dark);
+                for (const dx of [-.33,.33]) block(dx,.13,0,.07,.26,.26,dark);
+                break;
+            case 'stall':
+                for (const [dx,dz] of [[-.40,-.30],[.40,-.30],[-.40,.30],[.40,.30]]) post(dx,.55,dz,.04,1.10,dark);
+                block(0,.40,.02,.88,.07,.58,0x9a7650);
+                block(0,.20,.30,.86,.36,.04,0x7d5c3c);
+                for (let i=0;i<5;i++) block(-.40+i*.20,1.12,0,.20,.05,.82,i%2 ? 0xe9dcc0 : 0xb5503d);
+                block(0,1.05,.42,1.00,.14,.03,0xb5503d);
+                for (const [dx,dz,color] of [[-.26,.10,0xb5352b],[-.14,.14,0xc24a34],[-.20,.00,0xa9c056],[.10,.10,0xd9a441],[.22,.04,0xb5352b],[.16,.16,0xa9c056]]) round(dx,.48,dz,.06,.06,.06,color);
+                block(.28,.50,-.12,.20,.13,.16,0x8a6a44);
+                break;
+            case 'barrel':
+                post(0,.26,0,.27,.52,oak);
+                for (const h of [.13,.40]) post(0,h,0,.275,.045,iron);
+                break;
+            case 'signpost':
+                post(0,.72,0,.055,1.44,dark);
+                block(.24,1.22,0,.56,.13,.04,0xd9c08a);
+                block(-.22,1.04,0,.50,.13,.04,0xcfb47c,.5);
+                block(.06,.86,.20,.50,.13,.04,0xd9c08a,-1.25);
+                round(0,.06,0,.17,.07,.17,0x8f8a78);
+                break;
+            case 'lamp':
+                block(0,.06,0,.20,.12,.20,0x6f6a60);
+                post(0,.68,0,.045,1.26,iron);
+                block(.12,1.28,0,.30,.04,.04,iron);
+                lanterns.push([x+.24,top+1.14,z,.15,.19,.15,0,0xffcd7b]);
+                batch.glows.push([x+.24,top+.012,z,2.6,1,2.6,0,0xffffff]);
+                leaves.push([x+.24,top+1.29,z,.13,.10,.13,0,iron]);
+                break;
+            case 'shrine':
+                block(0,.06,0,.46,.12,.34,0x8f8a78);
+                block(0,.38,-.04,.30,.56,.12,0xb8b0a0);
+                block(0,.50,-.04,.44,.10,.12,0xb8b0a0);
+                for (const [dx,dz,color] of [[-.20,.18,0xe6c15a],[.02,.22,0xf2efe0],[.20,.16,0xd98a8a]]) round(dx,.10,dz,.05,.05,.05,color);
+                break;
+            case 'flowers':
+                for (const [dx,dz,color] of [[-.28,-.20,0xe6c15a],[.05,-.28,0xf2efe0],[.30,-.05,0xd98a8a],[-.12,.10,0xd98a8a],[.18,.26,0xe6c15a],[-.32,.30,0xf2efe0],[.34,-.32,0xe6c15a]]) {
+                    const [px,pz]=at(dx,dz);
+                    sprouts.push([px,top+.07,pz,.03,.14,.03,0,season.sprouts]);
+                    stones.push([px,top+.16,pz,.045,.04,.045,0,color]);
+                }
+                break;
+            case 'garden': {
+                for (const dz of [-.30,0,.30]) {
+                    block(0,.025,dz,.92,.05,.18,0x6b4f37);
+                    for (let i=0;i<4;i++) { const [px,pz]=at(-.33+i*.22,dz); sprouts.push([px,top+.13,pz,.05,.17,.05,i,i%2 ? 0x7fa85a : 0x9ab973]); }
+                }
+                // a low fence round the 2x2 plot: turn 0..3 names the tile (north-west, north-east, south-west, south-east)
+                const north=turn<2, west=turn%2===0;
+                const rail=(dx,dz,sx,sz)=>{ blocks.push([x+dx,top+.30,z+dz,sx,.04,sz,0,0x9a7b55]); blocks.push([x+dx,top+.16,z+dz,sx,.04,sz,0,0x9a7b55]); };
+                const stake=(dx,dz)=>logs.push([x+dx,top+.20,z+dz,.035,.40,.035,0,dark]);
+                if (north) { rail(0,-.47,1,.04); stake(-.47,-.47); stake(0,-.47); } else { rail(west ? .30 : -.30,.47,.40,.04); stake(0,.47); stake(west ? -.47 : .47,.47); }
+                if (west) { rail(-.47,0,.04,1); stake(-.47,north ? 0 : .47); } else { rail(.47,0,.04,1); stake(.47,-.47); stake(.47,north ? 0 : .47); }
+                break;
+            }
+            case 'crates':
+                block(-.12,.21,-.05,.42,.42,.42,0x8d6a45,.2);
+                block(.22,.16,.22,.32,.32,.32,0x7a5a3a,-.3);
+                block(-.10,.56,-.04,.30,.28,.30,0x9a7650,.5);
+                break;
+            case 'mooring':
+                for (const dz of [-.36,.36]) { const [px,pz]=at(-.36,dz); logs.push([px,.26,pz,.07,.74,.07,0,dark]); stones.push([px,.60,pz,.085,.05,.085,0,0xc9b98f]); }
+                block(.20,.10,.30,.26,.10,.26,0xc9b98f);
+                break;
+        }
+    }
+
     function instanced(geometry, material, models, shadow = true) {
         if (!models.length) return null;
         const mesh = new T.InstancedMesh(geometry, material, models.length);
@@ -9081,6 +9218,9 @@ window.addEventListener('load', () => {
             this.roomBlock = new T.BoxGeometry(1, 1, 1);
             this.lanternGlass = new T.BoxGeometry(1, 1, 1);
             this.lanternMaterial = new T.MeshBasicMaterial({ color: 0xffffff });
+            this.glowDisc = new T.CircleGeometry(1, 24).rotateX(-Math.PI / 2);
+            this.glowMaterial = new T.MeshBasicMaterial({ color: 0xffc070, map: glowTexture(), transparent: true, opacity: 0,
+                depthWrite: false, blending: T.AdditiveBlending });
             this.actors = new Map();
             this.effects = [];
             this.pointer = new T.Vector2();
@@ -9293,7 +9433,7 @@ window.addEventListener('load', () => {
 
             const positions = [], tints = [], uvs = [];
             const shorePositions = [], shoreTints = [], shoreUvs = [];
-            const logs = [], leaves = [], stones = [], sprouts = [], lanterns = [], roomBlocks = [];
+            const logs = [], leaves = [], stones = [], sprouts = [], lanterns = [], roomBlocks = [], glows = [];
             const color = new T.Color();
             const season = seasonalColors[worldClimate.season];
             const shoreColor = new T.Color(season.shore);
@@ -9312,6 +9452,12 @@ window.addEventListener('load', () => {
                     const tint=biome && (type==='grass' ? biome.color : type==='forest' ? biome.forest : 0);
                     color.set(tint || season[type] || colors[type] || season.grass).multiplyScalar(light);
                     if (shore.some(Boolean) && type === 'grass') color.lerp(shoreColor, .42);
+                    // R15.56: the village square is warm flagstone, laid in two tones
+                    if (streamed && Farlands.villageAt(x,z)) {
+                        if (type === 'stone' && Farlands.plazaAt(x,z)) color.set((x+z)%2 ? 0xc4b292 : 0xb8a585).multiplyScalar(.96 + .08 * hash(x, z, 1));
+                        else if (type === 'grass' && !shore.some(Boolean)) color.set(0x7b9d50).multiplyScalar(light); // a kept green
+                        else if (type === 'road' && Farlands.natural(x,z) !== 'water') color.set(0x9a8560).multiplyScalar(light); // trodden earth
+                    }
                     const corners = [
                         [x - .5, tileTop, z - .5], [x - .5, tileTop, z + .5],
                         [x + .5, tileTop, z + .5], [x + .5, tileTop, z - .5]
@@ -9332,6 +9478,9 @@ window.addEventListener('load', () => {
                             sandB
                         ], surfColor, shorePositions, shoreTints, shoreUvs);
                     }
+                    // R15.56: street furniture of an authored village, built from the same scenery pieces as the trees
+                    const prop = streamed && !this.room && Farlands.propAt(x,z);
+                    if (prop) { streetProp(prop, {logs, leaves, stones, sprouts, lanterns, roomBlocks, glows}, season, tileTop); continue; }
                     // A building's tiles keep only their ground: no tree, rock or lantern grows through its walls.
                     if (!this.room && buildingFootprints.has(z * width + x)) continue;
 
@@ -9427,6 +9576,8 @@ window.addEventListener('load', () => {
             }
             const lamps = instanced(this.lanternGlass, this.lanternMaterial, lanterns, false);
             if (lamps) this.land.add(lamps);
+            const pools = instanced(this.glowDisc, this.glowMaterial, glows, false);
+            if (pools) { pools.receiveShadow = false; pools.renderOrder = 2; this.land.add(pools); }
             this.scene.add(this.land);
         }
 
@@ -9477,7 +9628,7 @@ window.addEventListener('load', () => {
                         }
                         const centre = kind === 'building' ? buildingCentre(data) : data;
                         model.group.position.set(centre.x, tileTop, centre.y);
-                        model.group.rotation.y = kind === 'npc' || kind === 'enemy' ? .42 : 0;
+                        model.group.rotation.y = kind === 'npc' || kind === 'enemy' ? .42 : kind === 'building' && data.facing === 'north' ? Math.PI : 0;
                         record = { kind, data, model };
                         this.actors.set(data, record);
                         this.scene.add(model.group);
@@ -10095,6 +10246,7 @@ window.addEventListener('load', () => {
             this.lightLevel += ((indoors ? .70 : worldClimate.daylight) - this.lightLevel) * blend;
             this.sunsetWarmth += ((indoors ? .35 : worldClimate.warmth) - this.sunsetWarmth) * blend;
             const light = this.lightLevel;
+            this.glowMaterial.opacity = indoors ? 0 : Math.max(0, .9 - light * 1.15); // lamp pools: nothing by day, warm at night
             const warmth = this.sunsetWarmth;
             this.sun.intensity = .50 + 1.73 * light;
             this.sun.color.copy(sky.moon).lerp(sky.sun, light).lerp(sky.sunset, warmth * .65);
@@ -11936,6 +12088,52 @@ const ebSound = (() => {
     let enabled = false;
     let scheduled = 0;
     let bar = 0;
+    // R15.56: the place can be heard. River by distance to water, a low wind, a few birds by day. All of it sits
+    // under the same Sound switch, starts only after the player turns sound on, and cannot stop the game if it fails.
+    let riverLevel, windLevel, nextBird = 0, volume = 60;
+    try { const kept = Number(localStorage.getItem('eternalbliss/volume')); if (kept >= 0 && kept <= 100 && localStorage.getItem('eternalbliss/volume') !== null) volume = kept; } catch {}
+    const level = () => .32 * volume / 60;
+    function startAmbience() {
+        const length = context.sampleRate * 2, buffer = context.createBuffer(1, length, context.sampleRate), data = buffer.getChannelData(0);
+        for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+        const noise = context.createBufferSource();
+        noise.buffer = buffer; noise.loop = true;
+        const band = context.createBiquadFilter(); band.type = 'bandpass'; band.frequency.value = 780; band.Q.value = .6;
+        const low = context.createBiquadFilter(); low.type = 'lowpass'; low.frequency.value = 300;
+        riverLevel = context.createGain(); riverLevel.gain.value = 0;
+        windLevel = context.createGain(); windLevel.gain.value = 0;
+        noise.connect(band).connect(riverLevel).connect(master);
+        noise.connect(low).connect(windLevel).connect(master);
+        noise.start();
+        setInterval(tuneAmbience, 500);
+    }
+    function tuneAmbience() {
+        try {
+            if (!enabled || context.state !== 'running' || document.hidden) return;
+            const at = context.currentTime, hero = gameState.player, outdoors = !buildingInterior;
+            let water = 9;
+            if (outdoors) for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
+                if (adventureTile(hero.x + dx, hero.y + dy) === 'water') water = Math.min(water, Math.hypot(dx, dy));
+            }
+            riverLevel.gain.setTargetAtTime(outdoors ? .30 * Math.max(0, 1 - water / 7) ** 1.5 : 0, at, .6);
+            windLevel.gain.setTargetAtTime(outdoors ? .10 + .05 * Math.sin(at / 7) : 0, at, .9);
+            if (outdoors && !gameState.inBattle && worldClimate.daylight > .6 && at > nextBird) {
+                nextBird = at + 8 + Math.random() * 16;
+                const base = 2300 + Math.random() * 1300, calls = 2 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < calls; i++) {
+                    const when = at + i * (.11 + Math.random() * .05), bird = context.createOscillator(), envelope = context.createGain();
+                    bird.type = 'sine';
+                    bird.frequency.setValueAtTime(base * (1 + .04 * i), when);
+                    bird.frequency.exponentialRampToValueAtTime(base * 1.28, when + .07);
+                    envelope.gain.setValueAtTime(.0001, when);
+                    envelope.gain.exponentialRampToValueAtTime(.022, when + .015);
+                    envelope.gain.exponentialRampToValueAtTime(.0001, when + .085);
+                    bird.connect(envelope).connect(master);
+                    bird.start(when); bird.stop(when + .1);
+                }
+            }
+        } catch {}
+    }
     const phrases = [
         [55, 62, 67, 69, 71, 69, 67, 62],
         [52, 59, 64, 67, 69, 67, 64, 59],
@@ -11998,11 +12196,12 @@ const ebSound = (() => {
                 effects.gain.value = .72;
                 effects.connect(master);
                 setInterval(schedule, 130);
+                try { startAmbience(); } catch {}
             }
             try { await context.resume(); }
             catch { button.textContent = 'Audio unavailable'; return; }
             enabled = true;
-            master.gain.setTargetAtTime(.32, context.currentTime, .04);
+            master.gain.setTargetAtTime(level(), context.currentTime, .04);
             scheduled = context.currentTime;
             schedule();
         }
@@ -12032,6 +12231,13 @@ const ebSound = (() => {
             button.disabled = true;
             try { await toggle(button); }
             finally { if (button.textContent !== 'Audio unavailable') button.disabled = false; }
+        });
+        const slider = document.getElementById('eb-volume');
+        slider.value = String(volume);
+        slider.addEventListener('input', () => {
+            volume = Number(slider.value);
+            try { localStorage.setItem('eternalbliss/volume', String(volume)); } catch {}
+            if (enabled) master.gain.setTargetAtTime(level(), context.currentTime, .05);
         });
         document.addEventListener('visibilitychange', () => {
             if (!enabled) return;
@@ -12554,7 +12760,7 @@ const Farlands = (() => {
         return Math.abs(dx)>=8 && Math.abs(dx)<=17 && Math.abs(dy)>=6 && Math.abs(dy)<=16 &&
             Math.abs(dx)%6!==0 && Math.abs(dy)%6!==0;
     }
-    function sample(x,y) {
+    function baseSample(x,y) {
         if (trailAt(x,y)) return 'road';
         if (farmlandAt(x,y)) return 'grass';
         const site = nearbySite(x,y);
@@ -12568,6 +12774,112 @@ const Farlands = (() => {
         }
         return natural(x,y);
     }
+
+    // R15.56: Wayfarer's Rest is laid out by hand. The map's own generator gave every waystation the same template and
+    // let seven roads merge into one sand plain here. Inside the village the ground is now a paved square, streets and
+    // a green; water stays water, the roads beyond the village are untouched, and the four main buildings keep their
+    // tiles. Offsets are from the site's centre.
+    const rest = {x:5064,y:4864};
+    // Nothing here is ruled with a straightedge: the two streets are full width only near the square and are worn
+    // unevenly further out, the lanes are single footpaths, the back lane jogs, and the square has lost three corners.
+    function restStreet(dx,dy) {
+        const worn = hash(rest.x+dx,rest.y+dy,91) > .36, near = Math.abs(dx)<=5 && Math.abs(dy)<=4;
+        if (Math.abs(dy)<=1 && Math.abs(dx)<=10) return dy===0 || near || worn;
+        if (Math.abs(dx)<=1 && dy>=-8 && dy<=9) return dx===0 || near || dy>=5 || worn;
+        return (dy===-3 && dx>=-7 && dx<=6) || (dy===3 && dx>=-6 && dx<=6) || (dy===-2 && dx>=4 && dx<=10) ||
+            (dy===-7 && dx>=-9 && dx<=2) || (dy===-8 && dx>=2 && dx<=9) || (dy===8 && dx>=-4 && dx<=-2);
+    }
+    const restSquare = (dx,dy) => Math.abs(dx)<=3 && Math.abs(dy)<=2 &&
+        !(dx===-3 && dy===-2) && !(dx===3 && dy===2) && !(dx===-3 && dy===2);
+    const restTrees = new Set(['-8,-2','-8,2','8,2','7,-6','-8,-5','8,5']);
+    function sample(x,y) {
+        const base = baseSample(x,y);
+        const dx=x-rest.x, dy=y-rest.y;
+        if (!villageAt(x,y)) return base;
+        if (base==='water') return dy===8 && (dx===-5 || dx===-6) ? 'road' : base; // the landing's jetty: planks over water
+        if (restSquare(dx,dy)) return 'stone';
+        if (restStreet(dx,dy)) return 'road';
+        return restTrees.has(dx+','+dy) ? 'forest' : 'grass';
+    }
+    const plazaAt = (x,y) => restSquare(x-rest.x,y-rest.y);
+    const villageAt = (x,y) => Math.abs(x-rest.x)<=10 && y-rest.y>=-8 && y-rest.y<=9;
+    // Street furniture: [dx, dy, kind, blocks the tile, turn, name, words when used]. Drawn by the 3D ground, shown as a
+    // small glyph in the 2D view. Only named pieces can be used.
+    const restProps = new Map();
+    for (const [dx,dy,kind,solid,turn,name,text] of [
+        [0,-1,'well',true,0,'The square well','Cool water from under the square. Travellers fill their flasks here before taking the road.'],
+        [-2,-1,'oak',true,0],
+        [-3,-2,'bench',true,Math.PI/2],
+        [3,-2,'stall',true,0,'Orchard stall','Apples, pears and cider from Bell Orchard. The baskets are thin this season. The orchard has been quiet since its bell fell silent.'],
+        [2,-2,'barrel',true,0],
+        [2,2,'signpost',true,0,'Signpost','Millbend: south over the causeway, then east along the creek. Old Tollhouse: the east road. Bell Orchard: the west road, then north.'],
+        [-4,-2,'lamp',true,0],[-7,3,'lamp',true,0],[4,2,'lamp',true,0],[-7,-4,'lamp',true,0],[-2,7,'lamp',true,0],
+        [-3,-4,'bench',true,-Math.PI/2],
+        [-3,-5,'barrel',true,0],
+        [-7,-5,'flowers',false,0],
+        [7,-4,'garden',false,0],[8,-4,'garden',false,1],[7,-3,'garden',false,2],[8,-3,'garden',false,3],
+        [-6,4,'shrine',true,0,'Wayside shrine','A worn stone for travellers who did not come back down the road. Someone still leaves flowers.'],
+        [-6,5,'flowers',false,0],
+        [2,8,'crates',true,0],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
+        [-6,8,'mooring',false,0]
+    ]) restProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
+    const propAt = (x,y) => restProps.get(y*size+x);
+    function propNear(x,y) {
+        let best=null, near=Infinity;
+        for (const prop of restProps.values()) {
+            const d=Math.max(Math.abs(prop.x-x),Math.abs(prop.y-y));
+            if (prop.text && d<=1 && d<near) { best=prop; near=d; }
+        }
+        return best;
+    }
+    // The seven people of Wayfarer's Rest are the same seven as before, with the same saved identities. Mira stays by
+    // the well, where a new traveller and a returning one will look for her. The other six have a day: [from hour,
+    // dx, dy, what they say there] or [from hour] for home. Two lines mean before and after the Harvest Bell is back.
+    // No one's place is within three tiles of Mira, so Space beside her always reaches her.
+    const restDoors = {inn:[-5,-3],chapel:[-4,3],cottage:[9,-2]};
+    const restLife = {
+        ivo:{name:'Ivo, the Millwright',home:'inn',day:[
+            [6,-3,8,'The mill at Millbend takes its timber by river. I count what lands here before it goes up the creek.'],
+            [11,7,-1,'The Exchange owes me for two axles. Riverglass pays late, but it pays.'],
+            [17,-2,-4,['A long day. The wheel at Millbend turns and the bell at the orchard does not. One of those I can mend.','The wheel turns, the bell rings. For once nothing in Hearthmere needs mending.']],
+            [22]]},
+        nessa:{name:'Nessa, the Orchard Keeper',home:'cottage',day:[
+            [6,3,-1,['Apples, pears, cider. Fewer than last year. The pickers used to start by the Harvest Bell, and now nobody is sure of the hour.','Apples, pears, cider, and plenty of each. The pickers are out at first bell again.']],
+            [17,-6,3,'I leave a few apples at the shrine each evening. An old habit of the orchard keepers.'],
+            [20]]},
+        0:{name:'Tamsin, the Herbalist',home:'cottage',day:[
+            [6,7,-3,'Feverfew, mint, and comfrey for sore feet. Travellers always want the comfrey.'],
+            [18,1,-2,'I water the beds at dusk. The well has never run dry, not even in the bad summers.'],
+            [21]]},
+        1:{name:'Bram, the Storyteller',home:'inn',day:[
+            [8,-2,-2,'Every road has a tale. This oak was a sapling when the first surveyors drove their stakes here.'],
+            [13,1,7,'They say the Old Tollhouse took a coin from every boat. Now it only keeps what it buried.'],
+            [18,-2,-3,'Sit a while. The best stories need an evening.'],
+            [23]]},
+        2:{name:'Hale, the Wheelwright',home:'inn',day:[
+            [6,1,8,'Crates for Aldercross, barrels for the inn. Nothing leaves this landing unless I have nailed it shut.'],
+            [12,-3,7,'The jetty wants two new planks before the autumn boats.'],
+            [19,-2,-5,'The inn pours better after dark. So do I.'],
+            [22]]},
+        3:{name:'Wren, a Pilgrim',home:'chapel',day:[
+            [6,-6,3,'I walk the old roads to every waystation. This shrine is for those who did not finish the walk.'],
+            [10,1,-2,'The water here is the best on the river road. Drink before Millbend.'],
+            [16,-6,3,['I will stay until the bell rings again. It does not feel right to leave before.','The bell rings again. I will take the road at first light, and gladly.']],
+            [21]]}
+    };
+    function restResident(npc,who) {
+        const life = restLife[who];
+        const [hx,hy] = restDoors[life.home];
+        return Object.assign(npc,{name:life.name,movable:false,homeDoor:{x:rest.x+hx,y:rest.y+hy},
+            routine:life.day.map(([from,dx,dy,says]) => dx===undefined ? {from,home:true} : {from,x:rest.x+dx,y:rest.y+dy,says})});
+    }
+
+    // The four main buildings keep the tiles they had in R15.55. The chapel and the hall, south of the square, turn
+    // their doors to it. The cottage, which stood wall to wall with the Exchange, has its own plot two tiles east.
+    const restPlots = [
+        {fixed:[rest.x-6,rest.y-5,3,2]}, {fixed:[rest.x+4,rest.y-4,3,2]},
+        {fixed:[rest.x-5,rest.y+4,3,2],facing:'north'}, {fixed:[rest.x+3,rest.y+4,3,3],facing:'north'}
+    ];
 
     function remember(cache,key,value,limit) {
         cache.set(key,value);
@@ -12638,20 +12950,24 @@ const Farlands = (() => {
                     const [dx,dy] = layouts[(i+rotation)%layouts.length];
                     const structure=building(service,features[i],x+dx,y+dy,region,id+'-service-'+i,story);
                     if (i===3 && ['amber','lantern','rime'].includes(region)) structure.landmark=region==='rime' ? 'observatory' : 'beacon';
+                    if (site===start) Object.assign(structure,restPlots[i]);
                     actors.buildings.push(structure);
                 });
-                actors.buildings.push(building(name+' Cottage','house',x+8,y-3,region,id+'-house',story));
+                const cottage=building(name+' Cottage','house',x+(site===start ? 10 : 8),y-3,region,id+'-house',story);
+                if (site===start) cottage.fixed=[x+9,y-4,2,2];
+                actors.buildings.push(cottage);
                 actors.npcs.push(
                     {name:site===start ? 'Mira, the Cartographer' : name+' Waykeeper',class:'elder',x:x-1,y:y+1,
                         dialogue:site===start ?
                             'Welcome to the Farlands. The Atlas shows the caravan and ferry routes.' :
                             story+' Use the Atlas while you’re here to catch a route to another waystation.'},
-                    {name:site===start ? 'Ivo, the Millwright' : name+' Provisioner',class:'merchant',x:x+4,y:y-2,
+                    {name:site===start ? 'Ivo, the Millwright' : name+' Provisioner',class:'merchant',x:x+(site===start ? 5 : 4),y:y-2,
                         movable:true,dialogue:regions[region].note},
                     {name:site===start ? 'Nessa, the Orchard Keeper' : name+' Trail Warden',class:'guard',x:x+2,y:y+5,
                         movable:true,dialogue:'Each path out of town leads to a different part of '+regions[region].name+'. Look for landmarks in the Atlas.'},
-                    wildlife(region,x-6,y+5,.63,id+'-wildlife')
+                    wildlife(region,x+(site===start ? 14 : -6),y+(site===start ? -10 : 5),.63,id+'-wildlife') // the elk keeps to the meadow
                 );
+                if (site===start) { restResident(actors.npcs.at(-3),'ivo'); restResident(actors.npcs.at(-2),'nessa'); }
                 // R14.2: a compact inhabited centre around each waystation.
                 // These are deterministic, non-hostile local actors; no save schema changes.
                 const neighbours = [
@@ -12663,8 +12979,8 @@ const Farlands = (() => {
                 for (let i=0;i<neighbours.length;i++) {
                     const [dx,dy,role,dialogue]=neighbours[i];
                     if (['water','mountain','lava'].includes(sample(x+dx,y+dy))) continue;
-                    actors.npcs.push({name:name+' '+role,class:'villager',x:x+dx,y:y+dy,
-                        dialogue,realmId:id+'-resident-'+i});
+                    const resident={name:name+' '+role,class:'villager',x:x+dx,y:y+dy,dialogue,realmId:id+'-resident-'+i};
+                    actors.npcs.push(site===start ? restResident(resident,i) : resident);
                 }
                 if (site.settlement) {
                     const residents = [
@@ -12760,8 +13076,8 @@ const Farlands = (() => {
         const kindOf = b => b.landmark ? 'landmark' : b.type;
         const ranked = [...actors.buildings].sort((a,b) => footprintOrder.indexOf(kindOf(a))-footprintOrder.indexOf(kindOf(b)));
         for (const b of ranked) {
-            b.footprint = [b.x,b.y,1,1];
-            for (const [w,h] of footprintSizes[kindOf(b)] ?? []) {
+            b.footprint = b.fixed ?? [b.x,b.y,1,1];
+            for (const [w,h] of b.fixed ? [] : footprintSizes[kindOf(b)] ?? []) {
                 const options = [];
                 for (let x0=b.x-w+1;x0<=b.x;x0++) for (let y0=b.y-h+1;y0<=b.y;y0++) {
                     // fewest road tiles, then the building's own tile on the front (south) row, centred across
@@ -12827,7 +13143,7 @@ const Farlands = (() => {
         }
     }
 
-    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite,farmlandAt,regionAt,natural,sample,
+    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite,farmlandAt,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
         sceneCell,remember,hash};
 })();
 
@@ -12892,6 +13208,7 @@ const ebFarlands = (() => {
         if (journey.scene===key && !force) return false;
         journey.scene=key;
         buildings=[]; npcs=[]; enemies=[]; items=[];
+        const residents=[]; // R15.56: those indoors for the night are not in the world
         const edge=Math.ceil(Farlands.size/step);
         for (let y=Math.max(0,cy-1);y<=Math.min(edge-1,cy+1);y++) {
             for (let x=Math.max(0,cx-1);x<=Math.min(edge-1,cx+1);x++) {
@@ -12899,11 +13216,12 @@ const ebFarlands = (() => {
                 let cell=journey.cells.get(id);
                 if (!cell) cell=Farlands.remember(journey.cells,id,Farlands.sceneCell(x,y),48);
                 buildings.push(...cell.buildings);
-                npcs.push(...cell.npcs);
+                residents.push(...cell.npcs);
                 enemies.push(...cell.enemies.filter(actor=>!journey.spent.has(actor.realmId)));
                 items.push(...cell.items.filter(item=>!journey.spent.has(item.realmId)));
             }
         }
+        npcs.push(...ebLife.enroll(residents));
         enemies.forEach(actor=>addPatrol(actor,true));
         npcs.forEach(actor=>addPatrol(actor,false));
         updateBuildingFootprints();
@@ -13865,6 +14183,110 @@ const ebStory = (() => {
     const movePin=from=>{const to=objective()?.site?.id; if(to && to!==from && ebFarlands.pinned()===from)ebFarlands.pin(to);};
     const bumpGate=()=>openGate(true); // walking into the gate: opens with the ward key, a short note without it
     return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon};
+})();
+</script>
+<script data-source="farlands-life.js">
+// R15.56: daily life at an authored village. Solo Farlands only; nothing here is saved or sent anywhere: where a
+// resident is follows from the world clock. A resident has a short list of places for the hours of the day, walks
+// to the next one along tiles the game itself says are walkable (round buildings, furniture and water), pauses a
+// moment for a hero standing close, and goes indoors for the night. One position serves drawing, talking and blocking.
+const ebLife = (() => {
+    const pace = .85;                    // tiles per second: an unhurried walk, the same on a slow or a fast device
+    let roster = [], lastTick = 0;
+    const hour = () => { const [h,m] = worldClimate.time.split(':').map(Number); return h + m/60; };
+    function slotOf(npc) {
+        const now = hour();
+        let slot = npc.routine[npc.routine.length-1];
+        for (const entry of npc.routine) if (entry.from <= now) slot = entry;
+        return slot;
+    }
+    const goalOf = (npc,slot) => slot.home ? npc.homeDoor : slot;
+    // Shortest way over walkable tiles, four directions, inside the village and its edges only.
+    function route(fromX,fromY,toX,toY) {
+        const span = 18, key = (x,y) => (y-fromY+span*2)*200+(x-fromX+span*2);
+        const seen = new Map([[key(fromX,fromY),null]]), queue = [[fromX,fromY]];
+        for (let i=0;i<queue.length;i++) {
+            const [x,y] = queue[i];
+            if (x===toX && y===toY) {
+                const path = [];
+                for (let at=[x,y];at;at=seen.get(key(at[0],at[1]))) path.push(at);
+                return path.reverse().slice(1);
+            }
+            for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+                const nx=x+dx, ny=y+dy;
+                if (Math.abs(nx-fromX)>span || Math.abs(ny-fromY)>span || seen.has(key(nx,ny)) || !canEntityMoveTo(nx,ny)) continue;
+                seen.set(key(nx,ny),[x,y]);
+                queue.push([nx,ny]);
+            }
+        }
+        return null;
+    }
+    function enroll(all) {
+        roster = all.filter(npc => npc.routine);
+        // first sight of a resident: they are simply where the hour says, not marching in from somewhere
+        for (const npc of roster) if (!npc.life) {
+            const slot = slotOf(npc), goal = goalOf(npc,slot);
+            npc.life = {slot,path:null,retry:0};
+            npc.indoors = !!slot.home;
+            npc.x = goal.x; npc.y = goal.y;
+        }
+        speak();
+        return all.filter(npc => !npc.indoors);
+    }
+    function speak() {
+        const rung = ebFarlands.storyFlag('quest-vault-reward');
+        for (const npc of roster) {
+            const says = npc.life.slot.says ?? npc.routine.find(entry => entry.says).says;
+            npc.dialogue = Array.isArray(says) ? says[rung ? 1 : 0] : says;
+        }
+    }
+    function tick(now) {
+        if (!roster.length || !ebFarlands.surface() || sharedWorld.active()) return;
+        let listChanged = false;
+        const hero = gameState.player;
+        const stride = pace*Math.min(.5,Math.max(0,(now-lastTick)/1000));
+        lastTick = now;
+        for (const npc of roster) {
+            const life = npc.life, slot = slotOf(npc);
+            if (life.slot !== slot) {
+                life.slot = slot; life.path = null; life.retry = 0;
+                if (npc.indoors && !slot.home) {            // morning: out of the door
+                    npc.indoors = false; npc.x = npc.homeDoor.x; npc.y = npc.homeDoor.y;
+                    if (!npcs.includes(npc)) { npcs.push(npc); listChanged = true; }
+                }
+            }
+            if (npc.indoors) continue;
+            const goal = goalOf(npc,slot);
+            if (npc.x===goal.x && npc.y===goal.y) {
+                if (slot.home) {                             // night: in at the door
+                    npc.indoors = true;
+                    const at = npcs.indexOf(npc);
+                    if (at>=0) { npcs.splice(at,1); listChanged = true; }
+                }
+                continue;
+            }
+            // after you: pause for a hero standing close, for a few seconds at most, then carry on past him
+            if (Math.hypot(hero.x-npc.x,hero.y-npc.y) < 1.2) {
+                life.paused ??= now;
+                if (now-life.paused < 3000) continue;
+            } else life.paused = null;
+            if (now < life.retry) continue;
+            if (!life.path) {
+                life.path = route(Math.round(npc.x),Math.round(npc.y),goal.x,goal.y);
+                if (!life.path) { life.retry = now+5000; continue; }
+            }
+            const next = life.path[0];
+            if (!next) { life.path = null; continue; }
+            if (!canEntityMoveTo(next[0],next[1])) { life.path = null; life.retry = now+1500; continue; }
+            const dx = next[0]-npc.x, dy = next[1]-npc.y, far = Math.hypot(dx,dy);
+            if (far <= stride) { npc.x = next[0]; npc.y = next[1]; life.path.shift(); }
+            else { npc.x += dx/far*stride; npc.y += dy/far*stride; }
+            npc.walkingUntil = now+205;
+        }
+        speak();
+        if (listChanged) renderWorld();
+    }
+    return { enroll, tick, roster:() => roster, hour };
 })();
 </script>
 <script data-source="r14-adventure-journal.js">

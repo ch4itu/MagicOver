@@ -28,6 +28,17 @@ World n is the account at `["eb-land", n]`. World w's duel tables are 4w to 4w+3
 - `index.html`: the whole game in one file.
 - `program/`: the Rust program, its local checks and the deployed build. A clean build gives sha256 `0a1ccaf1c9783671ad1d90afe9dd863e7bc38d5f28ac4068c007ba31951671dd`, the bytes on Devnet. [program/README.md](program/README.md) lists what changed in each release and what was tested.
 
+## Changes in R15.56
+
+Wayfarer's Rest, the first settlement of the Farlands, is laid out by hand. Solo Farlands only.
+
+- **Streets and a square.** The sand plain where seven roads met is now a flagstone square, two worn streets, footpaths and a village green. Water and the roads beyond the village are unchanged.
+- **Buildings.** The inn, the Exchange, the chapel and the hall stand on the same tiles. The chapel and the hall turn their doors to the square. The cottage has its own plot with a fenced garden.
+- **The square and the landing.** A well, an oak with a bench, an orchard stall, a signpost naming Millbend, the Old Tollhouse and Bell Orchard, a wayside shrine, and a jetty with crates and mooring posts. The well, stall, signpost and shrine can be read with Space or Interact.
+- **Residents with a day.** The same seven people live here, now all named. Mira stays by the well. The other six walk to different places through the day, pause for a hero standing close, and go indoors at night. Two of them speak differently once the Harvest Bell is back.
+- **Lamps** throw warm light on the ground at night.
+- **Sound.** With Sound on, the river is heard near water, with a low wind and a few birds by day. A volume control sits beside the Sound button. Sound stays off until switched on.
+
 ## Changes in R15.55
 
 R15.55 adds the best parts of a later candidate (R15.54) to the live game. The live game stays the base, so everything from R15.33 to R15.37 is kept.
