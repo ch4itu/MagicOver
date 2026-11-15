@@ -1,0 +1,10 @@
+const t=require('./browser.cjs');
+(async()=>{const b=await t.launch();try{
+ const cases=process.env.EB_HUD_BASELINE?[['desktop',1280,800,false]]:[['desktop',1280,800,false],['short-desktop',1280,450,false],['phone',390,844,true]];
+ for(const[name,width,height,touch]of cases){const p=await t.page(b,{viewport:{width,height},hasTouch:touch,isMobile:touch},(1767225600+4*480+240)*1000);const state=await p.evaluate(()=>JSON.stringify([gameState.player.x,gameState.player.y,gameState.inventory]));await p.click('#eb-immersive-toggle');await p.waitForTimeout(200);
+ const rect=await p.locator('.location-info').boundingBox();console.log(name,JSON.stringify(rect));await t.shot(p,'fp-hud-'+name+'-'+t.sha.slice(0,8));if(width>=900){t.assert(rect.height<=180,'first-person card should leave the world visible');t.assert(rect.width<=330);}
+ t.assert(await p.locator('#eb-actions-more').isVisible());t.assert(await p.locator('#eb-farlands-atlas-open').isHidden());await p.click('#eb-actions-more');await p.locator('#eb-farlands-atlas-open').waitFor({state:'visible'});t.assert.equal(await p.locator('#eb-actions-more').getAttribute('aria-expanded'),'true');await p.click('#eb-farlands-atlas-open');await p.locator('#eb-farlands-atlas').waitFor({state:'visible'});await p.click('#eb-farlands-atlas-close');
+ await p.click('#eb-actions-collapse');t.assert(await p.evaluate(()=>document.querySelector('.location-info').classList.contains('eb-capture-location-closed')));await p.click('#eb-actions-collapse');t.assert(await p.locator('#eb-actions-more').isVisible());await p.click('#eb-immersive-toggle');if(width>=900){t.assert(await p.locator('#eb-actions-more').isHidden());t.assert(await p.locator('#eb-farlands-atlas-open').isVisible());}
+ t.assert.equal(await p.evaluate(()=>JSON.stringify([gameState.player.x,gameState.player.y,gameState.inventory])),state);t.assert.deepEqual(p.errors,[]);t.record('FP HUD '+name,{result:'PASS compact card, Actions/Atlas open-close, manual minimise/restore, overhead restoration, state unchanged',rect});await p.close();
+ }
+}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});
