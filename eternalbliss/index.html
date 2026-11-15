@@ -9717,13 +9717,6 @@ window.addEventListener('load', () => {
                 if (dir.lengthSq()<1e-4) dir.set(Math.sin(hero.group.rotation.y),0,Math.cos(hero.group.rotation.y));
                 // Solo Farlands FP stages on a clear line in front of the eye, without moving the saved player.
                 const eye=this.eyeMode && ebFarlands.inRealm() && !sharedWorld.active();
-                if (eye) {
-                    const forward=new T.Vector3(-Math.sin(this.eyeYaw),0,-Math.cos(this.eyeYaw));
-                    const clear=v=>[.6,1.2,2.1].every(d=>canEntityMoveTo(Math.round(at.x+v.x*d),Math.round(at.z+v.z*d)));
-                    const choices=[forward,dir.clone().normalize(),...[[0,-1],[1,0],[0,1],[-1,0]].map(([x,z])=>new T.Vector3(x,0,z))];
-                    const safe=choices.find(clear);
-                    if (safe) dir.copy(safe);
-                }
                 c=this.combat={foe,eye,dir:dir.normalize(),base:at.clone(),started:now,model:null,own:false,downAt:0,heroDownAt:0,hidden:[],faded:[]};
             }
             // The battle holds a copy of the enemy; its actor is the enemy record on the same tile.
@@ -9767,6 +9760,27 @@ window.addEventListener('load', () => {
             // sword side, where the blade reaches down to it.
             const rest=c.eye ? 2.1+beastLong : riding ? .75+beastLong*.8 : 1.45+beastLong;
             c.rest=rest;
+            // Choose once, after the model determines its guard distance. Include its width and recoil space,
+            // rather than stopping at 2.1 tiles while a dragon stands 2.65 tiles away. Rendering only.
+            if (c.eye && !c.eyePlaced) {
+                const forward=new T.Vector3(-Math.sin(this.eyeYaw),0,-Math.cos(this.eyeYaw));
+                const clear=v=>{
+                    const side=new T.Vector3(v.z,0,-v.x), reach=rest+.18;
+                    const steps=Math.ceil((reach-.6)/.2);
+                    for (let i=0;i<=steps;i++) {
+                        const d=.6+(reach-.6)*i/steps;
+                        for (const offset of [-enemy.width/2,0,enemy.width/2]) {
+                            if (!canEntityMoveTo(Math.round(c.base.x+v.x*d+side.x*offset),
+                                Math.round(c.base.z+v.z*d+side.z*offset))) return false;
+                        }
+                    }
+                    return true;
+                };
+                const choices=[forward,dir.clone(),...[[0,-1],[1,0],[0,1],[-1,0]].map(([x,z])=>new T.Vector3(x,0,z))];
+                const safe=choices.find(clear);
+                if (safe) dir.copy(safe);
+                c.eyePlaced=true; // Keep the established fallback when no full corridor fits; never move saved tiles.
+            }
             this.clearCombatView(c,rest);
             // Guard: sword raised in front, the off hand ready, feet apart, breathing.
             const guard=(m,phase,seated)=>{
