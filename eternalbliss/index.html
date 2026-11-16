@@ -2041,12 +2041,9 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
  [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
 }
 /* D-pad stays usable while filming. */
-/* PR #2: retain touch movement only in compact/touch landscape layouts. */
-@media (max-width: 768px), (max-height: 520px) and (pointer: coarse) {
-    body.eb-capture-clean #mobile-controls { display:grid!important; }
-}
-@media (min-width: 769px) and (min-height: 521px) {
-    #mobile-controls, body.eb-capture-clean #mobile-controls { display:none!important; }
+/* PR #2: keep desktop controls hidden by default; retain touch movement at every size, including hybrids. */
+@media (max-width: 768px), (any-pointer: coarse) {
+    #mobile-controls, body.eb-capture-clean #mobile-controls { display:grid!important; }
 }
 .location-info.eb-controls-collapsed #eb-world-actions,
 .location-info.eb-controls-collapsed #eb-farlands-hint,
