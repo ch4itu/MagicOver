@@ -1,7 +1,7 @@
 const t=require('./browser.cjs');
 (async()=>{const b=await t.launch();try{
  const cases=[['desktop',1280,800,false,false],['short-desktop',1280,450,false,false],['touch-desktop',1280,800,true,false],['phone',390,844,true,true],['landscape',844,390,true,true]];
- for(const [name,width,height,touch,visible]of cases){const p=await t.page(b,{viewport:{width,height},hasTouch:touch,isMobile:touch});
+ for(const [name,width,height,touch,visible]of cases){if(process.env.EB_CONTROL_CASE&&process.env.EB_CONTROL_CASE!==name)continue;const p=await t.page(b,{viewport:{width,height},hasTouch:touch,isMobile:touch});
  for(const clean of [false,true]){
   if(clean)await p.click('#eb-capture-toggle');
   const shown=await p.locator('#mobile-controls').isVisible();t.assert.equal(shown,visible,name+' clean='+clean);

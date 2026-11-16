@@ -7,13 +7,13 @@ async function walk(p,gx,gy,stopForBattle=false){for(let step=0;step<150;step++)
 module.exports={fixture,walk};
 if(require.main===module)(async()=>{const b=await t.launch();try{
  const cases=process.env.EB_VAULT_BASELINE?[['desktop',undefined]]:[['desktop',undefined],['phone',{viewport:{width:390,height:844},hasTouch:true,isMobile:true}]];
- for(const[name,profile]of cases){const p=await t.page(b,profile,(1767225600+4*480+240)*1000);await fixture(p);
+ for(const[name,profile]of cases){if(process.env.EB_VAULT_PROFILE&&process.env.EB_VAULT_PROFILE!==name)continue;const p=await t.page(b,profile,(1767225600+4*480+240)*1000);await fixture(p);
  if(!process.env.EB_VAULT_BASELINE){await p.waitForFunction(()=>document.getElementById('eb-eye-context').textContent.includes('ward key'));await t.shot(p,'vault-context-'+name+'-'+t.sha.slice(0,8));}
  const before=await p.evaluate(()=>({gold:gameState.inventory.gold,xp:gameState.player.xp,keys:gameState.inventory.keys}));await p.click('#eb-eye-use');await p.waitForTimeout(200);const gate=await p.evaluate(()=>({open:ebFarlands.storyFlag('quest-vault-gate'),keys:gameState.inventory.keys,battle:gameState.inBattle}));console.log(name,'gate',JSON.stringify(gate));await t.shot(p,'vault-gate-'+name+'-'+t.sha.slice(0,8));t.assert(gate.open,'nearby gate must beat a distant enemy ray hit through the wall');t.assert.equal(gate.keys,before.keys-1);await p.click('#eb-eye-use');t.assert.equal(await p.evaluate(()=>gameState.inventory.keys),before.keys-1);
  if(process.env.EB_VAULT_BASELINE)continue;
  // Actual turn and movement inputs after the fixed-camera/key fixture. This is a vault route, not the full outdoor quest.
  for(let i=0;i<7;i++)await p.keyboard.press('KeyQ');await walk(p,10,7,true);if(!await p.evaluate(()=>gameState.inBattle))await p.click('#eb-eye-use');await p.waitForFunction(()=>gameState.inBattle);
- for(const action of ['magic','magic','magic','attack']){await p.locator(`[data-eb-combat="${action}"]`).click();if(action!=='attack')await p.waitForTimeout(2800);}
+ for(const action of ['magic','magic','magic','attack']){await p.locator(`[data-eb-combat="${action}"]`).click();if(action!=='attack')await p.waitForFunction(()=>!gameState.inBattle||gameState.currentEnemy?.hp<=0||!ebCombatHUD.waiting());}
  await p.waitForFunction(()=>!gameState.inBattle);t.assert(await p.evaluate(()=>ebFarlands.storyFlag('quest-vault-guardian')));t.assert.deepEqual(await p.evaluate(()=>[gameState.inventory.gold,gameState.player.xp]),[before.gold+35,before.xp+75]);
  await walk(p,12,3);if(!await p.evaluate(()=>ebFarlands.storyFlag('quest-vault-relic'))){await p.keyboard.press('ArrowRight');await p.click('#eb-eye-use');}t.assert(await p.evaluate(()=>ebFarlands.storyFlag('quest-vault-relic')));
  await walk(p,4,12);for(let i=0;i<13;i++)await p.keyboard.press('KeyQ');await p.click('#eb-eye-use');await p.waitForFunction(()=>!buildingInterior);await p.locator('#eb-eye-context').waitFor({state:'hidden'});
