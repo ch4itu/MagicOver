@@ -1,0 +1,150 @@
+[
+  {
+    "name": "clock-paused",
+    "replied": true,
+    "hp": 93,
+    "foe": 42,
+    "battle": true,
+    "waiting": false,
+    "timers": [
+      {
+        "type": "cancel-frame",
+        "id": 49,
+        "at": 12500.59999999404
+      },
+      {
+        "type": "cancel-frame",
+        "id": 50,
+        "at": 12509.69999999553
+      },
+      {
+        "type": "cancel-frame",
+        "id": 51,
+        "at": 12514.5
+      },
+      {
+        "type": "cancel-frame",
+        "id": 52,
+        "at": 13388.79999999702
+      },
+      {
+        "type": "cancel-frame",
+        "id": 53,
+        "at": 13845.39999999851
+      },
+      {
+        "type": "cancel-frame",
+        "id": 54,
+        "at": 14292.79999999702
+      },
+      {
+        "type": "cancel-frame",
+        "id": 54,
+        "at": 14711.29999999702
+      },
+      {
+        "type": "schedule",
+        "callback": "",
+        "ms": 2700,
+        "id": 62,
+        "at": 19081.19999999553
+      },
+      {
+        "type": "schedule",
+        "callback": "enemyTurn",
+        "ms": 1500,
+        "id": 63,
+        "at": 19081.19999999553
+      }
+    ],
+    "now": 22506.79999999702,
+    "errors": []
+  },
+  {
+    "name": "clock-running",
+    "replied": true,
+    "hp": 93,
+    "foe": 42,
+    "battle": true,
+    "waiting": false,
+    "timers": [
+      {
+        "type": "schedule",
+        "callback": "",
+        "ms": 2700,
+        "id": 62,
+        "at": 13126.90000000596
+      },
+      {
+        "type": "schedule",
+        "callback": "enemyTurn",
+        "ms": 1500,
+        "id": 63,
+        "at": 13126.90000000596
+      }
+    ],
+    "now": 16558.10000000149,
+    "errors": []
+  },
+  {
+    "name": "walltime-paused",
+    "replied": true,
+    "hp": 93,
+    "foe": 42,
+    "battle": true,
+    "waiting": false,
+    "timers": [
+      {
+        "type": "cancel-frame",
+        "id": 50,
+        "at": 11702.89999999851
+      },
+      {
+        "type": "cancel-frame",
+        "id": 51,
+        "at": 11718.79999999702
+      },
+      {
+        "type": "cancel-frame",
+        "id": 52,
+        "at": 11727.39999999851
+      },
+      {
+        "type": "cancel-frame",
+        "id": 53,
+        "at": 12583
+      },
+      {
+        "type": "cancel-frame",
+        "id": 54,
+        "at": 13044.19999999553
+      },
+      {
+        "type": "cancel-frame",
+        "id": 55,
+        "at": 13501.89999999851
+      },
+      {
+        "type": "cancel-frame",
+        "id": 55,
+        "at": 13940.19999999553
+      },
+      {
+        "type": "schedule",
+        "callback": "",
+        "ms": 2700,
+        "id": 62,
+        "at": 18330.39999999851
+      },
+      {
+        "type": "schedule",
+        "callback": "enemyTurn",
+        "ms": 1500,
+        "id": 63,
+        "at": 18330.39999999851
+      }
+    ],
+    "now": 21806,
+    "errors": []
+  }
+]

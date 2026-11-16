@@ -1,0 +1,10 @@
+{"lane":{"x":5034,"y":4889},"before":{"x":5034,"render":5034,"moves":0,"inventory":"{\"gold\":100,\"healthPotions\":3,\"manaPotions\":2,\"keys\":0,\"boats\":0,\"pickaxe\":0}"},"suspended":{"x":5040,"render":5034,"moves":6},"first":{"x":5040,"render":5040},"renderStep":6}
+AssertionError [ERR_ASSERTION]: accepted ordinary steps must stay within a bounded catch-up, not become a six-tile render snap
+    at /workspace/MagicOver/eternalbliss/tests/release/long-frame.cjs:9:372 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}

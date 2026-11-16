@@ -1,0 +1,2 @@
+BOARDED phone { x: 5036, y: 4870, land: { x: 5036, y: 4869 } } [ 5036, 4870 ]
+PASS vehicles phone

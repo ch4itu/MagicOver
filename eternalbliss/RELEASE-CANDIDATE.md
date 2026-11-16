@@ -1,5 +1,7 @@
 # PR #24 release-candidate validation checkpoint
 
+**Validation completed:** see [RELEASE-READINESS.md](RELEASE-READINESS.md), the [visual comparison](RELEASE-VISUALS.html) and [machine matrix](tests/release-matrix.json). Final HTML remains `b0c9cd4243fe595ebcc002d66a939390e8ffd88ba8445452bdb7e6b1c70c26dd`. The 59 matrix entries resolve to 53 PASS and six REUSED; two supplemental suites passed. Physical Android, live two-client shared-world coverage, human visual acceptance and merge/deploy approval remain open. Do not restart passed checks on resume.
+
 Candidate under validation: original integrated PR #24 head `043f4b3`, HTML `f9faf30e118695aa3d93e1f058b0806978b250d58c6287a816fcc1575a61df08`, plus the focused render-path correction below. No merge/deployment/chain write is authorized.
 
 The controlled active-renderer gap reproduced a six-tile snap on both live R15.56 and original PR #24. Six actual accepted key steps were preserved while drawing was suspended. A bounded, render-only waypoint queue now follows accepted solo steps (including turns) instead of classifying rendering lag as a relocation. Real local travel time is capped at 250ms; animation/shared/legacy timesteps remain unchanged. Queue data is never serialized or sent over a network, clears on map/position discontinuity or view/scope changes, and is capped at 128 points.

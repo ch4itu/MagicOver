@@ -1,0 +1,1 @@
+PASS { hours: true, outside: true, stock: 3 }

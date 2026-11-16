@@ -1,0 +1,6 @@
+PASS vehicles desktop
+page.evaluate: Error: no water step
+    at eval (eval at evaluate (:290:30), <anonymous>:1:294)
+    at UtilityScript.evaluate (<anonymous>:292:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+    at /workspace/MagicOver/eternalbliss/tests/release/vehicles.cjs:7:22
