@@ -3675,6 +3675,7 @@ function talkToNPC(npc) {
         <div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>
         <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(npc.dialogue)}"</div>
         ${storyLine}
+        ${ebFarlands.errandTalk(npc)}
         ${typeof ebJournal !== 'undefined' ? ebJournal.hint(npc) : ''}
         <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
             Press ESC or click Close to continue your journey
@@ -13861,6 +13862,7 @@ const ebFarlands = (() => {
         const {x,y}=gameState.player;
         const site=Farlands.nearbySite(x,y);
         if (site?.station) journey.station=site.id;
+        if (site && !sharedWorld.active()) errandArrived(site);
         if (site && !journey.visited.has(site.id)) {
             journey.visited.add(site.id);
             if (Farlands.survey.includes(site.id) && Farlands.survey.every(id=>journey.visited.has(id))) {
@@ -14061,29 +14063,86 @@ const ebFarlands = (() => {
         updateHint();
     }
 
-    // R15.24: lightweight settlement errands. Each settlement has a deterministic
-    // destination; completion requires the destination to have been visited.
-    // The existing spent journal records completion, avoiding save schema changes.
+    // R15.24: lightweight settlement errands. Each settlement has a deterministic destination.
+    // R15.57: an errand is given by the settlement's provisioner, accepted, followed on the goal tag, reached
+    // (only a visit after accepting counts), and reported back for 10 gold and 10 XP, once. The existing spent list
+    // in the save holds every step: errand-taken-<site>, errand-reached-<site>, and errand-<site> when done.
+    // The task is described as what the player actually does: walk there, then come back and tell.
     let activeErrand=null;
+    const ERRAND_GOLD=10, ERRAND_XP=10;
     function errandFor(site) {
         const choices=Farlands.sites.filter(other=>other.id!==site.id && other.region===site.region && !other.waterfront);
         choices.sort((a,b)=>Math.hypot(a.x-site.x,a.y-site.y)-Math.hypot(b.x-site.x,b.y-site.y));
         const target=choices[0] || Farlands.start;
-        const categories=['Deliver a sealed letter','Survey the nearby landmark','Carry a trade manifest','Check the local trail','Bring news from the road'];
-        const category=categories[(site.index||0)%categories.length];
-        return {site,target,category,key:'errand-'+site.id};
+        const asks=['walk to TARGET and see that the road there is clear','go and look over TARGET, then tell me how it stands',
+            'follow the trail to TARGET and back','travel to TARGET and see how things are there','go to TARGET and bring back news of the road'];
+        const ask=asks[(site.index||0)%asks.length].replace('TARGET',target.name);
+        const giver=site===Farlands.start ? 'Ivo, the Millwright' : site.name+' Provisioner';
+        return {site,target,ask,giver,key:'errand-'+site.id,taken:'errand-taken-'+site.id,reached:'errand-reached-'+site.id};
+    }
+    const errandState=task=>journey.spent.has(task.key)?'done':journey.spent.has(task.reached)?'reached':journey.spent.has(task.taken)?'taken':'new';
+    // The errand the goal tag should show: one in hand whose next place is the pinned one.
+    function errandGoal() {
+        if(!journey||!surface()||sharedWorld.active())return null;
+        for(const site of Farlands.sites){
+            if(!site.station||!journey.spent.has('errand-taken-'+site.id)||journey.spent.has('errand-'+site.id))continue;
+            const task=errandFor(site), state=errandState(task), next=state==='reached'?site:task.target;
+            if(journey.pin!==next.id)continue;
+            return {label:state==='reached'?'Report to '+task.giver.split(',')[0]+' at '+site.name:'Errand: reach '+task.target.name,site:next};
+        }
+        return null;
+    }
+    function errandArrived(here) {
+        for(const site of Farlands.sites){
+            if(!site.station)continue;
+            const task=errandFor(site);
+            if(task.target.id!==here.id||errandState(task)!=='taken')continue;
+            journey.spent.add(task.reached);
+            if(journey.pin===here.id)journey.pin=site.id;
+            saveNow();
+            showFloatingText(here.name+' reached · return to '+site.name+' and report to '+task.giver.split(',')[0],
+                gameState.player.x*32+16,gameState.player.y*32-38,'#f1cf83');
+        }
+    }
+    // Reporting back: the reward is paid once, by the same check that marks the errand done.
+    function finishErrand(task) {
+        if(errandState(task)!=='reached'||Farlands.nearbySite(gameState.player.x,gameState.player.y)?.id!==task.site.id)return false;
+        journey.spent.add(task.key);
+        gameState.inventory.gold+=ERRAND_GOLD;
+        gameState.player.xp+=ERRAND_XP;
+        checkLevelUp();
+        updateUI();
+        if(journey.pin===task.site.id)journey.pin=null;
+        saveNow();updateHint();
+        return true;
+    }
+    const errandThanks=task=>`<div style="margin-top:14px;padding:10px;border:1px solid rgba(230,190,100,.5);border-radius:10px">"Back from ${escapeMapText(task.target.name)} already? Good. That tells me what I needed to know. Here, for your trouble."<div style="margin-top:8px;font-weight:700">Errand done · +${ERRAND_GOLD} gold · +${ERRAND_XP} XP</div></div>`;
+    // Talking to the giver: reports a reached errand, or says what is still owed.
+    function errandTalk(npc) {
+        if(!journey||!surface()||sharedWorld.active())return '';
+        const site=Farlands.nearbySite(gameState.player.x,gameState.player.y);
+        if(!site?.station)return '';
+        const task=errandFor(site);
+        if(npc.name!==task.giver)return '';
+        const state=errandState(task);
+        if(state==='reached'&&finishErrand(task))return errandThanks(task);
+        if(state==='taken')return `<div style="margin-top:14px;opacity:.9">"Have you been to ${escapeMapText(task.target.name)} yet? Come and tell me when you have."</div>`;
+        return '';
     }
     function openLocalErrand() {
         if(!surface() || buildingInterior || sharedWorld.active())return;
         const site=Farlands.nearbySite(gameState.player.x,gameState.player.y);
         if(!site?.station)return;
         activeErrand=errandFor(site);
-        const task=activeErrand,done=journey.spent.has(task.key),visited=journey.visited.has(task.target.id);
-        get('eb-task-heading').textContent=site.name+' · Local errand';
-        get('eb-task-description').textContent=task.category+' to '+task.target.name+'. Visit that location, then return to '+site.name+' to report completion.';
-        get('eb-task-progress').textContent=done?'Completed ✓':visited?'Destination visited · ready to report':'Not yet visited · mark the destination to find your way';
-        get('eb-task-pin').disabled=done;
-        get('eb-task-complete').disabled=done||!visited;
+        const task=activeErrand,state=errandState(task);
+        get('eb-task-heading').textContent=site.name+' · Errand from '+task.giver;
+        get('eb-task-description').textContent='"Could you '+task.ask+'? Come back here and tell me when you have." Reward: '+ERRAND_GOLD+' gold and '+ERRAND_XP+' XP.';
+        get('eb-task-progress').textContent=state==='done'?'Done ✓ · reward received':state==='reached'?task.target.name+' reached · report here to finish':
+            state==='taken'?'Accepted · '+task.target.name+' not reached yet':'Not accepted yet';
+        get('eb-task-pin').textContent=state==='new'?'Accept errand':state==='reached'?'Show '+site.name:'Show '+task.target.name;
+        get('eb-task-pin').disabled=state==='done';
+        get('eb-task-complete').textContent='Report back';
+        get('eb-task-complete').disabled=state!=='reached';
         get('eb-local-tasks').showModal();
     }
     // R14.4: atlas viewport is display-only; world coordinates and saves are unchanged.
@@ -14395,14 +14454,24 @@ const ebFarlands = (() => {
         get('eb-task-close').addEventListener('click',()=>get('eb-local-tasks').close());
         get('eb-task-pin').addEventListener('click',()=>{
             if(!activeErrand)return;
-            journey.pin=activeErrand.target.id;
+            const task=activeErrand,state=errandState(task);
+            if(state==='done')return;
+            if(state==='new'){
+                journey.spent.add(task.taken);
+                showFloatingText('Errand accepted · reach '+task.target.name,gameState.player.x*32+16,gameState.player.y*32-38,'#f1cf83');
+            }
+            journey.pin=state==='reached'?task.site.id:task.target.id;
             saveNow();get('eb-local-tasks').close();updateHint();
         });
         get('eb-task-complete').addEventListener('click',()=>{
-            if(!activeErrand || !journey.visited.has(activeErrand.target.id))return;
-            const nearby=Farlands.nearbySite(gameState.player.x,gameState.player.y);
-            if(nearby?.id!==activeErrand.site.id)return;
-            journey.spent.add(activeErrand.key);saveNow();get('eb-local-tasks').close();
+            if(!activeErrand)return;
+            const task=activeErrand;
+            if(!finishErrand(task))return;
+            get('eb-local-tasks').close();
+            document.getElementById('modalTitle').textContent=task.giver;
+            document.getElementById('modalContent').innerHTML=errandThanks(task);
+            releaseMovement();
+            document.getElementById('interactionModal').style.display='flex';
         });
         get('eb-transport-board-close').addEventListener('click',()=>get('eb-transport-board').close());
         get('eb-transport-board-atlas').addEventListener('click',()=>{
@@ -14475,18 +14544,6 @@ const ebFarlands = (() => {
             horseButton.textContent=ebHorseMounted ? 'Dismount' : 'Mount horse';
             horseButton.setAttribute('aria-pressed',String(ebHorseMounted));
             saveNow();
-        });
-        get('eb-farlands-local-tasks').addEventListener('click',openLocalErrand);
-        get('eb-task-close').addEventListener('click',()=>get('eb-local-tasks').close());
-        get('eb-task-pin').addEventListener('click',()=>{
-            if(!activeErrand)return;
-            journey.pin=activeErrand.target.id;
-            saveNow();get('eb-local-tasks').close();updateHint();
-        });
-        get('eb-task-complete').addEventListener('click',()=>{
-            if(!activeErrand||!journey.visited.has(activeErrand.target.id))return;
-            if(Farlands.nearbySite(gameState.player.x,gameState.player.y)?.id!==activeErrand.site.id)return;
-            journey.spent.add(activeErrand.key);saveNow();get('eb-local-tasks').close();
         });
         // In-world vehicle interactions use the game's own dialog, never browser confirm().
         const vehicleDialog=get('eb-vehicle-confirm');
@@ -14603,7 +14660,7 @@ const ebFarlands = (() => {
     });
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
-    return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
+    return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
         completeHerbLesson,storyFlag,markStory,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
@@ -14965,6 +15022,8 @@ const ebJournal = (() => {
     // R15.36: the HUD goal: the first unfinished chapter and its next landmark. A tap pins that landmark (the Atlas pin,
     // so the card shows its distance and direction); a second tap opens this journal.
     function nextGoal() {
+        const errand=ebFarlands.errandGoal(); // R15.57: an errand in hand whose place is pinned
+        if (errand) return {quest:{label:errand.label},next:errand.site,errand:true};
         const quest=ebStory.objective();
         if (quest && !quest.done) return {quest,next:quest.site??null};
         if (!ebFarlands.surface()) return null;
@@ -14982,7 +15041,7 @@ const ebJournal = (() => {
         const goal = visible ? nextGoal() : null;
         chip.hidden = !goal;
         if (!goal) return;
-        const text = goal.quest ? (goal.next && ebFarlands.pinned()===goal.next.id ? '📍 ' : '🔔 ')+goal.quest.label
+        const text = goal.errand ? '📜 '+goal.quest.label : goal.quest ? (goal.next && ebFarlands.pinned()===goal.next.id ? '📍 ' : '🔔 ')+goal.quest.label
             : (ebFarlands.pinned()===goal.next.id ? '📍 ' : '📖 ')+goal.chapter.title.replace(/^The /,'')+' '+goal.done+'/'+goal.total+' · '+goal.next.name;
         if (chip.textContent !== text) chip.textContent = text;
     }
