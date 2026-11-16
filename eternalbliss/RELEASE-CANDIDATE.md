@@ -1,5 +1,7 @@
 # PR #24 release-candidate validation checkpoint
 
+**Latest candidate:** the independent audit exposed a touch-tablet D-pad blocker omitted by the original controls expectations. The CSS-only follow-up is recorded in [D-PAD-RELEASE-FIX.md](D-PAD-RELEASE-FIX.md), HTML `18ecff7c1bfd4f12502b8216e2720b8b3c32e2f62d0fde033b719c33906bdf0c`. Preserve the older matrix below as historical evidence; do not relabel it as a run on the new hash. PR #24 remains a draft pending approval.
+
 **Validation completed:** see [RELEASE-READINESS.md](RELEASE-READINESS.md), the [visual comparison](RELEASE-VISUALS.html) and [machine matrix](tests/release-matrix.json). Final HTML remains `b0c9cd4243fe595ebcc002d66a939390e8ffd88ba8445452bdb7e6b1c70c26dd`. The 59 matrix entries resolve to 53 PASS and six REUSED; two supplemental suites passed. Physical Android, live two-client shared-world coverage, human visual acceptance and merge/deploy approval remain open. Do not restart passed checks on resume.
 
 Candidate under validation: original integrated PR #24 head `043f4b3`, HTML `f9faf30e118695aa3d93e1f058b0806978b250d58c6287a816fcc1575a61df08`, plus the focused render-path correction below. No merge/deployment/chain write is authorized.

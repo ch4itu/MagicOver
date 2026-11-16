@@ -1,0 +1,7 @@
+KEEP profile after tablet-portrait
+page.waitForFunction: Timeout 30000ms exceeded.
+    at setMode (/workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:26:247)
+    at async hud (/workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:30:170)
+    at async /workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:33:745 {
+  name: 'TimeoutError'
+}

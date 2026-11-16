@@ -1,5 +1,7 @@
 # EternalBliss PR #24 — release-candidate validation
 
+**Follow-up correction:** the independent audit found missing touch-tablet D-pad coverage in this report's candidate. See [D-PAD-RELEASE-FIX.md](D-PAD-RELEASE-FIX.md) for the CSS-only correction and focused before/after results. The report below preserves the historical `b0c9cd42…` results and their original scope; it does not certify the corrected HTML or the omitted tablet cases.
+
 **Available critical local/browser checks passed. Ready for human release review; deployment remains gated.** No merge, deployment, blockchain write or runtime monetization was performed. Physical Android and real two-client shared-world behavior remain unverified.
 
 Validated 16 November 2026, through **09:45 IST**. [Draft PR #24](https://github.com/ch4itu/MagicOver/pull/24) integrates PRs #5–#23. Its original HTML was `f9faf30e118695aa3d93e1f058b0806978b250d58c6287a816fcc1575a61df08`. Validation found one inherited rendering defect and corrected it in `fdf85f69238b845bbdddc7700bdb08915e976c58`.

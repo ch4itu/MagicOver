@@ -1,0 +1,9 @@
+STATE after phone-portrait overhead normal pad active
+STATE after phone-portrait overhead clean pad active
+STATE after phone-portrait FP normal pad active
+STATE after phone-portrait FP clean pad active
+CHECK after phone-portrait 390 844 PASS
+ATLAS BEFORE {"blocked":false,"battle":false,"open":[]}
+ATLAS AFTER {"events":[{"type":"pointerdown","id":"eb-farlands-atlas-open","tag":"BUTTON","cls":"eb-panel-button eb-atlas-button","pointer":"mouse","x":156.4375,"y":250.5},{"type":"pointerup","id":"eb-farlands-atlas-open","tag":"BUTTON","cls":"eb-panel-button eb-atlas-button","pointer":"mouse","x":156.4375,"y":250.5},{"type":"click","id":"eb-farlands-atlas-open","tag":"BUTTON","cls":"eb-panel-button eb-atlas-button","pointer":"mouse","x":156,"y":250}],"scroll":[0,0],"rect":{"x":0,"y":0,"width":0,"height":0,"top":0,"right":0,"bottom":0,"left":0},"clicks":[{"pointerType":"mouse","blocked":true,"battle":false,"open":["eb-farlands-atlas"]}],"dialog":true,"blocked":true,"viewport":{"scale":1,"x":0,"y":0}}
+PASS HUD after phone-portrait
+COMPLETE after 18ecff7c1bfd4f12502b8216e2720b8b3c32e2f62d0fde033b719c33906bdf0c 1 profiles; []

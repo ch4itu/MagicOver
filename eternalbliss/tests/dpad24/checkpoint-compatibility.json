@@ -1,0 +1,19 @@
+{
+  "runner": "c8b5cceb5a81fb1586b57e0574b73a7a23aafcf920bea4a8e3fe1a18ca6e6699",
+  "priorScripts": [
+    "d6111324aa911407c5cb7d7872fad9a3158a8009f20323daf8821b4711119674",
+    "a4084fadd1b37574f0a77bd7ef1dbb76a5b6fe84989343779d27e7e698c16570",
+    "831cd7c9280385891872e0c9adc87cd7c10072a5de2be21dfad89e50351ef9a9",
+    "452b5e648b00f0d4bdfd08473171538f8ca8c76bde29796b862dbe68b1761a45",
+    "8e6af2a736aad6d29075c07e967364355c803cc4dd92087aa7e7707eed7525d6",
+    "8bdd0f94157910461e47aae14a9a722cc46ced7f02cd04f3b3a59816ada90c5b",
+    "9318125dea496b2f52f432c4506cfaa1ac68e7278880d65d3852ff59880d7733",
+    "ce506f93c075b3aec93ddbbc36ec2ec507a00c133fc59a81995e7c175adc910d",
+    "4801b9caff1756086fea81319a9495578e92058d15ebdb68a0a4e73a5690250e",
+    "6ef59d7e012d0741b3d4a6083ee7aec1ad4a28db857b014d49db41da5ad5b0a3",
+    "54a8c073237644aa1046c72fd2113802a2a599a9b4fa8d59e098934fec3221f4",
+    "c618aee649c5cd81f8cbd9921086729ed4912ad380003685496e6c7f6cb122aa"
+  ],
+  "originalRunner": "d6111324aa911407c5cb7d7872fad9a3158a8009f20323daf8821b4711119674",
+  "note": "Source/profile assertions retained across recorded fixture/readiness/recording changes. This list is disabled automatically if current runner bytes change. Original compact mouse checks used touch input and were repeated with actual mouse input."
+}

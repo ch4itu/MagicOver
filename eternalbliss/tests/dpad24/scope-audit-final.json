@@ -1,0 +1,15 @@
+{
+  "time": "2026-11-16T08:16:14.476937+00:00",
+  "sha": "18ecff7c1bfd4f12502b8216e2720b8b3c32e2f62d0fde033b719c33906bdf0c",
+  "script": "4241fd05c1a62653ede0fe2c93b94edcf8a4c567eab6f33eaf8d9547a5df33ef",
+  "test": "D-pad correction exact source scope",
+  "browser": "Python byte comparison; not browser or chain testing",
+  "result": {
+    "result": "PASS only declared CSS replacement; every other byte and all 29 scripts unchanged",
+    "before": "b0c9cd4243fe595ebcc002d66a939390e8ffd88ba8445452bdb7e6b1c70c26dd",
+    "after": "18ecff7c1bfd4f12502b8216e2720b8b3c32e2f62d0fde033b719c33906bdf0c",
+    "scriptBlocks": 29,
+    "old": "/* PR #2: retain touch movement only in compact/touch landscape layouts. */\n@media (max-width: 768px), (max-height: 520px) and (pointer: coarse) {\n    body.eb-capture-clean #mobile-controls { display:grid!important; }\n}\n@media (min-width: 769px) and (min-height: 521px) {\n    #mobile-controls, body.eb-capture-clean #mobile-controls { display:none!important; }\n}",
+    "new": "/* PR #2: keep desktop controls hidden by default; retain touch movement at every size, including hybrids. */\n@media (max-width: 768px), (any-pointer: coarse) {\n    #mobile-controls, body.eb-capture-clean #mobile-controls { display:grid!important; }\n}"
+  }
+}

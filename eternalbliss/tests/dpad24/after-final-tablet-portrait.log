@@ -1,0 +1,5 @@
+KEEP profile after tablet-portrait
+ATLAS BEFORE {"blocked":false,"battle":false,"open":[]}
+ATLAS AFTER {"events":[{"type":"pointerdown","id":"eb-farlands-atlas-open","tag":"BUTTON","cls":"eb-panel-button eb-atlas-button","pointer":"mouse","x":481.5625,"y":157.578125},{"type":"pointerup","id":"eb-farlands-atlas-open","tag":"BUTTON","cls":"eb-panel-button eb-atlas-button","pointer":"mouse","x":481.5625,"y":157.578125},{"type":"click","id":"eb-farlands-atlas-open","tag":"BUTTON","cls":"eb-panel-button eb-atlas-button","pointer":"mouse","x":481,"y":157}],"scroll":[0,0],"rect":{"x":455.375,"y":140.578125,"width":52.375,"height":34,"top":140.578125,"right":507.75,"bottom":174.578125,"left":455.375},"clicks":[{"pointerType":"mouse","blocked":true,"battle":false,"open":["eb-farlands-atlas"]}],"dialog":true,"blocked":true,"viewport":{"scale":1,"x":0,"y":0}}
+PASS HUD after tablet-portrait
+COMPLETE after 18ecff7c1bfd4f12502b8216e2720b8b3c32e2f62d0fde033b719c33906bdf0c 1 profiles; []

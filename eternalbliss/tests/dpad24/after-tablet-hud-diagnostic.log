@@ -1,0 +1,12 @@
+KEEP profile after tablet-portrait
+ATLAS BEFORE {"blocked":false,"battle":false,"open":[]}
+ATLAS AFTER {"clicks":[],"dialog":false,"blocked":false,"viewport":{"scale":1,"x":0,"y":0}}
+locator.waitFor: Timeout 5000ms exceeded.
+Call log:
+[2m  - waiting for locator('#eb-farlands-atlas') to be visible[22m
+[2m    15 × locator resolved to hidden <dialog id="eb-farlands-atlas" class="eb-dialog eb-atlas" aria-labelledby="eb-farlands-atlas-title">…</dialog>[22m
+
+    at hud (/workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:30:1581)
+    at async /workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:33:745 {
+  name: 'TimeoutError'
+}

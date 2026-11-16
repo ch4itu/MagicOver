@@ -1,0 +1,250 @@
+{
+  "candidate": "18ecff7c1bfd4f12502b8216e2720b8b3c32e2f62d0fde033b719c33906bdf0c",
+  "artifacts": [
+    {
+      "file": "README.md",
+      "sha256": "9992a4d7645a65f1971ae2a0df094bd84816cd5d3228c93bf71bfed8c8b3f417",
+      "bytes": 2124
+    },
+    {
+      "file": "after-final-boundaries-hybrid.log",
+      "sha256": "83055555cb22dc44a3dd1abe0a791c364c949a5897936b67326f0251c8c1a10f",
+      "bytes": 1243
+    },
+    {
+      "file": "after-final-boundaries-touch.log",
+      "sha256": "1072755ba9cdd7d700fb4f01adf3682dcde816b0177e4a2a164b4f9c18a6ead2",
+      "bytes": 1223
+    },
+    {
+      "file": "after-final-hybrid.log",
+      "sha256": "5a25f57cc47eec88fb6b0e08350992e065fdd2d45af7273dcfc6a41e3b8af6da",
+      "bytes": 1100
+    },
+    {
+      "file": "after-final-jobs.jsonl",
+      "sha256": "0d52f80997b45d8bfadd8dd36aa4ce9d896996fc940eb97f6fc2e47fc6444f7d",
+      "bytes": 2652
+    },
+    {
+      "file": "after-final-phone-landscape.log",
+      "sha256": "cd1d2f44010e1aee647fa81b01983e8b880f8d5d17f940dc33310726434f1dbd",
+      "bytes": 1139
+    },
+    {
+      "file": "after-final-phone-portrait.log",
+      "sha256": "b7ecfceff90719e8f035fe6dba3f83126f6c6d8d81e5e0405982dae3e92de01a",
+      "bytes": 1133
+    },
+    {
+      "file": "after-final-tablet-landscape.log",
+      "sha256": "5e550121ba80d7d9585d29bb81f6127f9b467b21f26a1a56203afba876ed8433",
+      "bytes": 1160
+    },
+    {
+      "file": "after-final-tablet-portrait.log",
+      "sha256": "660163263e873dda3a73fc882dd81e8ce54184d7bfbaa8a8e7e0cdf1cd513fc8",
+      "bytes": 987
+    },
+    {
+      "file": "after-final-tap.log",
+      "sha256": "8cad71b84a83f7a9b0a363e72cef9cb4741c2cce607e37d86bbdfb8a23fdeee5",
+      "bytes": 177
+    },
+    {
+      "file": "after-tablet-hud-diagnostic.log",
+      "sha256": "1b16af4ea22d77d6445a188429d74c0ef2e123b8c764e7a728f5389c3bd3a52d",
+      "bytes": 644
+    },
+    {
+      "file": "after-tablet-hud-gesture.log",
+      "sha256": "5382eba49de4ed54dc674a7bcb29dc3b11bd92e76533f5b700e58958f400db7a",
+      "bytes": 348
+    },
+    {
+      "file": "after-tablet-hud-recipients.log",
+      "sha256": "2b0ffb5d8e033e68d47ff9bc9e7e41472f5d7ede57ce9ac05e39eb6e7e3694dd",
+      "bytes": 1106
+    },
+    {
+      "file": "after-tablet-hud-sequential-touch.log",
+      "sha256": "2b0ffb5d8e033e68d47ff9bc9e7e41472f5d7ede57ce9ac05e39eb6e7e3694dd",
+      "bytes": 1106
+    },
+    {
+      "file": "after-tablet-hud-settled.log",
+      "sha256": "1b16af4ea22d77d6445a188429d74c0ef2e123b8c764e7a728f5389c3bd3a52d",
+      "bytes": 644
+    },
+    {
+      "file": "after-tablet-landscape-fp-clean.png",
+      "sha256": "d53822a0d9cef9d4adf23f5f2d9e6d661751797f597d77616c338d504f505967",
+      "bytes": 217655
+    },
+    {
+      "file": "after-tablet-landscape-normal.png",
+      "sha256": "51d76eddd3de2ddd60b7d546564804210c45fe5927ed04db1b44e2402cd05f3b",
+      "bytes": 199397
+    },
+    {
+      "file": "after.log",
+      "sha256": "0789ff3533580f071b891549d20880b61fde316bfada65fec3c6ed0a934456a0",
+      "bytes": 2068
+    },
+    {
+      "file": "before-phone-touch-hud-diagnostic.log",
+      "sha256": "8af170f952eafef7db66fc0da2c3bba5f67a522931be9d24b67dd8ab2d7c9999",
+      "bytes": 1080
+    },
+    {
+      "file": "before-tablet-landscape-fp-clean.png",
+      "sha256": "8716a7cef8fc90f9757541ec3018e281c03cb870353b115bcea9960224427ce1",
+      "bytes": 192047
+    },
+    {
+      "file": "before-tablet-landscape-normal.png",
+      "sha256": "03f52a10db54f37c9dbe36fe037ef46e8d9063003a4e006e8f861cd6de14b69c",
+      "bytes": 185415
+    },
+    {
+      "file": "before-v1-interrupted.log",
+      "sha256": "2691fae391d7eef7df91812749cea78a10e04ded1e6759373ed6e8f2bae9532c",
+      "bytes": 311
+    },
+    {
+      "file": "before-v2.log",
+      "sha256": "55549632013c436fbe42375fff48cad9e6e1dc81488223d83d1875e615ee7e9e",
+      "bytes": 684
+    },
+    {
+      "file": "before-v3.log",
+      "sha256": "b5ceb31b73fcdf24654476610314326d4c524c9f8ee782f506551774b9f9f6a3",
+      "bytes": 1171
+    },
+    {
+      "file": "before-v4-remaining.log",
+      "sha256": "ea42d6da7f8785a2cd89d21c05a8ab12416335f19c917f861ebd7fbd69245978",
+      "bytes": 772
+    },
+    {
+      "file": "before-v5-remaining.log",
+      "sha256": "3618522f9d064293192e9a2bc87b236cdda3d41e0b8087f502bc174eb46fac00",
+      "bytes": 436
+    },
+    {
+      "file": "before.log",
+      "sha256": "2691fae391d7eef7df91812749cea78a10e04ded1e6759373ed6e8f2bae9532c",
+      "bytes": 311
+    },
+    {
+      "file": "checkpoint-compatibility.json",
+      "sha256": "ccca77aa35fbabb00834caa7c9497381b834e25f7e01b48061859bf3fb0fda9c",
+      "bytes": 1318
+    },
+    {
+      "file": "checkpoint-no-replay.json",
+      "sha256": "64acf6d8b2bafaabe2387429e3976b2622d7ceacb874d2d3ba1a9d3311d84c6a",
+      "bytes": 1336
+    },
+    {
+      "file": "corrected-startup-smoke.log",
+      "sha256": "dfb48a60a11829a1d1b6b62eede37af3eb24d681d1c20c80c0b58477145ee587",
+      "bytes": 84
+    },
+    {
+      "file": "ledger.jsonl",
+      "sha256": "bf5541a172ac35ee6f246fc714a8e2472c7a55e002ae6accd5d2784673ac18fe",
+      "bytes": 89360
+    },
+    {
+      "file": "live-r1556-tap.log",
+      "sha256": "ef226554160660f431a09c87eb6ea268eca7e382ca7ae59c40388797f1c4bf1f",
+      "bytes": 192
+    },
+    {
+      "file": "matrix.json",
+      "sha256": "18c30256e7e8491ae8430a979dae5fa81cd4a536c78c2d91c21fb98480df8322",
+      "bytes": 198946
+    },
+    {
+      "file": "scope-audit-final.json",
+      "sha256": "ac11c92d79d0868431fce84ac17e28da2c56c4f657ee86c5da0b52ae88a1bd79",
+      "bytes": 1280
+    },
+    {
+      "file": "scope-audit.json",
+      "sha256": "3c61e11d5519f03229df9d41c53d6aeffb0c529b34979232e8689052b0810249",
+      "bytes": 1037
+    },
+    {
+      "file": "scope-audit.py",
+      "sha256": "4241fd05c1a62653ede0fe2c93b94edcf8a4c567eab6f33eaf8d9547a5df33ef",
+      "bytes": 1788
+    },
+    {
+      "file": "supplemental-jobs.jsonl",
+      "sha256": "54ce2f8cce9081f27758a3ee590e5b9599a2ba8287bdc7eb6d2355a8891d5ecc",
+      "bytes": 662
+    },
+    {
+      "file": "tablet-dpad-v1.cjs",
+      "sha256": "d6111324aa911407c5cb7d7872fad9a3158a8009f20323daf8821b4711119674",
+      "bytes": 12825
+    },
+    {
+      "file": "tablet-dpad-v10.cjs",
+      "sha256": "a4084fadd1b37574f0a77bd7ef1dbb76a5b6fe84989343779d27e7e698c16570",
+      "bytes": 17693
+    },
+    {
+      "file": "tablet-dpad-v11.cjs",
+      "sha256": "831cd7c9280385891872e0c9adc87cd7c10072a5de2be21dfad89e50351ef9a9",
+      "bytes": 17700
+    },
+    {
+      "file": "tablet-dpad-v12.cjs",
+      "sha256": "452b5e648b00f0d4bdfd08473171538f8ca8c76bde29796b862dbe68b1761a45",
+      "bytes": 17701
+    },
+    {
+      "file": "tablet-dpad-v2.cjs",
+      "sha256": "8e6af2a736aad6d29075c07e967364355c803cc4dd92087aa7e7707eed7525d6",
+      "bytes": 14236
+    },
+    {
+      "file": "tablet-dpad-v3.cjs",
+      "sha256": "8bdd0f94157910461e47aae14a9a722cc46ced7f02cd04f3b3a59816ada90c5b",
+      "bytes": 14428
+    },
+    {
+      "file": "tablet-dpad-v4.cjs",
+      "sha256": "9318125dea496b2f52f432c4506cfaa1ac68e7278880d65d3852ff59880d7733",
+      "bytes": 14603
+    },
+    {
+      "file": "tablet-dpad-v5.cjs",
+      "sha256": "ce506f93c075b3aec93ddbbc36ec2ec507a00c133fc59a81995e7c175adc910d",
+      "bytes": 15215
+    },
+    {
+      "file": "tablet-dpad-v6.cjs",
+      "sha256": "4801b9caff1756086fea81319a9495578e92058d15ebdb68a0a4e73a5690250e",
+      "bytes": 15731
+    },
+    {
+      "file": "tablet-dpad-v7.cjs",
+      "sha256": "6ef59d7e012d0741b3d4a6083ee7aec1ad4a28db857b014d49db41da5ad5b0a3",
+      "bytes": 16643
+    },
+    {
+      "file": "tablet-dpad-v8.cjs",
+      "sha256": "54a8c073237644aa1046c72fd2113802a2a599a9b4fa8d59e098934fec3221f4",
+      "bytes": 16849
+    },
+    {
+      "file": "tablet-dpad-v9.cjs",
+      "sha256": "c618aee649c5cd81f8cbd9921086729ed4912ad380003685496e6c7f6cb122aa",
+      "bytes": 17401
+    }
+  ]
+}

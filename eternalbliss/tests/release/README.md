@@ -1,5 +1,7 @@
 # PR #24 validation harness
 
+The later [touch-tablet D-pad correction](../../D-PAD-RELEASE-FIX.md) adds `../tablet-dpad.cjs` for touch-only tablets, primary-fine hybrids and the four 768/769 × 520/521 boundaries. Its exact-source evidence supersedes the earlier controls expectations, not the entire historical gameplay matrix. See that report before deciding whether any new run is necessary. Its six main profiles use continuous rendering; added CSS/input boundary and HUD checks pause drawing. Native hit-tested UI input, real CSS capabilities, movement assertions and per-version checkpoints are recorded.
+
 Read [the release report](../../RELEASE-READINESS.md) before running anything. The existing final candidate passed its available critical checks. Documentation, artifact packaging or a resumed session does not justify replaying the campaign.
 
 `run-matrix.cjs` pins the checkout and read-only HTML snapshot, starts one child at a time and saves per-job fingerprints/results in `matrix-state.json`. It preserves failures in `previous`, continues independent jobs and keeps identical successful entries. `EB_RC_ONLY` selects failed/affected IDs for a focused retry; `EB_RC_NATIVE_DATE=1` selects the Date-only preload while retaining native gameplay timers. The preload is test-only and never enters production HTML.
