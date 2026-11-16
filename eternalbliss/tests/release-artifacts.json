@@ -1,0 +1,561 @@
+{
+  "candidate": "b0c9cd4243fe595ebcc002d66a939390e8ffd88ba8445452bdb7e6b1c70c26dd",
+  "generated": "2026-11-16T04:16:58.317706+00:00",
+  "artifacts": [
+    {
+      "file": "tests/release-images/comparison-overview.png",
+      "bytes": 799131,
+      "sha256": "bb719a945f503198eb121627358c5dea46c5ef1ba8fa57ceb6424ee2fe884bb9"
+    },
+    {
+      "file": "tests/release-images/enclosed-live-phone-b0c9cd42.png",
+      "bytes": 175568,
+      "sha256": "a4e454b78d27e1146bbd58da6a0894ce4466a4ede98a775ed7843ecfbbd7f902"
+    },
+    {
+      "file": "tests/release-images/live-r1556-inn-eye.png",
+      "bytes": 523647,
+      "sha256": "764a61f131e3b154db05523802438ff9f3fc88611a9a67916816761590c84169"
+    },
+    {
+      "file": "tests/release-images/live-r1556-phone-combat.png",
+      "bytes": 269132,
+      "sha256": "768176070cb3f99dc93ab747b29c8ba7255360a3a8e8475c0f13224086a3835c"
+    },
+    {
+      "file": "tests/release-images/live-r1556-village-day.png",
+      "bytes": 1093434,
+      "sha256": "7cbc224660a8ca50734fdcf9576a8fa0bd3b46cba98d820701e3e86a2c9f46e7"
+    },
+    {
+      "file": "tests/release-images/live-r1556-village-night.png",
+      "bytes": 1120215,
+      "sha256": "96ac2ac148e545815b23f68da6e9a82a2e6b7b85ea6ac570ca5721b6061a4b94"
+    },
+    {
+      "file": "tests/release-images/natural-complete-reloaded-b0c9cd42.png",
+      "bytes": 749304,
+      "sha256": "18eaf7b8dd95dac5327d6a5e51e781ac5658ac851d956b2154708b6c5f16c4ac"
+    },
+    {
+      "file": "tests/release-images/natural-mira-reward-b0c9cd42.png",
+      "bytes": 289101,
+      "sha256": "d6a1b8ba8a48acb3e2e732058f6b3cd4448e5d18885093a3bd3c5a55ba7b3f37"
+    },
+    {
+      "file": "tests/release-images/rc24-inn-eye.png",
+      "bytes": 633389,
+      "sha256": "2cb1bfa630d24d86f1a4683a0f56d45b160f91cf08596f7713f763f644a9614e"
+    },
+    {
+      "file": "tests/release-images/rc24-phone-combat.png",
+      "bytes": 221204,
+      "sha256": "c9bb5f445b391e867b8e83073ddba914747f3899b5a0467d936e221410e01e3e"
+    },
+    {
+      "file": "tests/release-images/rc24-village-day.png",
+      "bytes": 1085888,
+      "sha256": "5fc1c920ba02143d67daab0ea7486992371d9dfa7686e51159363fe6df594d7e"
+    },
+    {
+      "file": "tests/release-images/rc24-village-night.png",
+      "bytes": 1130868,
+      "sha256": "63ac44dc9c400017b7dcc81cc1a6a093c515c92c9665c1dc9d1849aac8360b0d"
+    },
+    {
+      "file": "tests/release-logs/focused-controlled-long-frame-b0c9cd42.json",
+      "bytes": 392,
+      "sha256": "55896a17401eac8492b1ded660a2e67c9f931e8d8f158947ccb0ebfc159192ff"
+    },
+    {
+      "file": "tests/release-logs/focused-gait-contract.log",
+      "bytes": 542,
+      "sha256": "fee19bebafc85e246421221756fea88e8f1262bc48b27fdeabbc61b2a902967c"
+    },
+    {
+      "file": "tests/release-logs/focused-ledger.jsonl",
+      "bytes": 2039,
+      "sha256": "52943cbdba1b453e049e9b216fe2c8cb6a11c1fc34134ffd4c5fbf7d969cab56"
+    },
+    {
+      "file": "tests/release-logs/focused-long-frame.log",
+      "bytes": 294,
+      "sha256": "8e2d816466cc3d3ec272287dc5fcc5082c6c6d5eb4d268365e5a12141efc2f3e"
+    },
+    {
+      "file": "tests/release-logs/focused-path-contract-v2.log",
+      "bytes": 464,
+      "sha256": "6298c5856ec25cac3eb8c904cd297a8556cee78f71e361ca4428f824cc058958"
+    },
+    {
+      "file": "tests/release-logs/focused-path-contract.log",
+      "bytes": 844,
+      "sha256": "16dba294dea1ccc73241b240475871e22384c04af915794e8fabbfa03317f4f5"
+    },
+    {
+      "file": "tests/release-logs/focused-smoke.log",
+      "bytes": 84,
+      "sha256": "7040d7fc1c02e668992a9dd869e2aa11de3f75aa30116b5558417f46ed346b10"
+    },
+    {
+      "file": "tests/release-logs/live-r1556-visuals.json",
+      "bytes": 998,
+      "sha256": "2546e4a3241a808b1e8468a7cd30e6d84ab2517c5ca75ad72db472491daabcaf"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-archive-enclosure-1794801325885.log",
+      "bytes": 452,
+      "sha256": "1905959846aa13eb9fe986c0463abbc7365968265f16c899b047269dbeeffa0e"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-archive-ledger-1794801082366.log",
+      "bytes": 38,
+      "sha256": "8340ef76ce00585a28fac5f0300d4eb39d826fb84efa3cb0a37be85fb12cf929"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-asset-contract-1794799488316.log",
+      "bytes": 634,
+      "sha256": "1525ed6c70221bf220385d09fe87c2f16b7c8d30b8c67788ba104d63db1cb40f"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-atmosphere-1794801263735.log",
+      "bytes": 2205,
+      "sha256": "05f2c48c8d8ee755f73378c84db414dedef8206fa698c5081fac1d3593ef5c42"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-combat-desktop-false-1794799658821.log",
+      "bytes": 432,
+      "sha256": "85aff61c1246fa51a547c21d8e0f1ac26925658f95f30b95aaf5408acb8ade55"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-combat-desktop-true-1794799729243.log",
+      "bytes": 464,
+      "sha256": "939c8e255868c9d38c1a3bb39c2137c8e58c439dd036018ed1462d2a1d60df75"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-combat-landscape-false-1794799883162.log",
+      "bytes": 415,
+      "sha256": "feb235b9d85fbffc7d04310d23b6dceca7ba06c3c7a6b3f1cb1c352d6587759b"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-combat-landscape-true-1794799931826.log",
+      "bytes": 448,
+      "sha256": "d0a487326f05552540125ea0cbae05d378b81e39ee601da53abd8db051edc377"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-combat-overhead-1794799986869.log",
+      "bytes": 86,
+      "sha256": "0f87a26fb30f72ed7b665d0788887bb31a0707262e7db532a8da7267be8dcfc5"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-combat-phone-false-1794799802398.log",
+      "bytes": 419,
+      "sha256": "fe6008c48868da47f19f0cd2c541b25f2029e8e5b89990b4e5971e9c7c41a317"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-combat-phone-true-1794799843653.log",
+      "bytes": 452,
+      "sha256": "ed811b3fee1e973a2d8e837fa815b123fc6b550dab8f6ca7ec9e7c5d2c5f3e04"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-controls-desktop-1794799488642.log",
+      "bytes": 13,
+      "sha256": "01fa29c924e7d4d5d87b5a40b2aedf62ee0568d39808e6cae6ad01cdc36d071b"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-controls-landscape-1794799623222.log",
+      "bytes": 15,
+      "sha256": "71661ac7e54e901626ac9047f0951a674726f213357350b2795ab10f67c79698"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-controls-phone-1794799594690.log",
+      "bytes": 11,
+      "sha256": "720e26d23617dc503a9d1ded88ddf4bb39f7976b410be8b3ee22790beebafa6b"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-controls-short-desktop-1794799526986.log",
+      "bytes": 19,
+      "sha256": "92964252a4b5d3a735b131c708cf80bd6596821a081277774f45caef00612e3b"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-controls-touch-desktop-1794799561735.log",
+      "bytes": 19,
+      "sha256": "0678df25217966c9d064b0a28623809c6ae9a57ee5ad64a059e3d5690eb7e4bd"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-corridor-desktop-1794800447281.log",
+      "bytes": 201,
+      "sha256": "847225f873c429f28768a3d210511c012c5ffaceace44e4849a23d52d3ca8a85"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-corridor-phone-1794800491809.log",
+      "bytes": 199,
+      "sha256": "4a6e184259ac252dc42357d9e8cf9bf2d12004bfbe151f269b5ef42eb773b0d7"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-enclosed-actions-1794801398779.log",
+      "bytes": 60,
+      "sha256": "36fc10a283c277b2481c2b215700c2ed8dce9c8dfb0836c03819c92dad8ec611"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-enclosed-poses-1794801384037.log",
+      "bytes": 56,
+      "sha256": "366c01aab3a368ea99545b8356289e5cb4d35e1d9c14fa69f4cc47de8a58751f"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-focused-retries.log",
+      "bytes": 1669,
+      "sha256": "f96cc699f08bde2e3a394110cc53c42f4b92aafcecd2d0c1548b28e7f2788fb8"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-fp-hud-1794801201805.log",
+      "bytes": 185,
+      "sha256": "83b0ace19c0ed532bd017e75ee98d4ef6b54cd594ace8c13e5af7bdbb5306dfc"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-gait-browser-1794801237187.log",
+      "bytes": 382,
+      "sha256": "1a554f24c9120d3d2ab33aecc9d423a497931a823065fe6c8c4b358ec5165f36"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-gait-browser-1794802097081.log",
+      "bytes": 194,
+      "sha256": "afa8b8a3c2df3b743ae0831fd78321fa0493ef1dcf1c3188fe693e441676b5ca"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-herb-guards-1794801063362.log",
+      "bytes": 46,
+      "sha256": "3613b86dda6ae09d59cb4ea1a982a0e0be8a51e3fdbf2a5ebe0e914fb0a4836f"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-herb-work-1794801018708.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-landscape-desktop-1794801307412.log",
+      "bytes": 385,
+      "sha256": "28f38a785d3c8353e9987faa34696bbcaee88709c8abf9a5b793a139ae88eff0"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-landscape-desktop-1794802160527.log",
+      "bytes": 75,
+      "sha256": "3a3fd203918eafff8af06ec5b4f6272307785800d68fcc22252166a266e14eb8"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-landscape-phone-1794801317590.log",
+      "bytes": 384,
+      "sha256": "fee1808cbb5160d67a33ea71a4a4a85ac17bb7c61dcccd86fd52d7256dd5c02d"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-landscape-phone-1794802191095.log",
+      "bytes": 74,
+      "sha256": "5f1590c4be8bdf6092b7df0b8c17d2d49e764f8d10a9999063c384672df61c5a"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-ledger.jsonl",
+      "bytes": 62992,
+      "sha256": "f088263bb8217b737fcefc034c2bbbd0a55b25392de078630b988905d2ad32a7"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-matrix-first-pass.json",
+      "bytes": 28383,
+      "sha256": "cb7b96cbf5d2fc6b785efc9a0ea34abe7e1ac2d03099d55f99f8d80f7f1d3691"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1200--1-false-1794800875335.log",
+      "bytes": 266,
+      "sha256": "55f7629ea6e41706cb60d13276ffc960df5ef65396e563983ad1c8880657eb25"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1200--1-false-1794801852265.log",
+      "bytes": 576,
+      "sha256": "45096c92056f9e982205c4d742893ab9f65c5258abfca251d92fb43cca139615"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1200--1-true-1794800876373.log",
+      "bytes": 266,
+      "sha256": "55f7629ea6e41706cb60d13276ffc960df5ef65396e563983ad1c8880657eb25"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1200--1-true-1794801872536.log",
+      "bytes": 574,
+      "sha256": "584951a0d7c7f9a75bdfd943c0a9b7f52f9a790e2b74a111bcfa55e1743057e1"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1200-1-false-1794800877339.log",
+      "bytes": 266,
+      "sha256": "55f7629ea6e41706cb60d13276ffc960df5ef65396e563983ad1c8880657eb25"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1200-1-false-1794801893589.log",
+      "bytes": 574,
+      "sha256": "b29a5ad0a2448adfed6146e35d3dabf7aed6d360316b85bf8c7eb42ab4018d34"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1200-1-true-1794800878246.log",
+      "bytes": 266,
+      "sha256": "55f7629ea6e41706cb60d13276ffc960df5ef65396e563983ad1c8880657eb25"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1200-1-true-1794801915235.log",
+      "bytes": 572,
+      "sha256": "5739088e31535ba4e1900cf3e01e13c6ab67fff28ce11430e6f01cb36cd8ea4f"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1900--1-false-1794800879324.log",
+      "bytes": 266,
+      "sha256": "55f7629ea6e41706cb60d13276ffc960df5ef65396e563983ad1c8880657eb25"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1900--1-false-1794801936716.log",
+      "bytes": 576,
+      "sha256": "a4c39c5e199ed10142f427ebb1c488ce3efab2f0e100bec149bb4f071aaf2464"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1900--1-true-1794800880235.log",
+      "bytes": 266,
+      "sha256": "55f7629ea6e41706cb60d13276ffc960df5ef65396e563983ad1c8880657eb25"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1900--1-true-1794801957342.log",
+      "bytes": 574,
+      "sha256": "0d22691d2afcf55cf72f3a4ee82a8569d5a120ca09b25daf184783ed6631e3ce"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1900-1-false-1794800881130.log",
+      "bytes": 266,
+      "sha256": "55f7629ea6e41706cb60d13276ffc960df5ef65396e563983ad1c8880657eb25"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1900-1-false-1794801978407.log",
+      "bytes": 574,
+      "sha256": "6787d8566668676ac5ddd18231164ebf31dc27bfe51c60829e809865f3c55fd9"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1900-1-true-1794800882032.log",
+      "bytes": 266,
+      "sha256": "55f7629ea6e41706cb60d13276ffc960df5ef65396e563983ad1c8880657eb25"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mira-1900-1-true-1794802000071.log",
+      "bytes": 572,
+      "sha256": "b762425cfa4e3c42f2a9fe6b28bec7156c0f641e41d39fc1b55c2846fcac3132"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-model-structure-scope-1794800368493.log",
+      "bytes": 33,
+      "sha256": "462e233772026236c3c56bb58da242e1d500eeccb568e2dbd48f6c67facafa34"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-mounted-presentation-1794800540548.log",
+      "bytes": 32,
+      "sha256": "b580b7c7a23ca5bbaa9bde6ceeda7b644c32ef07e9ad818b08c382ee256386c0"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-natural-harvest-1794800577126.log",
+      "bytes": 2291,
+      "sha256": "4551f2af759e0fa66a9335a4ceb657454f3a19655b31081a782f652b935a208d"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-natural-harvest-events.jsonl",
+      "bytes": 3157,
+      "sha256": "0fb606b9cc23f3c9cd2d3c288a102e9b18a314f463a9ee5ecd2f0082c4162d3a"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-normal-path-1794799488217.log",
+      "bytes": 417,
+      "sha256": "a710d64d77d715a094a305f9f79d928befbf1621ceda35cf5c670352300d2a81"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-outcomes-desktop-1794800008722.log",
+      "bytes": 194,
+      "sha256": "64deb09d22adf60b7015a0eb6e8415021378d43f4471199d62226fcabcb7bcf2"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-outcomes-phone-1794800193685.log",
+      "bytes": 192,
+      "sha256": "50fc17dbc43fae2444234ddb467533ebf3e0704f338685bf59d3db93e43bddc6"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-owner-slots-supplemental.log",
+      "bytes": 32,
+      "sha256": "6a093092e4cde783d124bedf812aa2954f35234e91940c2de8280e3e110e3803"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-phone-vault-route-1794800882958.log",
+      "bytes": 49,
+      "sha256": "ffd87e963076b917afb95f42caecd7821c5c1eb6065291310f3614188f603450"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-regions-seasons-supplemental.log",
+      "bytes": 386,
+      "sha256": "94718f0a951810f1a9990f9f23ebdf9569f77215e7b398b1021577e28821b568"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-resident-leads-1794801077018.log",
+      "bytes": 298,
+      "sha256": "0b8f667cf0b9b3c002b88e22efc814e760f44c428fd8234ff741cd10ff406cdb"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-resident-leads-1794802022031.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-resume-no-replay.log",
+      "bytes": 1614,
+      "sha256": "9c549f2e292a98bc0c2b185d3c09037a312bda8c9d17cf0bd116cae9d97d086d"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-runner.log",
+      "bytes": 6822,
+      "sha256": "37f110bb43e26e868abecbcf788d912de2ee8f053dd7b511c4020f4cade9d357"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-source-audit-1794799408980.log",
+      "bytes": 1265,
+      "sha256": "3754993d5251d295d64c98e77f7ea4534fa71bb59c0baa33f028fbef66cb676d"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-supplemental-status.jsonl",
+      "bytes": 844,
+      "sha256": "2bae2da5010f41b6fc7f7bb63fff5b0af3b6cfa2b64aa6ffa00e421105411561"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-timing-investigation-1794799409238.log",
+      "bytes": 1737,
+      "sha256": "74f789bc97f3fc0b9110b8560c18bdbc1fd2178d35d26142be949bfed7433e65"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-timing-investigation-1794801788070.log",
+      "bytes": 1816,
+      "sha256": "2231b7b87d4931321bbf8387997da219bb2b5146a2e8cc5957ac6d9e9b20cba4"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-vault-guards-1794801005522.log",
+      "bytes": 18,
+      "sha256": "765a2363b96900c0331e72ca00b6af564d332a9c4f2db706f61530ff8dad8db6"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-vehicles-desktop-1794801456685.log",
+      "bytes": 102,
+      "sha256": "84066a650f2464f219b02905c7bf42bb981c8055fbca03993a8762f20c34c1c7"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-visual-baseline-1794801547566.log",
+      "bytes": 85,
+      "sha256": "11ab06895b587ebd0f836b715253a7700a11f979d8d1d27ddacd80dca1daecb4"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-visual-candidate-1794801592177.log",
+      "bytes": 79,
+      "sha256": "88640d8364cc3970b01bf067e0412b33a4fa7302204ccf3e565490f989777047"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-weapon-desktop-1794800300957.log",
+      "bytes": 472,
+      "sha256": "9c7bf823fcc9ba8630dc990e89feea640a19f89a36fe072564d4d8a0a05351ec"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-weapon-landscape-1794800347713.log",
+      "bytes": 485,
+      "sha256": "c1a7c45c2158d6ef5b21cc51add8482a1a2a0638b45f19f890f2a790b89d5cc6"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-weapon-phone-1794800330879.log",
+      "bytes": 550,
+      "sha256": "bd91af4dcbbf5b541d996263f4b47441b7806d227dc593d921256a635c149186"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-world-save-desktop-1794801490909.log",
+      "bytes": 24,
+      "sha256": "20cc7822090c3bfd3b3fa1e7b34364509f0ab0dc0179d3d8322f576def1516e2"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-world-save-malformed-1794801535351.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "tests/release-logs/matrix-b0-world-save-phone-1794801515811.log",
+      "bytes": 22,
+      "sha256": "c9c4f38954fe1c2a9b6dd5853e98ad061f683631506d857db40191040c2c670a"
+    },
+    {
+      "file": "tests/release-logs/native-date-v1.cjs",
+      "bytes": 1093,
+      "sha256": "ff5be771b2b2f4f82380e29d985cf037f3067740f681b8b4c272ebe0357ddc0d"
+    },
+    {
+      "file": "tests/release-logs/original-active-frame-gap.log",
+      "bytes": 601,
+      "sha256": "0394d825ecf2f0521da000ec840e2cd46860fc0c8c420d1d42a23a69aea31273"
+    },
+    {
+      "file": "tests/release-logs/original-controlled-long-frame-f9faf30e.json",
+      "bytes": 370,
+      "sha256": "cc53174bb3ac02de64391305ec6a21633b281c957d006172135faf9f092b6de1"
+    },
+    {
+      "file": "tests/release-logs/original-long-frame.log",
+      "bytes": 569,
+      "sha256": "f7da83e00fa1b4bdc91b31287350f4f0e0ed7dabb9724eea44eda33742303d5f"
+    },
+    {
+      "file": "tests/release-logs/preflight-ledger.jsonl",
+      "bytes": 2972,
+      "sha256": "cc7a8fb6c9eb552a0946adccfabe6e625812a9f44297b8b93d13fb49071d5add"
+    },
+    {
+      "file": "tests/release-logs/preflight-regular-path.log",
+      "bytes": 417,
+      "sha256": "9c69b69a494f7887171ef06ad7c59a6b679c32dc5de47608e58aa07ff4172ac8"
+    },
+    {
+      "file": "tests/release-logs/preflight-source.log",
+      "bytes": 1265,
+      "sha256": "17f791f6714e5b60a216c0754edbefea4924478727e721bd0b2f1b72e93c745d"
+    },
+    {
+      "file": "tests/release-logs/preflight-vehicles-phone-v2.log",
+      "bytes": 286,
+      "sha256": "30bc9335f72024501185830c867b6d06da69b281f9e3ab8981f689b8a44a2dfe"
+    },
+    {
+      "file": "tests/release-logs/preflight-vehicles-phone-v3.log",
+      "bytes": 98,
+      "sha256": "5fca379e0e5c7c142f406e20bf22d727356582d62cbee522cb2b3ed736675702"
+    },
+    {
+      "file": "tests/release-logs/preflight-vehicles.log",
+      "bytes": 294,
+      "sha256": "e22eaae2a6d6040d912c794d7115212b301045c1b84ffd01da8058ded1355ac7"
+    },
+    {
+      "file": "tests/release-logs/rc24-visuals.json",
+      "bytes": 996,
+      "sha256": "32afc9f2cd83ce275f8559f7065e49637ccb7bcaa64ecf4b268425014bd8926d"
+    },
+    {
+      "file": "tests/release-logs/timing-investigation-1794799409238.log",
+      "bytes": 1737,
+      "sha256": "74f789bc97f3fc0b9110b8560c18bdbc1fd2178d35d26142be949bfed7433e65"
+    },
+    {
+      "file": "tests/release-logs/timing-investigation-1794801788070.log",
+      "bytes": 1816,
+      "sha256": "2231b7b87d4931321bbf8387997da219bb2b5146a2e8cc5957ac6d9e9b20cba4"
+    },
+    {
+      "file": "tests/release-logs/timing-probe-emulated-from-raw-log.json",
+      "bytes": 3375,
+      "sha256": "e8f8ef0364fe4b785d018ca13b61f88bc281decbbe23ff6e2b2f39ec0ac6e697"
+    },
+    {
+      "file": "tests/release-logs/timing-probe-native-checked.json",
+      "bytes": 2813,
+      "sha256": "0496e800091db4ea1d2a77100796aedc02724a9c2abc6d5160f9e96c544a6866"
+    }
+  ]
+}

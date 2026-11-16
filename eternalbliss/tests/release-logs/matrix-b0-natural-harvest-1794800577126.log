@@ -1,0 +1,12 @@
+FRESH guest {"x":5064,"y":4865,"hp":100,"mp":50,"gold":100,"xp":0,"keys":0,"room":false,"flags":[["met",false],["key",false],["gate",false],["guardian",false],["relic",false],["reward",false]],"discoveries":["rest"]}
+mira-start {"x":5063,"y":4866,"hp":100,"mp":50,"gold":100,"xp":0,"keys":0,"room":false,"flags":[["met",true],["key",false],["gate",false],["guardian",false],["relic",false],["reward",false]],"discoveries":["rest"]}
+mill-key {"x":5079,"y":4885,"hp":100,"mp":50,"gold":100,"xp":0,"keys":1,"room":false,"flags":[["met",true],["key",true],["gate",false],["guardian",false],["relic",false],["reward",false]],"discoveries":["rest","mill"]}
+archive-entry {"x":4,"y":13,"hp":100,"mp":50,"gold":126,"xp":0,"keys":1,"room":true,"flags":[["met",true],["key",true],["gate",false],["guardian",false],["relic",false],["reward",false]],"discoveries":["rest","mill","toll"]}
+archive-gate {"x":7,"y":6,"hp":100,"mp":50,"gold":126,"xp":0,"keys":0,"room":true,"flags":[["met",true],["key",true],["gate",true],["guardian",false],["relic",false],["reward",false]],"discoveries":["rest","mill","toll"]}
+COMBAT Archive Warden 0 magic
+COMBAT Archive Warden 1 magic
+warden-defeated {"x":10,"y":7,"hp":94,"mp":26,"gold":161,"xp":75,"keys":0,"room":true,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",false],["reward",false]],"discoveries":["rest","mill","toll"]}
+bell-recovered {"x":12,"y":3,"hp":94,"mp":26,"gold":161,"xp":75,"keys":0,"room":true,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",true],["reward",false]],"discoveries":["rest","mill","toll"]}
+archive-exit {"x":5096,"y":4847,"hp":94,"mp":26,"gold":161,"xp":75,"keys":0,"room":false,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",true],["reward",false]],"discoveries":["rest","mill","toll"]}
+mira-reward {"x":5063,"y":4866,"hp":115,"mp":58,"gold":226,"xp":60,"keys":0,"room":false,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",true],["reward",true]],"discoveries":["rest","mill","toll"]}
+complete-reloaded {"x":5063,"y":4866,"hp":115,"mp":58,"gold":226,"xp":60,"keys":0,"room":false,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",true],["reward",true]],"discoveries":["rest","mill","toll"]}

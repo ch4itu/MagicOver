@@ -1,0 +1,114 @@
+START source-audit
+PASS source-audit /workspace/.magic-over-setup/rc24/matrix-b0/source-audit-1794799408980.log
+START timing-investigation
+FAIL timing-investigation /workspace/.magic-over-setup/rc24/matrix-b0/timing-investigation-1794799409238.log
+START normal-path
+PASS normal-path /workspace/.magic-over-setup/rc24/matrix-b0/normal-path-1794799488217.log
+START asset-contract
+PASS asset-contract /workspace/.magic-over-setup/rc24/matrix-b0/asset-contract-1794799488316.log
+REUSE path-contract
+REUSE gait-contract
+REUSE long-frame
+REUSE startup-smoke
+START controls-desktop
+PASS controls-desktop /workspace/.magic-over-setup/rc24/matrix-b0/controls-desktop-1794799488642.log
+START controls-short-desktop
+PASS controls-short-desktop /workspace/.magic-over-setup/rc24/matrix-b0/controls-short-desktop-1794799526986.log
+START controls-touch-desktop
+PASS controls-touch-desktop /workspace/.magic-over-setup/rc24/matrix-b0/controls-touch-desktop-1794799561735.log
+START controls-phone
+PASS controls-phone /workspace/.magic-over-setup/rc24/matrix-b0/controls-phone-1794799594690.log
+START controls-landscape
+PASS controls-landscape /workspace/.magic-over-setup/rc24/matrix-b0/controls-landscape-1794799623222.log
+START combat-desktop-false
+PASS combat-desktop-false /workspace/.magic-over-setup/rc24/matrix-b0/combat-desktop-false-1794799658821.log
+START combat-desktop-true
+PASS combat-desktop-true /workspace/.magic-over-setup/rc24/matrix-b0/combat-desktop-true-1794799729243.log
+START combat-phone-false
+PASS combat-phone-false /workspace/.magic-over-setup/rc24/matrix-b0/combat-phone-false-1794799802398.log
+START combat-phone-true
+PASS combat-phone-true /workspace/.magic-over-setup/rc24/matrix-b0/combat-phone-true-1794799843653.log
+START combat-landscape-false
+PASS combat-landscape-false /workspace/.magic-over-setup/rc24/matrix-b0/combat-landscape-false-1794799883162.log
+START combat-landscape-true
+PASS combat-landscape-true /workspace/.magic-over-setup/rc24/matrix-b0/combat-landscape-true-1794799931826.log
+START combat-overhead
+PASS combat-overhead /workspace/.magic-over-setup/rc24/matrix-b0/combat-overhead-1794799986869.log
+START outcomes-desktop
+PASS outcomes-desktop /workspace/.magic-over-setup/rc24/matrix-b0/outcomes-desktop-1794800008722.log
+START outcomes-phone
+PASS outcomes-phone /workspace/.magic-over-setup/rc24/matrix-b0/outcomes-phone-1794800193685.log
+START weapon-desktop
+PASS weapon-desktop /workspace/.magic-over-setup/rc24/matrix-b0/weapon-desktop-1794800300957.log
+START weapon-phone
+PASS weapon-phone /workspace/.magic-over-setup/rc24/matrix-b0/weapon-phone-1794800330879.log
+START weapon-landscape
+PASS weapon-landscape /workspace/.magic-over-setup/rc24/matrix-b0/weapon-landscape-1794800347713.log
+START model-structure-scope
+PASS model-structure-scope /workspace/.magic-over-setup/rc24/matrix-b0/model-structure-scope-1794800368493.log
+START corridor-desktop
+PASS corridor-desktop /workspace/.magic-over-setup/rc24/matrix-b0/corridor-desktop-1794800447281.log
+START corridor-phone
+PASS corridor-phone /workspace/.magic-over-setup/rc24/matrix-b0/corridor-phone-1794800491809.log
+START mounted-presentation
+PASS mounted-presentation /workspace/.magic-over-setup/rc24/matrix-b0/mounted-presentation-1794800540548.log
+START natural-harvest
+PASS natural-harvest /workspace/.magic-over-setup/rc24/matrix-b0/natural-harvest-1794800577126.log
+START mira-1200--1-false
+FAIL mira-1200--1-false /workspace/.magic-over-setup/rc24/matrix-b0/mira-1200--1-false-1794800875335.log
+START mira-1200--1-true
+FAIL mira-1200--1-true /workspace/.magic-over-setup/rc24/matrix-b0/mira-1200--1-true-1794800876373.log
+START mira-1200-1-false
+FAIL mira-1200-1-false /workspace/.magic-over-setup/rc24/matrix-b0/mira-1200-1-false-1794800877339.log
+START mira-1200-1-true
+FAIL mira-1200-1-true /workspace/.magic-over-setup/rc24/matrix-b0/mira-1200-1-true-1794800878246.log
+START mira-1900--1-false
+FAIL mira-1900--1-false /workspace/.magic-over-setup/rc24/matrix-b0/mira-1900--1-false-1794800879324.log
+START mira-1900--1-true
+FAIL mira-1900--1-true /workspace/.magic-over-setup/rc24/matrix-b0/mira-1900--1-true-1794800880235.log
+START mira-1900-1-false
+FAIL mira-1900-1-false /workspace/.magic-over-setup/rc24/matrix-b0/mira-1900-1-false-1794800881130.log
+START mira-1900-1-true
+FAIL mira-1900-1-true /workspace/.magic-over-setup/rc24/matrix-b0/mira-1900-1-true-1794800882032.log
+START phone-vault-route
+PASS phone-vault-route /workspace/.magic-over-setup/rc24/matrix-b0/phone-vault-route-1794800882958.log
+START vault-guards
+PASS vault-guards /workspace/.magic-over-setup/rc24/matrix-b0/vault-guards-1794801005522.log
+START herb-work
+PASS herb-work /workspace/.magic-over-setup/rc24/matrix-b0/herb-work-1794801018708.log
+START herb-guards
+PASS herb-guards /workspace/.magic-over-setup/rc24/matrix-b0/herb-guards-1794801063362.log
+START resident-leads
+FAIL resident-leads /workspace/.magic-over-setup/rc24/matrix-b0/resident-leads-1794801077018.log
+START archive-ledger
+PASS archive-ledger /workspace/.magic-over-setup/rc24/matrix-b0/archive-ledger-1794801082366.log
+START fp-hud
+PASS fp-hud /workspace/.magic-over-setup/rc24/matrix-b0/fp-hud-1794801201805.log
+START gait-browser
+FAIL gait-browser /workspace/.magic-over-setup/rc24/matrix-b0/gait-browser-1794801237187.log
+START atmosphere
+PASS atmosphere /workspace/.magic-over-setup/rc24/matrix-b0/atmosphere-1794801263735.log
+START landscape-desktop
+FAIL landscape-desktop /workspace/.magic-over-setup/rc24/matrix-b0/landscape-desktop-1794801307412.log
+START landscape-phone
+FAIL landscape-phone /workspace/.magic-over-setup/rc24/matrix-b0/landscape-phone-1794801317590.log
+START archive-enclosure
+PASS archive-enclosure /workspace/.magic-over-setup/rc24/matrix-b0/archive-enclosure-1794801325885.log
+START enclosed-poses
+PASS enclosed-poses /workspace/.magic-over-setup/rc24/matrix-b0/enclosed-poses-1794801384037.log
+START enclosed-actions
+PASS enclosed-actions /workspace/.magic-over-setup/rc24/matrix-b0/enclosed-actions-1794801398779.log
+START vehicles-desktop
+PASS vehicles-desktop /workspace/.magic-over-setup/rc24/matrix-b0/vehicles-desktop-1794801456685.log
+REUSE vehicles-phone
+START world-save-desktop
+PASS world-save-desktop /workspace/.magic-over-setup/rc24/matrix-b0/world-save-desktop-1794801490909.log
+START world-save-phone
+PASS world-save-phone /workspace/.magic-over-setup/rc24/matrix-b0/world-save-phone-1794801515811.log
+START world-save-malformed
+PASS world-save-malformed /workspace/.magic-over-setup/rc24/matrix-b0/world-save-malformed-1794801535351.log
+START visual-baseline
+PASS visual-baseline /workspace/.magic-over-setup/rc24/matrix-b0/visual-baseline-1794801547566.log
+START visual-candidate
+PASS visual-candidate /workspace/.magic-over-setup/rc24/matrix-b0/visual-candidate-1794801592177.log
+MATRIX {"PASS":41,"FAIL":13,"REUSED":5}

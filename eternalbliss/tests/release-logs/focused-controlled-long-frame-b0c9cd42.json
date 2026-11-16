@@ -1,0 +1,22 @@
+{
+  "lane": {
+    "x": 5034,
+    "y": 4889
+  },
+  "before": {
+    "x": 5034,
+    "render": 5034,
+    "moves": 0,
+    "inventory": "{\"gold\":100,\"healthPotions\":3,\"manaPotions\":2,\"keys\":0,\"boats\":0,\"pickaxe\":0}"
+  },
+  "suspended": {
+    "x": 5040,
+    "render": 5034,
+    "moves": 6
+  },
+  "first": {
+    "x": 5040,
+    "render": 5036.0825
+  },
+  "renderStep": 2.0825000000004366
+}

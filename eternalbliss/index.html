@@ -2030,6 +2030,8 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
 #eb-eye-reticle{position:absolute;z-index:9;left:50%;top:49%;transform:translate(-50%,-50%);
  pointer-events:none;color:#f8e9c7;text-shadow:0 1px 5px #10252a;font:26px system-ui}
 #eb-eye-actions{position:absolute;z-index:13;right:14px;bottom:154px;pointer-events:auto}
+#eb-eye-context{display:block;max-width:min(180px,48vw);margin:0 0 6px;padding:7px 9px;border:1px solid #8b9d84;border-radius:8px;background:#19383ee8;color:#fff3d5;font:13px/1.3 system-ui;text-align:left}
+#eb-eye-context[hidden]{display:none!important}
 #eb-eye-use{border:1px solid #cbb482;border-radius:18px;padding:12px 16px;min-height:48px;
  background:#19383ee8;color:#fff3d5;font-weight:700;touch-action:manipulation}
 [data-eb-immersive="first"] #eb-scene{touch-action:none}
@@ -2039,7 +2041,10 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
  [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
 }
 /* D-pad stays usable while filming. */
-body.eb-capture-clean #mobile-controls { display:block!important; }
+/* PR #2: keep desktop controls hidden by default; retain touch movement at every size, including hybrids. */
+@media (max-width: 768px), (any-pointer: coarse) {
+    #mobile-controls, body.eb-capture-clean #mobile-controls { display:grid!important; }
+}
 .location-info.eb-controls-collapsed #eb-world-actions,
 .location-info.eb-controls-collapsed #eb-farlands-hint,
 .location-info.eb-controls-collapsed #eb-room-exit,
@@ -3130,6 +3135,7 @@ function renderClassicBoat() {
 let lastBlockedAt = -Infinity;
 let queuedEncounter = 0;
 let walkingTimer = 0;
+let ebLocalStepObserver=null; // Renderer-only accepted steps; never serialized or sent to a shared world.
 
 function movePlayer(dx, dy) {
     if (movementBlocked()) return false;
@@ -3147,8 +3153,10 @@ function movePlayer(dx, dy) {
     if (dx && dy && (!cornerOpen(gameState.player.x + dx, gameState.player.y) ||
                      !cornerOpen(gameState.player.x, gameState.player.y + dy))) return false;
     if (canMoveTo(newX, newY)) {
+        const fromX=gameState.player.x,fromY=gameState.player.y;
         gameState.player.x = newX;
         gameState.player.y = newY;
+        ebLocalStepObserver?.(fromX,fromY,newX,newY);
 
         gameState.player.isMoving = true;
         gameState.player.moveCount++;
@@ -3629,7 +3637,12 @@ function interact() {
         let nearby = null, nearest = Infinity;
         for (const actor of actors) {
             const d = distance(actor);
-            if (d <= range && d < nearest) { nearby = actor; nearest = d; }
+            // A reachable pending quest wins a distance tie with generic village dialogue.
+            // Keep nearer NPCs, explicit clicks, and all shared-world selection unchanged.
+            const questTie = kind==='npc' && ebFarlands.surface() && !sharedWorld.active() &&
+                ebFarlands.storyFlag('quest-vault-relic') && !ebFarlands.storyFlag('quest-vault-reward') &&
+                actor.name==='Mira, the Cartographer' && d===nearest;
+            if (d <= range && (d < nearest || questTie)) { nearby = actor; nearest = d; }
         }
         if (nearby) {
             useWorldActor(kind, nearby);
@@ -3669,6 +3682,8 @@ function talkToNPC(npc) {
     `;
     releaseMovement();
     document.getElementById('interactionModal').style.display = 'flex';
+    ebVillageWork.attach(npc);
+    ebJournal.attachLead(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
 }
 
@@ -6132,6 +6147,20 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
     .eb-battle-buttons { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-height:450px) and (pointer:coarse) { #eb-battle-hud { padding:6px 10px; } .eb-battle-health { margin:4px 0; }
     #eb-battle-message { max-height:17px; margin:3px 0 5px; } }
+/* Keep the desktop first-person horizon open, using the existing Actions disclosure and manual minimise control. */
+@media (min-width:900px){
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-capture-location-closed){display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;box-sizing:border-box;width:330px;max-width:330px;padding:8px 12px}
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info #locationName{flex:1 1 100%;padding-right:42px}
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info #eb-world-clock{flex:1 1 100%;font-size:12px}
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info #eb-goal-chip{flex:1 1 100%;margin-top:0;min-height:44px}
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-capture-location-closed) #eb-actions-collapse{position:absolute;right:6px;top:6px;width:44px;min-height:44px;font-size:0;padding:4px}
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-capture-location-closed) #eb-actions-collapse::after{content:'−';font-size:20px}
+ html[data-eb-farlands][data-eb-immersive="first"] #eb-world-actions{flex:1 1 100%;margin-top:0}
+ html[data-eb-farlands][data-eb-immersive="first"] #eb-actions-more:not([hidden]){display:inline-flex;align-items:center;min-height:44px}
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-actions-open) :is(#eb-shared-open,#eb-farlands-atlas-open,#eb-farlands-station-travel,#eb-farlands-local-tasks,#eb-horse-help,#eb-shared-badge,#eb-farlands-horse[data-eb-buy="true"]){display:none!important}
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info :is(.desktop-controls-hint,#eb-farlands-hint){display:none}
+}
+@media (min-width:900px) and (max-height:520px){html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-actions-open) #eb-world-clock{display:none}}
 /* R15.36: phones in the Farlands open a compact location card. Play Together, Atlas, station routes, the errand, the
    horse purchase, its help and the mode badge sit behind "Actions"; boarding, disembarking, duels, mounting and
    building exits stay one tap. Desktop and the Eternal Kingdom keep their layout. */
@@ -6510,7 +6539,8 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
         <div id="eb-scene-labels"></div>
         <div id="eb-eye-reticle" hidden aria-hidden="true"><span>+</span></div>
         <div id="eb-eye-actions" hidden aria-label="First-person actions">
-            <button type="button" id="eb-eye-use" aria-label="Interact with object ahead">✋ Use</button>
+            <span id="eb-eye-context" role="status" aria-live="polite" hidden></span>
+            <button type="button" id="eb-eye-use" aria-describedby="eb-eye-context" aria-label="Interact with object ahead">✋ Use</button>
         </div>
         <div id="eb-immersive-look" hidden aria-label="First-person look controls">
             <button type="button" id="eb-look-left" aria-label="Look left">↶</button>
@@ -8430,7 +8460,204 @@ const EternalBlissArt = (() => {
         box(group, .23, .035, .085, 0xb69a6c, x, y - .105, z + .016);
     }
 
-    function building(kind, variant, footprint = null, region) {
+    // The authored inn uses real footprint units. Static parts are baked by material and cached;
+    // more craft detail does not mean a draw call per plank, stone or roof course.
+    function bakeArchitecture(g) {
+        // Bake only this static asset; never dispose globally cached helper geometry/materials.
+        g.updateMatrixWorld(true);const batches=new Map();
+        g.traverse(o=>{if(!o.isMesh)return;const geo=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();geo.applyMatrix4(o.matrixWorld);let batch=batches.get(o.material);if(!batch)batches.set(o.material,batch={p:[],n:[]});batch.p.push(...geo.attributes.position.array);batch.n.push(...geo.attributes.normal.array);geo.dispose();});
+        const baked=new T.Group();for(const [mat,b]of batches){const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(b.p,3));geo.setAttribute('normal',new T.Float32BufferAttribute(b.n,3));const m=new T.Mesh(geo,mat);m.castShadow=m.receiveShadow=true;baked.add(m);}
+        return baked;
+    }
+
+    const authoredInns=new Map();
+    function authoredInn(footprint) {
+        const w=footprint?.w??3, d=footprint?.h??2, key=w+':'+d;
+        if(authoredInns.has(key)){const m=authoredInns.get(key);return {...m,group:m.group.clone(true)};}
+        const g=new T.Group(), wood=0x594334, trim=0x896345, plaster=0xd1bfa0, stoneColor=0x8b8778;
+        const half=w/2-.06, front=d/2-.07, eave=1.72, peak=2.52;
+        const beam=(a,b,size,color=wood)=>{const from=new T.Vector3(...a),to=new T.Vector3(...b),v=to.sub(from),m=box(g,size,v.length(),size,color,0,0,0);m.position.copy(from.addScaledVector(v,.5));m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());};
+        const face=(points,color)=>{const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points.flat(),3));geo.computeVertexNormals();const m=new T.Mesh(geo,material(color));m.castShadow=m.receiveShadow=true;g.add(m);};
+        // Stone footing, low plaster walls and a readable human-height door.
+        box(g,w,.16,d,stoneColor,0,.08);
+        box(g,w-.12,1.53,d-.14,plaster,0,.925);
+        for(let row=0;row<2;row++)for(let i=0;i<8;i++){
+            const x=-half+(i+.5)*(2*half/8);box(g,2*half/8-.025,.11,.045,i%3?0x9b9584:0x777568,x,.20+row*.125,front+.027);
+        }
+        box(g,w-.10,.10,d-.10,wood,0,1.26);
+        for(const x of [-half,-half*.5,0,half*.5,half])box(g,.065,1.48,.065,wood,x,.96,front+.03);
+        for(const x of [-half,half])for(const z of [-front,0,front])box(g,.075,1.48,.075,wood,x,.96,z);
+        box(g,.48,1.04,.05,0x352d27,0,.68,front+.045);
+        for(let i=-2;i<=2;i++)box(g,.075,.92,.025, i%2?0x70513a:0x654a36,i*.082,.65,front+.08);
+        for(const x of [-.28,.28])box(g,.07,1.14,.085,trim,x,.70,front+.075);
+        box(g,.63,.085,.095,trim,0,1.23,front+.08);
+        box(g,.035,.035,.045,0xc1a46d,.155,.70,front+.11);
+        box(g,.72,.07,.27,0xa49b87,0,.16,front+.14);
+        for(const x of [-half*.68,half*.68]){
+            windowPane(g,x,.87,front+.05);
+            box(g,.35,.055,.15,stoneColor,x,.73,front+.075);
+            for(const side of [-1,1]){box(g,.10,.30,.035,0x677061,x+side*.18,.89,front+.075);beam([x+side*.18,.77,front+.10],[x+side*.18,.99,front+.10],.016,trim);}
+            windowPane(g,x,1.49,front+.05);
+            beam([x-.19,1.30,front+.05],[x+.19,1.67,front+.05],.045);
+        }
+        // Long pitched roof, contrasting tile courses, and true gable ends instead of a repeated hip-roof box.
+        const rw=half+.14, rd=front+.15;
+        // Continuous dark roof under the tile joints: seams must not open onto the sky.
+        for(const side of [-1,1]){
+            const a=[-rw,eave-.014,side*rd],b=[rw,eave-.014,side*rd],c=[rw,peak-.014,0],e=[-rw,peak-.014,0];
+            face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],0x463d36);
+        }
+        for(const side of [-1,1])for(let row=0;row<7;row++){
+            const t0=row/7,t1=(row+1)/7,z0=side*rd*(1-t0),z1=side*rd*(1-t1),y0=eave+(peak-eave)*t0,y1=eave+(peak-eave)*t1;
+            for(let col=0;col<9;col++){
+                const x0=-rw+col*2*rw/9,x1=x0+2*rw/9-.012, color=[0x765048,0x80574b,0x6d4b43,0x895d50][(row*3+col)%4];
+                const a=[x0,y0,z0],b=[x1,y0,z0],c=[x1,y1,z1],e=[x0,y1,z1];
+                face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],color);
+            }
+        }
+        for(const x of [-half,half]){
+            const a=[x,eave,-front],b=[x,eave,front],c=[x,peak,0];face(x>0?[a,c,b]:[a,b,c],plaster);
+            beam(a,c,.065);beam(b,c,.065);beam([x,eave,0],c,.065);beam([x,eave,-front],[x,eave,front],.07);
+        }
+        beam([-rw,peak+.025,0],[rw,peak+.025,0],.085,trim);
+        for(const side of [-1,1])beam([-rw,eave,side*rd],[rw,eave,side*rd],.07,wood);
+        // A shallow, supported shelter sits over the same original threshold; its centre stays clear.
+        const pf=front+.19;
+        for(const x of [-.43,.43]){box(g,.065,1.14,.065,wood,x,.72,pf);box(g,.12,.12,.12,stoneColor,x,.20,pf);}
+        box(g,1.02,.085,.48,trim,0,1.32,front+.05);
+        box(g,.84,.24,.07,0x503d31,0,1.47,front+.055);
+        box(g,.63,.12,.02,0xc6aa72,0,1.47,front+.10); // existing inn's sign, no advertising
+        for(const x of [-.55,.55]){box(g,.07,.19,.08,wood,x,1.25,front+.15);box(g,.045,.12,.05,0xf0c47c,x,1.24,front+.20,0xe0a457);}
+        // A stone chimney anchors one end; keep it within the footprint instead of adding a separate obstacle.
+        box(g,.30,1.02,.35,0x908a7c,-half*.72,2.28,-front*.40);
+        for(let i=0;i<5;i++)box(g,.32,.035,.37,0xb0a38e,-half*.72,1.83+i*.20,-front*.40);
+        box(g,.39,.09,.43,0x716b60,-half*.72,2.83,-front*.40);
+        box(g,.22,.025,.25,0x393b35,-half*.72,2.89,-front*.40);
+        const baked=bakeArchitecture(g);
+        const model={group:baked,width:w+.16,depth:d+.24,height:2.94};authoredInns.set(key,model);
+        return {...model,group:baked.clone(true)};
+    }
+
+    const authoredExchanges=new Map();
+    function authoredExchange(footprint) {
+        const w=footprint?.w??3,d=footprint?.h??2,key=w+':'+d;
+        if(authoredExchanges.has(key)){const m=authoredExchanges.get(key);return {...m,group:m.group.clone(true)};}
+        const g=new T.Group(),wood=0x584735,trim=0x947452,plaster=0xd5c9ac,slate=0x485d58,cloth=0x6b8266,linen=0xe0d3ab,stoneColor=0x939081;
+        const hw=w/2-.06,f=d/2-.07,eave=1.48,peak=2.13,ridge=-d*.16;
+        const beam=(a,b,size,color=wood)=>{const start=new T.Vector3(...a),v=new T.Vector3(...b).sub(start),m=box(g,size,v.length(),size,color);m.position.copy(start.addScaledVector(v,.5));m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());};
+        const face=(points,color)=>{const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points.flat(),3));geo.computeVertexNormals();const m=new T.Mesh(geo,material(color));m.castShadow=m.receiveShadow=true;g.add(m);};
+        box(g,w,.17,d,stoneColor,0,.085);
+        box(g,w-.12,1.25,d-.14,plaster,0,.795);
+        for(let i=0;i<10;i++)box(g,(w-.12)/10-.018,.12,.04,i%3?0xa5a08d:0x7e8074,-hw+(i+.5)*(w-.12)/10,.22,f+.025);
+        box(g,w-.08,.09,d-.10,wood,0,1.42);
+        for(const x of [-hw,-hw*.50,hw*.50,hw])box(g,.075,1.21,.065,wood,x,.84,f+.025);
+        for(const x of [-hw,hw]){box(g,.075,1.21,.065,wood,x,.84,-f);beam([x,.26,-f],[x,1.40,f],.045,trim);}
+        // Same centred entry and footprint: shallow frontage detail never becomes a new walk obstacle.
+        box(g,.48,1.03,.055,0x343b32,0,.68,f+.04);
+        for(let i=-2;i<=2;i++)box(g,.075,.95,.024,i%2?0x6d6d4d:0x5f6348,i*.084,.67,f+.08);
+        for(const x of [-.29,.29])box(g,.07,1.13,.085,trim,x,.72,f+.06);
+        box(g,.64,.09,.085,trim,0,1.28,f+.06);box(g,.035,.035,.03,0xc4a871,.17,.72,f+.105);
+        box(g,.73,.065,.23,0xb0a48c,0,.16,f+.10);
+        // Recessed shelves, paneled counters and a few authored wares distinguish the trading frontage.
+        for(const side of [-1,1]){
+            const x=side*hw*.62;
+            box(g,.78,.63,.03,0x41493a,x,.85,f+.045);
+            box(g,.82,.055,.18,trim,x,.56,f+.11);box(g,.82,.05,.14,trim,x,1.13,f+.09);
+            box(g,.73,.37,.19,0x856447,x,.39,f+.12);
+            for(let i=0;i<5;i++)box(g,.11,.33,.025,i%2?0x97744e:0x876444,x+(i-2)*.139,.40,f+.225);
+            box(g,.81,.055,.25,0xb08c5e,x,.60,f+.12);
+            if(side<0){for(let i=0;i<6;i++)stone(g,.075,[0xb1694a,0x8c9b58,0xd4b266][i%3],x+(i%3-1)*.18,.68+(i>2?.055:0),f+.10+(i>2?-.07:.055),1,.78,1);}
+            else for(let i=0;i<3;i++){cylinder(g,.045,.055,.18,7,[0x6f8d72,0xa77d58,0x687c8a][i],x+(i-1)*.19,.72,f+.09);cylinder(g,.022,.025,.075,7,0x9d8760,x+(i-1)*.19,.845,f+.09);}
+        }
+        // An asymmetric saltbox roof is a distinct silhouette beside the taller inn.
+        const rw=hw+.13,rd=f+.12;
+        for(const side of [-1,1]){
+            const z=side*rd,a=[-rw,eave,z],b=[rw,eave,z],c=[rw,peak,ridge],e=[-rw,peak,ridge];
+            face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],slate);
+            for(let row=1;row<7;row++){
+                const t=row/7,y=eave+(peak-eave)*t+.009,zz=z+(ridge-z)*t;
+                beam([-rw,y,zz],[rw,y,zz],.025,row%2?0x6b7970:0x566a61);
+            }
+            beam([-rw,eave,z],[rw,eave,z],.065,wood);
+        }
+        for(const x of [-hw,hw]){const a=[x,eave,-f],b=[x,eave,f],c=[x,peak,ridge];face(x>0?[a,c,b]:[a,b,c],plaster);beam(a,c,.065);beam(b,c,.065);beam([x,eave,ridge],c,.065);}
+        beam([-rw,peak+.025,ridge],[rw,peak+.025,ridge],.07,trim);
+        // Taut striped linen, shallow enough that the legal approach tile remains outside the frontage.
+        const az=f+.27;
+        for(let i=0;i<10;i++){
+            const x0=-hw+i*2*hw/10,x1=x0+2*hw/10,col=i%2?linen:cloth;
+            face([[x0,1.45,f-.22],[x0,1.29,az],[x1,1.29,az],[x0,1.45,f-.22],[x1,1.29,az],[x1,1.45,f-.22]],col);
+            box(g,2*hw/10,.075,.025,col,(x0+x1)/2,1.255,az);
+        }
+        for(const x of [-hw+.04,hw-.04]){box(g,.055,1.10,.055,wood,x,.73,az-.025);box(g,.11,.14,.11,stoneColor,x,.20,az-.025);beam([x,1.27,az],[x,1.42,f-.19],.04,trim);}
+        beam([-hw,1.30,az],[hw,1.30,az],.045,wood);
+        // A simple balance emblem identifies the Exchange without inventing a new service or advertising.
+        box(g,.55,.21,.06,wood,0,1.57,f+.04);box(g,.47,.15,.025,0xa7986a,0,1.57,f+.085);
+        beam([-.15,1.59,f+.105],[.15,1.59,f+.105],.014,0x4b5644);beam([0,1.51,f+.105],[0,1.63,f+.105],.014,0x4b5644);
+        for(const x of [-.12,.12]){beam([x,1.59,f+.105],[x,1.54,f+.105],.009,wood);box(g,.08,.014,.025,0x4b5644,x,1.53,f+.105);}
+        const baked=bakeArchitecture(g),model={group:baked,width:w+.14,depth:d+.27,height:2.18};authoredExchanges.set(key,model);
+        return {...model,group:baked.clone(true)};
+    }
+
+    const authoredChapels=new Map();
+    function authoredChapel(footprint){
+        const w=footprint?.w??3,d=footprint?.h??2,key=w+':'+d;
+        if(authoredChapels.has(key)){const m=authoredChapels.get(key);return {...m,group:m.group.clone(true)};}
+        const g=new T.Group(),limestone=0xc6c5af,edge=0x949a8b,joint=0x727c71,wood=0x57594a,brass=0xb89d62,hw=(w-.52)/2,f=(d-.20)/2,eave=1.53,peak=2.43;
+        const face=(points,color,glow=0)=>{const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points.flat(),3));geo.computeVertexNormals();const m=new T.Mesh(geo,material(color,glow));m.castShadow=m.receiveShadow=true;g.add(m);};
+        const beam=(a,b,size,color)=>{const from=new T.Vector3(...a),v=new T.Vector3(...b).sub(from),m=box(g,size,v.length(),size,color);m.position.copy(from.addScaledVector(v,.5));m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());};
+        box(g,w,.17,d,edge,0,.085);box(g,hw*2,1.29,f*2,limestone,0,.825);box(g,hw*2+.05,.10,f*2+.04,edge,0,1.49);
+        // Cut limestone and corner buttresses stay on the existing blocked plot.
+        for(let row=0;row<5;row++)for(let col=0;col<10;col++)box(g,hw*2/10-.014,.22,.025,[0xb8bfac,0xc7c8b4,0xaeb9a7][(row+col)%3],-hw+(col+.5)*hw*2/10,.29+row*.235,f+.02);
+        for(const side of [-1,1])for(const z of [-f+.18,f-.18]){
+            const x=side*(hw+.10);box(g,.29,.26,.35,joint,x,.21,z);box(g,.21,.73,.28,edge,x,.69,z);box(g,.23,.07,.30,limestone,x,1.09,z);
+            beam([side*(hw+.11),1.12,z],[side*(hw-.035),1.46,z],.14,edge);
+        }
+        for(const side of [-1,1]){
+            box(g,.035,.38,.22,0x7faaa0,side*(hw+.024),.96,0,0x447768);
+            for(const z of [-.145,.145])box(g,.065,.47,.06,edge,side*(hw+.035),.96,z);
+            box(g,.08,.065,.36,limestone,side*(hw+.025),.72,0);box(g,.06,.055,.32,edge,side*(hw+.035),1.20,0);
+            box(g,.07,.38,.023,brass,side*(hw+.047),.97,0);
+        }
+        // A centred round arch keeps the original entrance readable from the square.
+        box(g,.50,.84,.035,0x37453c,0,.62,f+.045);
+        for(let i=0;i<5;i++)box(g,.078,.79,.026,i%2?0x646c52:0x566047,(i-2)*.09,.61,f+.07);
+        for(let i=0;i<12;i++){
+            const t0=i*Math.PI/12,t1=(i+1)*Math.PI/12;
+            face([[0,1.03,f+.071],[.25*Math.cos(t0),1.03+.25*Math.sin(t0),f+.071],[.25*Math.cos(t1),1.03+.25*Math.sin(t1),f+.071]],wood);
+            const t=(t0+t1)/2,m=box(g,.12,.10,.12,i%2?limestone:edge,.32*Math.cos(t),1.03+.32*Math.sin(t),f+.065);m.rotation.z=t-Math.PI/2;
+        }
+        for(const x of [-.32,.32])box(g,.11,.88,.12,edge,x,.59,f+.065);
+        box(g,.035,.035,.045,brass,.14,.67,f+.10);box(g,.74,.06,.26,edge,0,.13,f+.12);
+        // Front/back gables carry a steep slate roof, without floating roof joints.
+        for(const z of [-f,f]){const a=[-hw,eave,z],b=[hw,eave,z],c=[0,peak,z];face(z>0?[a,b,c]:[a,c,b],limestone);beam(a,c,.07,edge);beam(b,c,.07,edge);}
+        const rw=hw+.12,rd=f+.12;
+        for(const side of [-1,1]){
+            const a=[side*rw,eave-.014,-rd],b=[0,peak-.014,-rd],c=[0,peak-.014,rd],e=[side*rw,eave-.014,rd];face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],0x3f4f46);
+            for(let row=0;row<7;row++)for(let col=0;col<6;col++){
+                const t0=row/7,t1=(row+1)/7,x0=side*rw*(1-t0),x1=side*rw*(1-t1),y0=eave+(peak-eave)*t0,y1=eave+(peak-eave)*t1,z0=-rd+col*2*rd/6,z1=z0+2*rd/6-.009;
+                const a=[x0,y0,z0],b=[x1,y1,z0],c=[x1,y1,z1],e=[x0,y0,z1];face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],[0x566f64,0x61786b,0x4f655d,0x6d7d6c][(row+col)%4]);
+            }
+            beam([side*rw,eave,-rd],[side*rw,eave,rd],.065,edge);
+        }
+        beam([0,peak+.02,-rd],[0,peak+.02,rd],.07,edge);
+        // A small round glass light above the door uses the chapel's established warm/green palette.
+        const ring=new T.Mesh(cachedGeometry('chapel-light-ring',()=>new T.TorusGeometry(.225,.038,6,20)),material(edge));ring.position.set(0,1.94,f+.055);g.add(ring);
+        for(let i=0;i<12;i++){const t0=i*Math.PI/6,t1=(i+1)*Math.PI/6;face([[0,1.94,f+.057],[.203*Math.cos(t0),1.94+.203*Math.sin(t0),f+.057],[.203*Math.cos(t1),1.94+.203*Math.sin(t1),f+.057]],[0xb5c89b,0xe7c984,0x84aaa0][i%3],0x7c9669);}
+        for(const a of [0,Math.PI/3,2*Math.PI/3])beam([-.21*Math.cos(a),1.94-.21*Math.sin(a),f+.075],[.21*Math.cos(a),1.94+.21*Math.sin(a),f+.075],.015,brass);
+        // Supported lantern cote: a silhouette for Hearthlight, not another quest bell or new service.
+        const cz=f-.19;box(g,.45,.24,.30,edge,0,2.36,cz);
+        for(const x of [-.19,.19])box(g,.085,.58,.27,edge,x,2.73,cz);
+        box(g,.49,.075,.34,limestone,0,2.46,cz);box(g,.50,.07,.35,limestone,0,3.04,cz);
+        cylinder(g,.09,.11,.22,8,0xf0d49b,0,2.80,cz,0xd2a961);cylinder(g,.12,.12,.035,8,brass,0,2.67,cz);cylinder(g,.11,.11,.035,8,brass,0,2.93,cz);
+        for(const side of [-1,1]){const a=[side*.32,3.07,cz-.23],b=[0,3.28,cz-.23],c=[0,3.28,cz+.23],e=[side*.32,3.07,cz+.23];face(side>0?[a,b,c,a,c,e]:[a,c,b,a,e,c],0x52695e);}
+        const baked=bakeArchitecture(g),model={group:baked,width:w+.06,depth:d+.34,height:3.30};authoredChapels.set(key,model);return {...model,group:baked.clone(true)};
+    }
+
+    function building(kind, variant, footprint = null, region, authoredRest = false) {
+        if(authoredRest && kind==='inn')return authoredInn(footprint);
+        if(authoredRest && kind==='shop')return authoredExchange(footprint);
+        if(authoredRest && kind==='temple')return authoredChapel(footprint);
         const group = new T.Group();
         const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
             amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
@@ -8583,6 +8810,22 @@ const EternalBlissArt = (() => {
         const across=footprint?.w ?? 1, deep=footprint?.h ?? 1;
         if (across>1 || deep>1) group.scale.setScalar(Math.min(.98*(across+.22)/1.02,.96*(deep+.22)/.96,4/height));
         return {group,height,width:1.02,depth:.96,wheel};
+    }
+
+    let harvestCanopy=null;
+    function vaultCanopy() {
+        if(harvestCanopy)return harvestCanopy.clone(true);
+        const g=new T.Group(),face=(points,color)=>{const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points.flat(),3));geo.computeVertexNormals();const m=new T.Mesh(geo,material(color));m.receiveShadow=true;g.add(m);};
+        // Two shallow barrel vaults follow the archive's existing chambers; no new room or floor space.
+        for(const left of [.5,8.5])for(let i=0;i<12;i++){
+            const t0=i/12,t1=(i+1)/12,x0=left+7*t0,x1=left+7*t1,y0=2.08+.82*Math.sin(Math.PI*t0),y1=2.08+.82*Math.sin(Math.PI*t1);
+            face([[x0,y0,.5],[x1,y1,.5],[x1,y1,13.5],[x0,y0,.5],[x1,y1,13.5],[x0,y0,13.5]],i%2?0x74786e:0x6b7169);
+            for(const z of [1,4.5,8,11.5,13]){const rib=box(g,Math.hypot(x1-x0,y1-y0)+.012,.105,.16,0x999585,(x0+x1)/2,(y0+y1)/2-.035,z);rib.rotation.z=Math.atan2(y1-y0,x1-x0);}
+        }
+        const baked=bakeArchitecture(g);baked.children.forEach(m=>m.castShadow=false);
+        // Two warm, non-shadowed fills reuse the locations of the authored braziers.
+        for(const [x,z]of [[2,2],[13,11]]){const light=new T.PointLight(0xffc786,1.15,8,2);light.position.set(x,1.03,z);baked.add(light);}
+        harvestCanopy=baked;return baked.clone(true);
     }
 
     function roomProp(kind) {
@@ -8865,7 +9108,7 @@ const EternalBlissArt = (() => {
         return group;
     }
 
-    return { building, landmark, roomProp, humanoid, beast, fauna, crawler, item, boat };
+    return { building, landmark, roomProp, vaultCanopy, humanoid, beast, fauna, crawler, item, boat };
 })();
 
 </script>
@@ -8982,6 +9225,35 @@ window.addEventListener('load', () => {
         return texture;
     }
 
+    function farlandsSky() {
+        const material=new T.ShaderMaterial({side:T.BackSide,depthWrite:false,fog:false,toneMapped:false,
+            uniforms:{uHorizon:{value:new T.Color()},uZenith:{value:new T.Color()},uSun:{value:new T.Vector3()},uLight:{value:1},uWarm:{value:0},uTime:{value:0}},
+            vertexShader:`varying vec3 vSky;void main(){vSky=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+            fragmentShader:`
+                uniform vec3 uHorizon,uZenith,uSun;uniform float uLight,uWarm,uTime;varying vec3 vSky;
+                float hash(vec2 p){p=fract(p*vec2(123.34,345.45));p+=dot(p,p+34.345);return fract(p.x*p.y);}
+                float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.)),f.x),f.y);}
+                void main(){
+                    vec3 d=normalize(vSky);float height=smoothstep(0.0,.70,d.y);
+                    vec3 color=mix(uHorizon,uZenith,height);
+                    vec2 p=d.xz/max(.22,d.y+.24)*3.2+vec2(uTime*.003,uTime*.001);
+                    float n=noise(p)*.65+noise(p*2.17+8.3)*.35;
+                    float clouds=smoothstep(.53,.76,n)*smoothstep(.015,.18,d.y)*(1.-smoothstep(.65,.96,d.y));
+                    vec3 cloud=mix(vec3(.065,.085,.12),mix(vec3(.85,.89,.91),vec3(.95,.69,.46),uWarm*.55),uLight);
+                    color=mix(color,cloud,clouds*mix(.30,.72,uLight));
+                    float sunDot=max(0.,dot(d,uSun)),moonDot=max(0.,dot(d,-uSun));
+                    color+=vec3(1.,.75,.42)*smoothstep(.9997,.9999,sunDot)*uLight;
+                    color+=vec3(.72,.84,1.)*smoothstep(.99978,.99993,moonDot)*(1.-uLight)*.75;
+                    color+=vec3(.8,.35,.12)*pow(sunDot,80.)*uWarm*.15;
+                    vec2 stars=vec2(atan(d.z,d.x),asin(clamp(d.y,-1.,1.)))*140.;
+                    float star=step(.9955,hash(floor(stars)))*(1.-smoothstep(.02,.21,length(fract(stars)-.5)));
+                    color+=vec3(.65,.76,.90)*star*(1.-uLight)*smoothstep(.08,.4,d.y)*(1.-clouds);
+                    gl_FragColor=vec4(color,1.0);
+                    #include <encodings_fragment>
+                }`});
+        const mesh=new T.Mesh(new T.SphereGeometry(85,24,12),material);mesh.renderOrder=-1000;mesh.frustumCulled=false;mesh.visible=false;return mesh;
+    }
+
     function ocean() {
         const shader = new T.ShaderMaterial({
             uniforms: {
@@ -9048,8 +9320,16 @@ window.addEventListener('load', () => {
         for (const i of [0, 1, 2, 0, 2, 3]) {
             const [x, y, z] = points[i];
             positions.push(x, y, z);
-            tints.push(color.r, color.g, color.b);
+            const c=Array.isArray(color)?color[i]:color;
+            tints.push(c.r, c.g, c.b);
             uvs.push(x / 4, (z - y) / 4);
+        }
+    }
+
+    function addGroundFan(points,centerColor,cornerColors,positions,tints,uvs) {
+        const center=[(points[0][0]+points[2][0])/2,points[0][1],(points[0][2]+points[2][2])/2];
+        for(let i=0;i<4;i++)for(const [p,c]of [[center,centerColor],[points[i],cornerColors[i]],[points[(i+1)%4],cornerColors[(i+1)%4]]]){
+            positions.push(...p);tints.push(c.r,c.g,c.b);uvs.push(p[0]/4,(p[2]-p[1])/4);
         }
     }
 
@@ -9181,6 +9461,7 @@ window.addEventListener('load', () => {
             this.world = world;
             this.scene = new T.Scene();
             this.scene.background = new T.Color(0x437c76);
+            this.atmosphere=farlandsSky();this.scene.add(this.atmosphere);
             this.camera = new T.OrthographicCamera(-1, 1, 1, -1, .1, 110);
             this.eyeCamera = new T.PerspectiveCamera(72, 1, .055, 110);
             this.eyeYaw = 0;
@@ -9214,6 +9495,7 @@ window.addEventListener('load', () => {
             this.shallowsMaterial = new T.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: .36, depthWrite: false });
             this.trunk = new T.CylinderGeometry(.62, 1, 1, 5);
             this.crown = new T.ConeGeometry(1, 1, 6);
+            this.canopy = new T.IcosahedronGeometry(1,0);
             this.rock = new T.DodecahedronGeometry(1, 0);
             this.roomBlock = new T.BoxGeometry(1, 1, 1);
             this.lanternGlass = new T.BoxGeometry(1, 1, 1);
@@ -9408,6 +9690,10 @@ window.addEventListener('load', () => {
                     prop.position.set(x,tileTop,y);
                     this.roomDecor.add(prop);
                 }
+                this.vaultCanopy=null;
+                if(this.room?.questDungeon&&!sharedWorld.active()){
+                    this.vaultCanopy=art.vaultCanopy();this.vaultCanopy.visible=this.eyeMode;this.vaultCanopy.position.y=tileTop;this.roomDecor.add(this.vaultCanopy);
+                }
                 if (this.room) this.scene.add(this.roomDecor);
             }
             const radius = Math.max(this.eyeMode ? (this.mobile ? 48 : 60) : (this.mobile ? 17 : 25), this.visibleRadius() + 2);
@@ -9433,13 +9719,32 @@ window.addEventListener('load', () => {
 
             const positions = [], tints = [], uvs = [];
             const shorePositions = [], shoreTints = [], shoreUvs = [];
-            const logs = [], leaves = [], stones = [], sprouts = [], lanterns = [], roomBlocks = [], glows = [];
+            const logs = [], leaves = [], canopies = [], stones = [], sprouts = [], lanterns = [], roomBlocks = [], glows = [];
             const color = new T.Color();
             const season = seasonalColors[worldClimate.season];
             const shoreColor = new T.Color(season.shore);
             const surfColor = new T.Color(0x8dc6ac);
             const cliff = new T.Color(0x81735c);
             const streamed=ebFarlands.surface();
+            // Shared corner tints remove square colour seams; a centre fan keeps a narrow path legible.
+            // Presentation only: tile types, positions, shore geometry and collision data never change.
+            const soft=new Set(['grass','forest','road','sand','mud','swamp','snow']);
+            const baseTints=new Map(),cornerTints=new Map();
+            const tintAt=(x,z)=>{
+                const k=x+','+z;if(baseTints.has(k))return baseTints.get(k);
+                const type=this.terrainAt(x,z);if(!soft.has(type))return null;
+                const biome=Farlands.regions[Farlands.regionAt(x,z)],village=Farlands.villageAt(x,z);
+                let tint=(type==='grass'?biome?.color:type==='forest'?biome?.forest:0)||season[type]||colors[type]||season.grass;
+                if(village&&type==='grass')tint=0x7b9d50;
+                if(village&&type==='road'&&Farlands.natural(x,z)!=='water')tint=0x9a8560;
+                const c=new T.Color(tint).multiplyScalar(.97+.075*Math.sin(x*.24+z*.13)+.09*hash(x,z,1));baseTints.set(k,c);return c;
+            };
+            const cornerAt=(x,z)=>{
+                const k=x+','+z;if(cornerTints.has(k))return cornerTints.get(k);
+                const c=new T.Color(0);let n=0;
+                for(const dx of [-.5,.5])for(const dz of [-.5,.5]){const t=tintAt(x+dx,z+dz);if(t){c.add(t);n++;}}
+                c.multiplyScalar(1/Math.max(1,n));cornerTints.set(k,c);return c;
+            };
             for (let z = top; z < bottom; z++) {
                 for (let x = left; x < right; x++) {
                     const type = this.terrainAt(x, z);
@@ -9458,11 +9763,17 @@ window.addEventListener('load', () => {
                         else if (type === 'grass' && !shore.some(Boolean)) color.set(0x7b9d50).multiplyScalar(light); // a kept green
                         else if (type === 'road' && Farlands.natural(x,z) !== 'water') color.set(0x9a8560).multiplyScalar(light); // trodden earth
                     }
+                    if(this.room?.questDungeon&&this.eyeMode&&!sharedWorld.active()&&(type==='floor'||type==='exit'))color.set(type==='exit'?0xa99c78:0x8e8c7e).multiplyScalar(light);
                     const corners = [
                         [x - .5, tileTop, z - .5], [x - .5, tileTop, z + .5],
                         [x + .5, tileTop, z + .5], [x + .5, tileTop, z - .5]
                     ];
-                    addQuad(corners, color, positions, tints, uvs);
+                    if(streamed&&!sharedWorld.active()&&!this.room&&soft.has(type)&&!shore.some(Boolean)&&!(type==='road'&&Farlands.natural(x,z)==='water')){
+                        const shades=corners.map(p=>cornerAt(p[0],p[2]));
+                        if(edges.some(([dx,dz])=>soft.has(this.terrainAt(x+dx,z+dz))&&this.terrainAt(x+dx,z+dz)!==type))
+                            addGroundFan(corners,color,shades,positions,tints,uvs);
+                        else addQuad(corners,shades,positions,tints,uvs);
+                    }else addQuad(corners, color, positions, tints, uvs);
 
                     for (let side = 0; side < 4; side++) {
                         if (!shore[side]) continue;
@@ -9501,8 +9812,17 @@ window.addEventListener('load', () => {
                             j%2 ? 0xa38157 : 0xb09467]);
                     }
                     if (type === 'wall' && !this.room?.decorTiles.has(z*width+x)) {
-                        roomBlocks.push([x,tileTop+.32,z,1,.64,1,0,0x8c7b64]);
-                        roomBlocks.push([x,tileTop+.67,z,1,.06,1,0,0xb09c7f]);
+                        if(this.room?.questDungeon&&this.eyeMode&&!sharedWorld.active()){
+                            roomBlocks.push([x,tileTop+1.04,z,.97,2.08,.97,0,0x4d554f]);
+                            for(let row=0;row<4;row++){
+                                const cuts=row%2?[-.5,-.25,.25,.5]:[-.5,0,.5];
+                                for(let i=0;i<cuts.length-1;i++)roomBlocks.push([x+(cuts[i]+cuts[i+1])/2,tileTop+.28+row*.51,z,cuts[i+1]-cuts[i]-.018,.49,.998,0,[0x8a8d7e,0x7d8479,0x929382][(x+z+row+i)%3]]);
+                            }
+                            roomBlocks.push([x,tileTop+.10,z,1,.16,1,0,0x6b756b]);
+                        }else{
+                            roomBlocks.push([x,tileTop+.32,z,1,.64,1,0,0x8c7b64]);
+                            roomBlocks.push([x,tileTop+.67,z,1,.06,1,0,0xb09c7f]);
+                        }
                     } else if (type === 'counter') {
                         roomBlocks.push([x,tileTop+.011,z,.80,.022,.62,0,0x927352]);
                     } else if (type==='forest' && biome?.flora==='orchard' && r>.24) {
@@ -9514,8 +9834,10 @@ window.addEventListener('load', () => {
                         const trunkHeight=h*.79;
                         logs.push([x+offset,tileTop+trunkHeight*.5,z,.12,trunkHeight,.13,rotation,0x7c573d]);
                         const blooms=worldClimate.season==='Spring' ? 0xd59680 : biome.forest;
-                        stones.push([x+offset,tileTop+h*.83,z,.47,.32,.49,rotation,blooms]);
-                        stones.push([x+offset-.25,tileTop+h*.77,z-.23,.31,.22,.35,rotation,season.crowns[1]]);
+                        // Connected, asymmetric lobes share the rooted trunk and the old orchard envelope.
+                        canopies.push([x+offset,tileTop+h*.83,z,.43,.34,.45,rotation,blooms]);
+                        canopies.push([x+offset-.23,tileTop+h*.78,z-.20,.30,.26,.31,rotation+.7,season.crowns[1]]);
+                        canopies.push([x+offset+.18,tileTop+h*.92,z+.10,.26,.23,.28,rotation-.5,blooms]);
                     } else if (type === 'forest' && (!biome || r>.20)) {
                         // trees stand well above the heroes walking among them
                         const h = (1.02 + .63 * r) * 1.3;
@@ -9551,11 +9873,12 @@ window.addEventListener('load', () => {
                         if (r > .96) stones.push([x + .30, .11, z - .32, .105, .075, .115, rotation, 0x9ca18b]);
                     } else if (type === 'door') {
                         if(this.room?.questDungeon) {
-                            // Iron bars, crosspieces and a lintel only in the vault.
-                            roomBlocks.push([x,tileTop+.78,z,.92,.13,.14,0,0x786d60]);
-                            roomBlocks.push([x,tileTop+.14,z,.92,.12,.14,0,0x786d60]);
-                            for (let k=-2;k<=2;k++)
-                                roomBlocks.push([x+k*.19,tileTop+.45,z,.075,.76,.13,0,0x525861]);
+                            // Full eye-level gate in FP; the overhead cutaway remains readable.
+                            const tall=this.eyeMode&&!sharedWorld.active(),h=tall?2.05:.78;
+                            roomBlocks.push([x,tileTop+h,z,.94,.13,.16,0,0x786d60]);
+                            roomBlocks.push([x,tileTop+.14,z,.94,.12,.16,0,0x786d60]);
+                            for (let k=-2;k<=2;k++)roomBlocks.push([x+k*.19,tileTop+(h+.07)/2,z,.075,h-.07,.13,0,0x525861]);
+                            if(tall)roomBlocks.push([x,tileTop+1.04,z,.94,.055,.15,0,0x9a8a6b]);
                         } else {
                             logs.push([x - .35, .45, z, .11, .82, .11, 0, 0x8e6447]);
                             logs.push([x + .35, .45, z, .11, .82, .11, 0, 0x8e6447]);
@@ -9568,7 +9891,7 @@ window.addEventListener('load', () => {
             this.land.add(makeSurface(this.ground, positions, tints, uvs));
             if (shorePositions.length) this.land.add(makeSurface(this.shallowsMaterial, shorePositions, shoreTints, shoreUvs));
             for (const [geometry, batch, shadow] of [
-                [this.trunk, logs, true], [this.crown, leaves, true],
+                [this.trunk, logs, true], [this.crown, leaves, true], [this.canopy, canopies, true],
                 [this.rock, stones, true], [this.crown, sprouts, false], [this.roomBlock, roomBlocks, true]
             ]) {
                 const mesh = instanced(geometry, this.terrainMaterial, batch, shadow);
@@ -9611,7 +9934,8 @@ window.addEventListener('load', () => {
                         let model;
                         if (kind === 'building') model = data.realmId && data.landmark ?
                             art.landmark(data.landmark, buildingFootprint(data)) :
-                            art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined);
+                            art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
+                                ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'||data.realmId==='rest-service-2'));
                         else if (kind === 'item') model = art.item(data.type);
                         else if (kind === 'remote') {
                             model = art.humanoid('remote','',variant);
@@ -9680,7 +10004,9 @@ window.addEventListener('load', () => {
                 const first=fx*across.x+fz*across.z<0 ? across.clone().negate() : across, second=first.clone().negate();
                 const dir=open(first) ? first : open(second) ? second : new T.Vector3(fx,0,fz);
                 if (dir.lengthSq()<1e-4) dir.set(Math.sin(hero.group.rotation.y),0,Math.cos(hero.group.rotation.y));
-                c=this.combat={foe,dir:dir.normalize(),base:at.clone(),started:now,model:null,own:false,downAt:0,heroDownAt:0,hidden:[],faded:[]};
+                // Solo Farlands FP stages on a clear line in front of the eye, without moving the saved player.
+                const eye=this.eyeMode && ebFarlands.inRealm() && !sharedWorld.active();
+                c=this.combat={foe,eye,dir:dir.normalize(),base:at.clone(),started:now,model:null,own:false,downAt:0,heroDownAt:0,hidden:[],faded:[]};
             }
             // The battle holds a copy of the enemy; its actor is the enemy record on the same tile.
             if (!c.record || this.actors.get(c.record.data)!==c.record)
@@ -9721,7 +10047,29 @@ window.addEventListener('load', () => {
             const dir=c.dir, beastLong=enemy.width>1 ? .55 : armed(enemy) ? 0 : .25;
             // Distance between the fighters at guard. A rider keeps the enemy beside the horse's shoulder on the
             // sword side, where the blade reaches down to it.
-            const rest=riding ? .75+beastLong*.8 : 1.45+beastLong;
+            const rest=c.eye ? 2.1+beastLong : riding ? .75+beastLong*.8 : 1.45+beastLong;
+            c.rest=rest;
+            // Choose once, after the model determines its guard distance. Include its width and recoil space,
+            // rather than stopping at 2.1 tiles while a dragon stands 2.65 tiles away. Rendering only.
+            if (c.eye && !c.eyePlaced) {
+                const forward=new T.Vector3(-Math.sin(this.eyeYaw),0,-Math.cos(this.eyeYaw));
+                const clear=v=>{
+                    const side=new T.Vector3(v.z,0,-v.x), reach=rest+.18;
+                    const steps=Math.ceil((reach-.6)/.2);
+                    for (let i=0;i<=steps;i++) {
+                        const d=.6+(reach-.6)*i/steps;
+                        for (const offset of [-enemy.width/2,0,enemy.width/2]) {
+                            if (!canEntityMoveTo(Math.round(c.base.x+v.x*d+side.x*offset),
+                                Math.round(c.base.z+v.z*d+side.z*offset))) return false;
+                        }
+                    }
+                    return true;
+                };
+                const choices=[forward,dir.clone(),...[[0,-1],[1,0],[0,1],[-1,0]].map(([x,z])=>new T.Vector3(x,0,z))];
+                const safe=choices.find(clear);
+                if (safe) dir.copy(safe);
+                c.eyePlaced=true; // Keep the established fallback when no full corridor fits; never move saved tiles.
+            }
             this.clearCombatView(c,rest);
             // Guard: sword raised in front, the off hand ready, feet apart, breathing.
             const guard=(m,phase,seated)=>{
@@ -9783,7 +10131,7 @@ window.addEventListener('load', () => {
             // height) and to the head of a beast (about 1.2 from a beast's centre, 1.05 from a crawler's), a beast to
             // its bite; nobody steps into a horse.
             const contactHero=rest-(armed(enemy) ? .66 : foe.crawler ? 1.05 : 1.2);
-            const contactEnemy=riding ? .1 : armed(enemy) ? rest-.66 : rest-.80-beastLong*.4;
+            const contactEnemy=c.eye ? Math.min(rest-1.15, .85) : riding ? .1 : armed(enemy) ? rest-.66 : rest-.80-beastLong*.4;
             if (v) {
                 const a=v.age, at=ebCombatHUD.impact(v.action);
                 if (v.action==='attack') {
@@ -9823,11 +10171,11 @@ window.addEventListener('load', () => {
             enemy.group.rotation.y=turn(c.enemyYaw,yaw+Math.PI,facing);
             // The hero holds its ground (a rider stays where the horse stands); the enemy walks to its place.
             const hp=hero.group.position, ep=enemy.group.position, b=c.base;
-            if (!riding) { hp.x=b.x+dir.x*(heroReach-heroPush); hp.z=b.z+dir.z*(heroReach-heroPush); }
+            if (!riding) { hp.x=b.x+dir.x*(c.eye ? 0 : heroReach-heroPush); hp.z=b.z+dir.z*(c.eye ? 0 : heroReach-heroPush); }
             if (!c.from) {
                 c.from=c.arrives ? new T.Vector3(b.x+dir.x*(rest+1.4),tileTop,b.z+dir.z*(rest+1.4)) : ep.clone();
                 const gap=Math.hypot(b.x+dir.x*rest-c.from.x,b.z+dir.z*rest-c.from.z);
-                c.entry=this.reduced || gap<.05 ? 0 : 250+300*Math.min(2,gap);
+                c.entry=c.eye || this.reduced || gap<.05 ? 0 : 250+300*Math.min(2,gap);
             }
             const enter=c.entry ? ease((now-c.started)/c.entry) : 1, ed=rest-enemyReach+enemyPush;
             ep.set(c.from.x+(b.x+dir.x*ed-c.from.x)*enter, tileTop, c.from.z+(b.z+dir.z*ed-c.from.z)*enter);
@@ -9904,7 +10252,8 @@ window.addEventListener('load', () => {
             this.restoreCombatView(c);
             c.land=this.land;
             const T=THREE, m=new T.Matrix4(), p=new T.Vector3(), none=new T.Matrix4().makeScale(0,0,0);
-            const across=new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2), toward=new T.Vector3(Math.SQRT1_2,0,Math.SQRT1_2);
+            const across=c.eye ? new T.Vector3(c.dir.z,0,-c.dir.x) : new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2);
+            const toward=c.eye ? c.dir : new T.Vector3(Math.SQRT1_2,0,Math.SQRT1_2);
             const enemyAt=c.dir.dot(across)*rest, low=Math.min(0,enemyAt)-.9, high=Math.max(0,enemyAt)+.9;
             const box=new T.Box3(), fade=material=>{ const f=material.clone(); f.transparent=true; f.opacity=.28; f.depthWrite=false; return f; };
             for (const record of this.actors.values()) {
@@ -9916,7 +10265,7 @@ window.addEventListener('load', () => {
                     const side=p.dot(across), depth=p.dot(toward);
                     sideMin=Math.min(sideMin,side); sideMax=Math.max(sideMax,side); depthMin=Math.min(depthMin,depth); depthMax=Math.max(depthMax,depth);
                 }
-                if (sideMax<low || sideMin>high || depthMax<.05 || depthMin>1.13*(box.max.y-tileTop)) continue;
+                if (sideMax<low || sideMin>high || depthMax<.05 || depthMin>(c.eye ? rest+.35 : 1.13*(box.max.y-tileTop))) continue;
                 record.model.group.traverse(o=>{
                     if (!o.isMesh || o.material===this.pickMaterial) return;
                     c.faded.push([o,o.material]);
@@ -9925,13 +10274,13 @@ window.addEventListener('load', () => {
             }
             if (!this.land) return;
             for (const mesh of this.land.children) {
-                if (!mesh.isInstancedMesh || (mesh.geometry!==this.trunk && mesh.geometry!==this.crown)) continue;
+                if (!mesh.isInstancedMesh || (mesh.geometry!==this.trunk && mesh.geometry!==this.crown && mesh.geometry!==this.canopy)) continue;
                 let changed=false;
                 for (let i=0;i<mesh.count;i++) {
                     mesh.getMatrixAt(i,m);
                     p.setFromMatrixPosition(m).sub(c.base);
                     const side=p.dot(across), depth=p.dot(toward);
-                    if (side<low || side>high || depth<-.35 || depth>2.4) continue;
+                    if (side<low || side>high || depth<(c.eye ? .1 : -.35) || depth>(c.eye ? rest+.6 : 2.4)) continue;
                     c.hidden.push([mesh,i,m.clone()]);
                     mesh.setMatrixAt(i,none);
                     changed=true;
@@ -10007,12 +10356,50 @@ window.addEventListener('load', () => {
             this.camera.updateMatrixWorld();
         }
 
+        recordLocalStep(fromX,fromZ,x,z) {
+            if(!this.active||!ebFarlands.inRealm()||sharedWorld.active()){this.localStepPath=null;return;}
+            let path=this.localStepPath,tail=path?.points.at(-1);
+            if(!path||path.map!==worldMap||tail.x!==fromX||tail.z!==fromZ){
+                path=this.localStepPath={map:worldMap,origin:{x:fromX,z:fromZ},confirmed:false,
+                    points:[{x:fromX,z:fromZ,diagonal:!!this.hero.soloStepDiagonal}]};
+            }
+            path.points.push({x,z,diagonal:Math.abs(x-fromX)===1&&Math.abs(z-fromZ)===1});
+            if(path.points.length>128)this.localStepPath=null; // Bounded background backlog; resume by the normal relocation path.
+        }
+
         animateActor(model, x, z, y, time, dt, stepping = false, staged = false) {
             const position = model.group.position;
+            const beforeX=position.x,beforeZ=position.z;
             const dx = x - position.x;
             const dz = z - position.z;
             const changed = x !== model.lastX || z !== model.lastZ;
-            const jump = Math.abs(dx) > 3 || Math.abs(dz) > 3;
+            let jump = Math.abs(dx) > 3 || Math.abs(dz) > 3,walkDistance=null;
+            const localHero=model===this.hero&&ebFarlands.inRealm()&&!sharedWorld.active();
+            let path=localHero?this.localStepPath:null;
+            if(path){
+                const tail=path.points.at(-1),origin=path.origin;
+                if(this.reduced||staged||path.map!==worldMap||tail.x!==x||tail.z!==z||
+                    (!path.confirmed&&(origin.x!==model.lastX||origin.z!==model.lastZ)))path=this.localStepPath=null;
+                else path.confirmed=true;
+            }
+            if(model===this.hero&&!localHero)this.localStepPath=null;
+            if(path){
+                // Follow actual accepted waypoints, including turns. A slow frame is not a teleport.
+                // Use bounded real elapsed time for local travel only; animations/shared/legacy keep their old timestep.
+                let seconds=this.localTravelSeconds??dt;walkDistance=0;jump=false;
+                while(path.points.length){
+                    const point=path.points[0],vx=point.x-position.x,vz=point.z-position.z,distance=Math.hypot(vx,vz);
+                    if(distance<.00001){path.points.shift();continue;}
+                    if(seconds<=0)break;
+                    const speed=(ebHorseMounted&&ebFarlands.surface()?15.38:8.33)*(point.diagonal?Math.SQRT2:1),travel=Math.min(distance,speed*seconds);
+                    position.set(position.x+vx/distance*travel,y,position.z+vz/distance*travel);
+                    model.group.rotation.y=Math.atan2(vx,vz);model.soloStepDiagonal=point.diagonal;
+                    model.stepUntil=time+.22;walkDistance+=travel;seconds-=travel/speed;
+                    if(travel>=distance-.00001)path.points.shift();else break;
+                }
+                position.y=y;model.lastX=x;model.lastZ=z;
+                if(!path.points.length)this.localStepPath=null;
+            }else{
             if (changed) {
                 if (model === this.hero && !sharedWorld.active()) {
                     const stepX = x - (model.lastX ?? x);
@@ -10059,7 +10446,26 @@ window.addEventListener('load', () => {
                 if (distance < .008 || distance <= travel) position.set(x, y, z);
                 else position.set(position.x + dx / distance * travel, y, position.z + dz / distance * travel);
             }
+            }
             if (!model.body) return;
+            // Solo hero/residents advance a stride only by their real rendered travel, not global time/tile phase.
+            // This changes joint poses only; authoritative locations and the movement interpolation above stay intact.
+            const localGait=ebFarlands.inRealm()&&!sharedWorld.active()&&!gameState.inBattle&&
+                (model===this.hero||model.ebResidentGait)&&!(model===this.hero&&(ebHorseMounted||gameState.sailingMoves>0));
+            if(localGait){
+                const moved=jump||this.reduced?0:(walkDistance??Math.hypot(position.x-beforeX,position.z-beforeZ));
+                if(jump||this.reduced){model.gaitPhase=0;model.gaitBlend=0;}
+                model.gaitPhase=((model.gaitPhase||0)+moved*(model===this.hero?2.28:11))%(Math.PI*2);
+                const target=moved>.00001?1:0;
+                model.gaitBlend=(model.gaitBlend||0)+(target-(model.gaitBlend||0))*(1-Math.exp(-14*Math.min(dt,.1)));
+                const phase=model.gaitPhase,b=this.reduced?0:model.gaitBlend,swing=Math.sin(phase)*(model===this.hero ? .44 : .33)*b;
+                model.body.position.y=(1-Math.cos(phase*2))*.016*b+(this.reduced?0:Math.sin(time*2.6+x)*.006*(1-b));
+                model.body.rotation.z=Math.sin(phase)*.025*b;
+                model.legs.forEach((leg,i)=>leg.rotation.x=i%2?swing:-swing);
+                model.arms.forEach((arm,i)=>arm.rotation.x=i%2?-swing:swing);
+                model.ebGaitApplied=true;return;
+            }
+            if(model.ebGaitApplied){model.body.rotation.z=0;model.gaitPhase=model.gaitBlend=0;model.ebGaitApplied=false;}
             const renderTravel = Math.hypot(x - position.x, z - position.z) > .012;
             const walking = !this.reduced && (renderTravel || stepping || time < (model.stepUntil || 0));
             const phase = time * (model === this.hero ? 19 : 13) + x * .83 + z * .21;
@@ -10124,11 +10530,40 @@ window.addEventListener('load', () => {
             return hit?.object.userData.record || null;
         }
 
-        // R15.55: first person is drawn except while a battle is staged (the live battle camera shows the duel).
-        eyeActive() { return this.eyeMode && !this.combat; }
+        // Only solo Farlands uses the eye-level combat presentation; shared/legacy battle framing is unchanged.
+        eyeActive() { return this.eyeMode && (!this.combat || this.combat.eye); }
+
+        // A camera-local copy of the existing sword arm gives FP its own visible stroke. No combat rule or RNG here.
+        renderEyeCombat(now, dt) {
+            const c=this.combat, active=this.eyeActive() && c?.eye;
+            if (!active) { if(this.eyeHands)this.eyeHands.visible=false; return; }
+            if (!this.eyeHands) {
+                const hand=this.hero.arms[1].clone(true);
+                hand.position.set(0,0,0); hand.rotation.set(0,0,0);
+                this.eyeHands=new T.Group(); this.eyeHands.add(hand);
+                this.eyeCamera.add(this.eyeHands); this.scene.add(this.eyeCamera);
+                this.eyeSwordArm=hand;
+            }
+            const v=ebCombatHUD.visual(now), a=v?.age ?? 0;
+            const stroke=v?.action==='attack' ? Math.sin(Math.PI*Math.min(1,a/.85)) : 0;
+            const casting=v?.action==='magic' || v?.action==='heal';
+            const lift=casting ? Math.sin(Math.PI*Math.min(1,a)) : 0;
+            this.eyeHands.visible=!c.heroDownAt;
+            // The world camera keeps its FOV; fit only the camera-local weapon to portrait's narrower frustum.
+            const fit=Math.min(1,this.eyeCamera.aspect/.95);
+            const gripX=.30-.18*(1-fit);
+            const hit=v?.action==='enemy' && !this.reduced ? Math.max(0,1-Math.abs(a-.53)/.16) : 0;
+            this.eyeHands.scale.setScalar(fit);
+            this.eyeHands.position.set(gripX*(1-stroke)*fit,(-.28+stroke*.19+lift*.10)*fit,-.55-stroke*.16+.025*hit);
+            this.eyeHands.rotation.set(-.45-stroke*.65-lift*.35+.12*hit,0,-.22+stroke*1.15);
+            const sword=this.eyeSwordArm.children.find(o=>o.isGroup);
+            if(sword)sword.rotation.x=0;
+        }
 
         useEyeTarget() {
             if(!this.active || !this.eyeMode || gameState.inBattle)return;
+            // A reachable archive action must not lose to a distant actor picked through a wall.
+            if(ebStory.eyeHint(this.eyeYaw)){interact();return;}
             this.ray.setFromCamera(new T.Vector2(0,0),this.eyeCamera);
             const hits=this.ray.intersectObjects(this.targets||[],false);
             const hit=hits.find(h=>h.distance<=4.4);
@@ -10243,6 +10678,7 @@ window.addEventListener('load', () => {
         applySky(dt) {
             const blend = this.reduced ? 1 : 1 - Math.exp(-3.5 * dt);
             const indoors = Boolean(buildingInterior);
+            if(this.vaultCanopy)this.vaultCanopy.visible=Boolean(this.eyeMode&&this.room?.questDungeon&&!sharedWorld.active());
             this.lightLevel += ((indoors ? .70 : worldClimate.daylight) - this.lightLevel) * blend;
             this.sunsetWarmth += ((indoors ? .35 : worldClimate.warmth) - this.sunsetWarmth) * blend;
             const light = this.lightLevel;
@@ -10252,8 +10688,17 @@ window.addEventListener('load', () => {
             this.sun.color.copy(sky.moon).lerp(sky.sun, light).lerp(sky.sunset, warmth * .65);
             this.hemisphere.intensity = .82 + .50 * light;
             this.hemisphere.color.copy(sky.nightHemi).lerp(sky.dayHemi, light);
+            if(buildingInterior?.questDungeon&&this.eyeMode&&!sharedWorld.active()){this.sun.intensity=.42;this.hemisphere.intensity=.96;}
             this.scene.background.copy(sky.night).lerp(ebFarlands.surface()?sky.farlandsDay:sky.day,light).lerp(sky.dusk, warmth * .42);
             if (indoors) this.scene.background.set(0x262c28);
+            const soloSky=ebFarlands.surface()&&!sharedWorld.active()&&!indoors;
+            this.atmosphere.visible=Boolean(soloSky&&this.eyeActive());
+            if(soloSky){
+                const u=this.atmosphere.material.uniforms,[h,m]=worldClimate.time.split(':').map(Number),angle=(h+m/60-6.6)*Math.PI/12;
+                u.uHorizon.value.copy(this.scene.background);u.uZenith.value.copy(this.scene.background).multiplyScalar(.48+.25*light);
+                u.uSun.value.set(Math.cos(angle)*.85,Math.sin(angle),Math.cos(angle)*.35).normalize();
+                u.uLight.value=Math.max(0,Math.min(1,light));u.uWarm.value=warmth;u.uTime.value=this.reduced?0:performance.now()/1000;
+            }
             // Keep sky, distance haze and sea horizon synchronized with the
             // existing day/night climate. No independent weather clock.
             if(this.eyeActive() && !indoors){
@@ -10272,7 +10717,9 @@ window.addEventListener('load', () => {
 
         draw(now) {
             if (!this.active) return;
-            const dt = Math.min(.050, (now - (this.lastFrame || now - 16)) / 1000);
+            const elapsed=Math.max(0,(now-(this.lastFrame||now-16))/1000);
+            const dt = Math.min(.050,elapsed);
+            this.localTravelSeconds=Math.min(.25,elapsed);
             const time = now / 1000;
             this.lastFrame = now;
             this.applySky(dt);
@@ -10526,7 +10973,10 @@ window.addEventListener('load', () => {
             this.camera.lookAt(cx, .15, cz);
             this.camera.updateMatrixWorld();
             this.frameCombat(combatFocus, dt); // R15.37: battle framing, after the follow camera
-            this.sun.position.set(cx - 10, 19, cz - 7);
+            if(ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior){
+                const d=this.atmosphere.material.uniforms.uSun.value,side=d.y>=0?1:-1;
+                this.sun.position.set(cx+d.x*25*side,8+Math.abs(d.y)*20,cz+d.z*25*side);
+            }else this.sun.position.set(cx - 10, 19, cz - 7);
             this.sun.target.position.set(cx, 0, cz);
             this.water.position.x = cx;
             this.water.position.z = cz;
@@ -10546,8 +10996,16 @@ window.addEventListener('load', () => {
                 // Remote player poses may be interpolated by the shared-world buffer.
                 // Do not force-snap those poses on every frame: that defeats 3D smoothing.
                 model.ebRemotePlayer = kind === 'remote';
+                model.ebResidentGait=kind==='npc'&&/^rest-resident-[0-6]$/.test(data.realmId||'');
                 if (model !== this.combat?.model) // R15.37: a battle poses its enemy itself
                     this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data && kind !== 'remote');
+                // Real resident, real scheduled location: only the idle hand pose changes while bundling herbs.
+                if(kind==='npc' && data.realmId==='rest-resident-0' && model.arms?.length){
+                    const target=ebVillageWork.working(data)?1:0;
+                    model.ebWorkBlend=(model.ebWorkBlend||0)+(target-(model.ebWorkBlend||0))*(this.reduced?1:1-Math.exp(-6*dt));
+                    const b=model.ebWorkBlend,sway=this.reduced?0:Math.sin(time*2.6)*.09;
+                    model.arms.forEach((arm,i)=>{arm.rotation.x=arm.rotation.x*(1-b)+(-.65+(i?1:-1)*sway)*b;});
+                }
                 if (label) {
                     const position = model.group.position;
                     const title = this.actorTitle(record);
@@ -10571,18 +11029,36 @@ window.addEventListener('load', () => {
             this.walkTarget.visible = Boolean(walkRoute);
             if (walkRoute) this.walkTarget.position.set(walkRoute.x, tileTop + .018, walkRoute.y);
             // Eye-level camera (R15.38) shares the same scene, map, collisions, actor state, interior renderer
-            // and movement controls. It never moves the player. R15.55: a staged battle is shown by the battle camera.
+            // and movement controls. FP combat holds the eye at the same tile while the foe closes to strike.
             const eyeEnabled=this.eyeActive();
-            const eyeBattle=this.eyeMode && !eyeEnabled;
+            const eyeBattle=this.eyeMode && Boolean(this.combat);
             if (eyeBattle!==this.eyeBattle) document.documentElement.toggleAttribute('data-eb-eye-battle',this.eyeBattle=eyeBattle);
             if (eyeEnabled) {
-                const h=this.hero.group.position;
+                const h=this.hero.group.position, c=this.combat?.eye ? this.combat : null;
                 const eyeY=h.y+(afloat?.90:1.08);
-                this.eyeCamera.position.set(h.x,eyeY,h.z);
+                this.eyeCamera.position.set(c ? c.base.x : h.x,eyeY,c ? c.base.z : h.z);
                 this.eyeCamera.rotation.order='YXZ';
-                this.eyeCamera.rotation.set(this.eyePitch??-.055,this.eyeYaw,0);
+                const yaw=c ? Math.atan2(-c.dir.x,-c.dir.z) : this.eyeYaw;
+                // Smooth any necessary turn around an obstacle, and restore the player's unchanged look preference.
+                const blend=this.reduced ? 1 : 1-Math.exp(-10*dt);
+                this.eyeRenderYaw ??= this.eyeYaw;
+                this.eyeRenderYaw+=Math.atan2(Math.sin(yaw-this.eyeRenderYaw),Math.cos(yaw-this.eyeRenderYaw))*blend;
+                // A rider looks down to the foe's chest; keep it clear of the lower battle controls.
+                const pitch=c ? Math.atan2(tileTop+.65-eyeY,c.rest)-.10 : this.eyePitch??-.055;
+                this.eyeRenderPitch ??= this.eyePitch??-.055;
+                this.eyeRenderPitch+=(pitch-this.eyeRenderPitch)*blend;
+                this.eyeCamera.rotation.set(this.eyeRenderPitch,this.eyeRenderYaw,0);
                 this.eyeCamera.updateMatrixWorld();
             }
+            if(!this.lastEyeHint || now-this.lastEyeHint>=140){
+                const hint=this.eyeMode?ebStory.eyeHint(this.eyeYaw):'',node=document.getElementById('eb-eye-context');
+                if(node.textContent!==hint)node.textContent=hint;
+                node.hidden=!hint;this.lastEyeHint=now;
+            }
+            if(this.atmosphere.visible)this.atmosphere.position.copy(this.eyeCamera.position);
+            this.renderEyeCombat(now,dt);
+            const mountedEye=eyeEnabled && Boolean(this.combat?.eye) && ebHorseMounted && this.farlandsHorse.visible;
+            if(mountedEye)this.farlandsHorse.visible=false;
             const heroWasVisible=this.hero.group.visible;
             const tagWasHidden=this.heroTag.hidden;
             // FP boat: retain the vessel/horse in the world but prevent near-field
@@ -10610,6 +11086,7 @@ window.addEventListener('load', () => {
                 part[0].material.dispose();part[0].material=part[1];part[0].visible=part[2];
             }
             if(eyeEnabled){this.hero.group.visible=heroWasVisible;this.heroTag.hidden=tagWasHidden;}
+            if(mountedEye)this.farlandsHorse.visible=true;
             this.frame = requestAnimationFrame(next => this.draw(next));
         }
 
@@ -10678,6 +11155,7 @@ window.addEventListener('load', () => {
 
         try {
             view = new WorldView(canvas, layer, world);
+        ebLocalStepObserver=(...step)=>view.recordLocalStep(...step);
             ebEyeDirectionProvider=()=>view.eyeYaw;
             display('3d');
         } catch (error) {
@@ -10731,7 +11209,7 @@ window.addEventListener('load', () => {
         // These do not intercept the existing joystick, tap-to-move or interactions.
         let lookDirection=0,lookFrame=0,lookLast=0;
         const stepLook=(time)=>{
-            if(!view?.eyeMode || !lookDirection){lookFrame=0;lookLast=0;return;}
+            if(!view?.eyeMode || gameState.inBattle || !lookDirection){lookFrame=0;lookLast=0;return;}
             const dt=lookLast?Math.min(.25,(time-lookLast)/1000):0;
             lookLast=time;
             view.eyeYaw+=lookDirection*dt*1.65;
@@ -10740,6 +11218,7 @@ window.addEventListener('load', () => {
         for(const [id,dir] of [['eb-look-left',1],['eb-look-right',-1]]){
             const button=document.getElementById(id);
             button.addEventListener('pointerdown',e=>{
+                if(gameState.inBattle)return;
                 e.preventDefault();button.setPointerCapture(e.pointerId);
                 view.eyeYaw+=dir*.12;
                 lookDirection=dir;if(!lookFrame)lookFrame=requestAnimationFrame(stepLook);
@@ -10750,7 +11229,7 @@ window.addEventListener('load', () => {
             button.addEventListener('lostpointercapture',stop);
         }
         window.addEventListener('keydown',e=>{
-            if(!view?.eyeMode || e.repeat || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;
+            if(!view?.eyeMode || gameState.inBattle || e.repeat || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;
             if(e.code==='KeyQ'){view.eyeYaw+=.24;e.preventDefault();}
             if(e.code==='KeyE'){view.eyeYaw-=.24;e.preventDefault();}
         });
@@ -13309,6 +13788,13 @@ const ebFarlands = (() => {
     function consume(actor) {
         if (surface() && actor.realmId) journey.spent.add(actor.realmId);
     }
+    function completeHerbLesson(npc) {
+        const key='work-rest-herbs';
+        if(!journey || !surface() || sharedWorld.active() || buildingInterior || gameState.inBattle ||
+            journey.spent.has(key) || !ebVillageWork.working(npc) || !npcs.includes(npc) ||
+            Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5)return false;
+        journey.spent.add(key);gameState.inventory.healthPotions++;updateUI();saveNow();return true;
+    }
     function storyFlag(id) { return !!journey?.spent.has(id); }
     function markStory(id) {
         if (!journey || !/^quest-vault-[a-z-]+$/.test(id) || journey.spent.has(id)) return false;
@@ -14066,7 +14552,7 @@ const ebFarlands = (() => {
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
     return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
-        storyFlag,markStory,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
+        completeHerbLesson,storyFlag,markStory,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
 </script>
@@ -14163,6 +14649,21 @@ const ebStory = (() => {
         showFloatingText('The iron gate opens',gameState.player.x*32+16,gameState.player.y*32-20,'#fbbf24');
         ebSound.play('pickup');
     }
+    const ledgerTitle="The toll keepers' ledger";
+    const ledgerPage='<article style="font-size:15px;line-height:1.55;text-align:left"><p style="margin-bottom:12px">The toll was once counted in sacks of grain. Beside the neat columns, someone has sketched the orchard bell. A note reads: “When this rings, leave the road and bring the harvest home.”</p><p>A later hand records that the brass ward key was last seen by the creek at Millbend. The Harvest Bell is kept in the eastern chamber, beyond the iron gate and its Warden. Return it to Mira at Wayfarer’s Rest.</p></article>';
+    function nearbyLedger(){
+        if(!buildingInterior?.questDungeon||!active()||gameState.inBattle)return null;
+        const rack=buildingInterior.furniture.find(p=>p.kind==='rack'&&p.x===6&&p.y===4);
+        return rack&&Math.hypot(gameState.player.x-rack.x,gameState.player.y-rack.y)<=1?rack:null;
+    }
+    function readLedger(){
+        if(!nearbyLedger())return false;
+        mark('ledger'); // Optional, idempotent copy in the existing solo story journal; no reward or unlock.
+        document.getElementById('modalTitle').textContent=ledgerTitle;
+        document.getElementById('modalContent').innerHTML=ledgerPage+'<p><small>Copied to your Explorer’s Journal.</small></p>';
+        releaseMovement();document.getElementById('interactionModal').style.display='flex';return true;
+    }
+    function ledgerNote(){return active()&&flag('ledger')?'<section id="eb-archive-copy" style="padding:12px;margin:10px 0;border:1px solid rgba(180,200,180,.25);border-radius:10px;text-align:left"><strong>'+ledgerTitle+'</strong>'+ledgerPage+'</section>':'';}
     function interactDungeon() {
         if(!buildingInterior?.questDungeon)return;
         const {x,y}=gameState.player;
@@ -14177,12 +14678,28 @@ const ebStory = (() => {
             else collectItem(items.indexOf(relic));
             return;
         }
+        if(readLedger())return;
         showFloatingText(flag('guardian')?'Find the bell in the eastern chamber':'The archive still has a guardian',x*32+16,y*32,'#d3b483');
     }
     // The pin follows the quest: if the place just finished was pinned, the next place is pinned instead.
     const movePin=from=>{const to=objective()?.site?.id; if(to && to!==from && ebFarlands.pinned()===from)ebFarlands.pin(to);};
+    // Describe the same primary proximity action as interactDungeon; no discovery, reward or state mutation.
+    function eyeHint(yaw){
+        if(!buildingInterior?.questDungeon||!active()||gameState.inBattle)return '';
+        const p=gameState.player,near=(a,r)=>Math.hypot(p.x-a.x,p.y-a.y)<=r;
+        let at=null,text='';
+        if(near(EB_VAULT_EXIT,1)){at=EB_VAULT_EXIT;text='Archive exit nearby';}
+        else {const enemy=enemies.find(e=>near(e,1.5));
+            if(enemy){at=enemy;text='Challenge '+enemy.name;}
+            else if(!flag('gate')&&near(EB_VAULT_GATE,1.5)){at=EB_VAULT_GATE;text=flag('key')?'Iron gate nearby · use ward key':'Iron gate nearby · needs ward key';}
+            else {const relic=items.find(i=>i.type==='vault_relic'&&near(i,1));if(relic){at=relic;text=flag('guardian')?'Harvest Bell nearby · take it':'Harvest Bell nearby · still guarded';}
+                else {const rack=nearbyLedger();if(rack){at=rack;text='Archive ledger nearby · read';}}}
+        }
+        if(!at)return '';const dx=at.x-p.x,dy=at.y-p.y,d=Math.hypot(dx,dy);
+        return d<.01||(-Math.sin(yaw)*dx-Math.cos(yaw)*dy)/d>=.6?text:'';
+    }
     const bumpGate=()=>openGate(true); // walking into the gate: opens with the ward key, a short note without it
-    return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon};
+    return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon,eyeHint,ledgerNote};
 })();
 </script>
 <script data-source="farlands-life.js">
@@ -14289,6 +14806,53 @@ const ebLife = (() => {
     return { enroll, tick, roster:() => roster, hour };
 })();
 </script>
+<script data-source="village-work.js">
+// A single authored resident activity, solo only. Completion uses the existing sparse journal, not a new save schema.
+const ebVillageWork=(()=>{
+    const KEY='work-rest-herbs';let session=null;
+    const steps=[
+        {prompt:'Tamsin sets out three bundles. Broad comfrey leaves belong in the pilgrim’s foot-balm parcel. Which bundle do you tie first?',answer:'Comfrey',note:'The broad leaves are tied loosely so they do not bruise.'},
+        {prompt:'The courier’s parcel is labelled feverfew. The small pale flowers go in a paper wrap; which bundle goes next?',answer:'Feverfew',note:'Tamsin folds the paper over the flower heads before tying it.'},
+        {prompt:'Last is the river crew’s fragrant mint. Which bundle belongs in their travel parcel?',answer:'Mint',note:'The mint parcel is ready for the next boat.'}
+    ];
+    function working(npc){
+        if(!npc || npc.realmId!=='rest-resident-0' || !ebFarlands.surface() || sharedWorld.active() || buildingInterior || npc.indoors)return false;
+        const slot=npc.life?.slot,h=ebLife.hour();
+        return h>=6&&h<18&&slot?.from===6&&Math.hypot(npc.x-slot.x,npc.y-slot.y)<.08;
+    }
+    const closeEnough=npc=>working(npc)&&!gameState.inBattle&&npcs.includes(npc)&&Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)<=1.5;
+    const visible=()=>document.getElementById('interactionModal').style.display==='flex'&&document.getElementById('eb-village-work');
+    function render(note=''){
+        const box=document.getElementById('eb-village-work');if(!box||!session)return;
+        const index=session.step,step=steps[index];
+        box.innerHTML=`<strong>Help bundle herbs · ${index+1} / ${steps.length}</strong><p>${escapeMapText(step.prompt)}</p><p role="status" aria-live="polite">${escapeMapText(note)}</p><div class="eb-herb-choices" style="display:flex;gap:8px;flex-wrap:wrap"></div>`;
+        for(const herb of ['Comfrey','Mint','Feverfew']){
+            const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=herb;button.style.minHeight='44px';
+            button.addEventListener('click',()=>{
+                if(!session||session.step!==index||!visible())return;
+                if(!closeEnough(session.npc)){session=null;box.textContent='Tamsin has moved on from her bundles. Return during her working hours to try again.';return;}
+                if(herb!==step.answer){box.querySelector('[role="status"]').textContent='Tamsin points to the parcel label. '+step.note+' Try that bundle again.';return;}
+                session.step++;
+                if(session.step<steps.length){render(step.note);return;}
+                const granted=ebFarlands.completeHerbLesson(session.npc);session=null;
+                box.textContent=granted?'The parcels are ready. Tamsin thanks you with one health potion. Herb lesson complete.':'This lesson is already recorded, or Tamsin is no longer at work.';
+            });
+            box.querySelector('.eb-herb-choices').append(button);
+        }
+    }
+    function attach(npc){
+        session=null;
+        if(npc?.realmId!=='rest-resident-0'||!ebFarlands.surface()||sharedWorld.active()||buildingInterior)return;
+        const box=document.createElement('section');box.id='eb-village-work';box.style.cssText='margin-top:16px;padding:12px;border:1px solid #7f9e79;border-radius:8px;text-align:left';
+        document.getElementById('modalContent').append(box);
+        if(ebFarlands.storyFlag(KEY)){box.textContent='Herb lesson complete · the parcels you helped bundle are on their way.';return;}
+        const b=document.createElement('button');b.type='button';b.className='btn';b.id='eb-herb-start';b.style.minHeight='44px';b.disabled=!closeEnough(npc);b.textContent='Help bundle herbs';
+        const p=document.createElement('p');p.textContent=b.disabled?'Tamsin bundles herbs here between 06:00 and 18:00. Catch her when she has settled at her work spot.':'Help Tamsin sort three labelled parcels. She will share one health potion after your first completed lesson.';
+        box.append(p,b);b.addEventListener('click',()=>{if(!closeEnough(npc)||ebFarlands.storyFlag(KEY))return;session={npc,step:0};render();});
+    }
+    return {attach,working};
+})();
+</script>
 <script data-source="r14-adventure-journal.js">
 // R14: read-only Farlands exploration stories. Uses the existing saved discovery set;
 // never writes to shared accounts, changes combat, or duplicates reward grants.
@@ -14314,14 +14878,34 @@ const ebJournal = (() => {
             document.getElementById('modalTitle').textContent = '📖 Explorer’s Journal';
             const quest=ebStory.objective();
             const storyCard=quest ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.5);border-radius:10px;text-align:left"><strong>🔔 The Silent Harvest · Story Quest</strong><p style="margin:8px 0">The Harvest Bell lies in the locked archive beneath the Old Tollhouse. Find the ward key at Millbend, defeat the Archive Warden, recover the bell and return it to Mira at Wayfarer’s Rest.</p><p style="margin:0"><strong>Now:</strong> ${escapeMapText(quest.label)}</p></section>` : '';
-            document.getElementById('modalContent').innerHTML = storyCard+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
+            document.getElementById('modalContent').innerHTML = storyCard+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
         }
         releaseMovement();
         document.getElementById('interactionModal').style.display='flex';
     }
     function atlas() { if (ebFarlands.inRealm() && !sharedWorld.active()) ebFarlands.openAtlas(); }
+    function leadFor(npc){
+        if(!ebFarlands.surface()||sharedWorld.active()||buildingInterior||!npc)return null;
+        const pools={'rest-resident-1':['toll','orchard','mill'],'rest-resident-3':['grove','bridge','alder']};
+        const pool=pools[npc.realmId];if(!pool)return null;
+        const quest=ebStory.objective();
+        if(npc.realmId==='rest-resident-1'&&quest&&!quest.done&&quest.site)return quest.site;
+        const visited=ebFarlands.discoveries();return pool.map(id=>Farlands.byId.get(id)).find(site=>site&&!visited.has(site.id))||null;
+    }
+    function attachLead(npc){
+        const slot=document.getElementById('eb-rumor-action'),lead=leadFor(npc);if(!slot||!lead)return;
+        const b=document.createElement('button');b.type='button';b.className='btn';b.id='eb-rumor-pin';b.dataset.destination=lead.id;b.style.minHeight='44px';
+        b.disabled=ebFarlands.pinned()===lead.id;b.textContent=b.disabled?'Marked on Atlas':'Mark '+lead.name;
+        const status=document.createElement('p');status.id='eb-rumor-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+        b.addEventListener('click',()=>{
+            if(gameState.inBattle||!npcs.includes(npc)||Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5||leadFor(npc)?.id!==lead.id){status.textContent='That conversation has moved on. Talk again when you are nearby.';return;}
+            if(ebFarlands.pin(lead.id)){b.disabled=true;b.textContent='Marked on Atlas';status.textContent=lead.name+' is marked on your Atlas. The location card shows the way.';}
+        });slot.append(b,status);
+    }
     function hint(npc) {
         if (!npc.realmId || !ebFarlands.inRealm() || sharedWorld.active()) return '';
+        const lead=leadFor(npc);
+        if(lead)return `<section style="margin-top:14px;padding:12px;border:1px solid #8d987a;border-radius:8px;text-align:left"><strong>${escapeMapText(npc.name)} · A road worth taking</strong><p>${escapeMapText(lead.story)}</p><p>${escapeMapText(lead.name)} · ${escapeMapText(Farlands.regions[lead.region].name)}</p><div id="eb-rumor-action"></div></section>`;
         const visited=ebFarlands.discoveries();
         const next=chapters.flatMap(ch=>ch.ids).map(id=>Farlands.byId.get(id)).find(site=>site && !visited.has(site.id));
         return next ? `<p style="margin-top:12px;font-size:13px;opacity:.85">📖 Explorer’s lead: ${escapeMapText(next.name)} in ${escapeMapText(Farlands.regions[next.region].name)}. Check your journal and Atlas.</p>` : '';
@@ -14369,7 +14953,7 @@ const ebJournal = (() => {
     // UI-only polling: no writes to game state, accounts, or movement.
     syncVisibility();
     setInterval(syncVisibility, 350);
-    return {open,hint,atlas,syncVisibility};
+    return {open,hint,atlas,syncVisibility,attachLead};
 })();
 </script>
 <script data-source="world-stream.js">

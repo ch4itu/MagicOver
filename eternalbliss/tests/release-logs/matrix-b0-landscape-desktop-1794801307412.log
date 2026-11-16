@@ -1,0 +1,6 @@
+SEAMS {"checked":1534,"maxDelta":0,"vertices":107226,"instancedBatches":8}
+page.evaluate: TypeError: Cannot read properties of undefined (reading 'hidden')
+    at eval (eval at evaluate (:290:30), <anonymous>:1:19)
+    at UtilityScript.evaluate (<anonymous>:292:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+    at /workspace/MagicOver/eternalbliss/tests/landscape.cjs:16:23

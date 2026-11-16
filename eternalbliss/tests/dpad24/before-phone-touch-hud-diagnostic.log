@@ -1,0 +1,12 @@
+KEEP profile before phone-portrait
+ATLAS BEFORE {"blocked":false,"battle":false,"open":[]}
+ATLAS AFTER {"events":[{"type":"pointerdown","id":"eb-farlands-atlas-open","tag":"BUTTON","cls":"eb-panel-button eb-atlas-button","pointer":"touch","x":156.4375,"y":250.5},{"type":"pointerup","id":"eb-farlands-atlas-open","tag":"BUTTON","cls":"eb-panel-button eb-atlas-button","pointer":"touch","x":156.4375,"y":250.5}],"scroll":[0,0],"rect":{"x":130.25,"y":228.5,"width":52.375,"height":44,"top":228.5,"right":182.625,"bottom":272.5,"left":130.25},"clicks":[],"dialog":false,"blocked":false,"viewport":{"scale":1,"x":0,"y":0}}
+locator.waitFor: Timeout 5000ms exceeded.
+Call log:
+[2m  - waiting for locator('#eb-farlands-atlas') to be visible[22m
+[2m    14 × locator resolved to hidden <dialog id="eb-farlands-atlas" class="eb-dialog eb-atlas" aria-labelledby="eb-farlands-atlas-title">…</dialog>[22m
+
+    at hud (/workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:30:2036)
+    at async /workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:33:745 {
+  name: 'TimeoutError'
+}

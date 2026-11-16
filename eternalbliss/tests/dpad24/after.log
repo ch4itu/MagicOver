@@ -1,0 +1,40 @@
+STATE after desktop overhead normal pad hidden
+STATE after desktop overhead clean pad hidden
+STATE after desktop FP normal pad hidden
+STATE after desktop FP clean pad hidden
+CHECK after desktop 1280 800 PASS
+PASS HUD after desktop
+STATE after boundary-mouse-768x520 overhead normal pad active
+STATE after boundary-mouse-768x520 overhead clean pad active
+STATE after boundary-mouse-768x520 FP normal pad active
+STATE after boundary-mouse-768x520 FP clean pad active
+CHECK after boundary-mouse-768x520 768 520 PASS
+STATE after boundary-mouse-768x521 overhead normal pad active
+STATE after boundary-mouse-768x521 overhead clean pad active
+STATE after boundary-mouse-768x521 FP normal pad active
+STATE after boundary-mouse-768x521 FP clean pad active
+CHECK after boundary-mouse-768x521 768 521 PASS
+STATE after boundary-mouse-769x520 overhead normal pad hidden
+STATE after boundary-mouse-769x520 overhead clean pad hidden
+STATE after boundary-mouse-769x520 FP normal pad hidden
+STATE after boundary-mouse-769x520 FP clean pad hidden
+CHECK after boundary-mouse-769x520 769 520 PASS
+STATE after boundary-mouse-769x521 overhead normal pad hidden
+STATE after boundary-mouse-769x521 overhead clean pad hidden
+STATE after boundary-mouse-769x521 FP normal pad hidden
+STATE after boundary-mouse-769x521 FP clean pad hidden
+CHECK after boundary-mouse-769x521 769 521 PASS
+STATE after tablet-portrait overhead normal pad active
+STATE after tablet-portrait overhead clean pad active
+STATE after tablet-portrait FP normal pad active
+STATE after tablet-portrait FP clean pad active
+CHECK after tablet-portrait 820 1180 PASS
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('#eb-farlands-atlas') to be visible[22m
+[2m    63 × locator resolved to hidden <dialog id="eb-farlands-atlas" class="eb-dialog eb-atlas" aria-labelledby="eb-farlands-atlas-title">…</dialog>[22m
+
+    at hud (/workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:30:761)
+    at async /workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:33:745 {
+  name: 'TimeoutError'
+}

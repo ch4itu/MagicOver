@@ -1,0 +1,16 @@
+desktop false guard {
+  eye: true,
+  mode: true,
+  combatEye: true,
+  hand: true,
+  enemy: [ 0, -0.06859354916269572, 0.9495948920824127 ],
+  camera: [ 5064, 1.135, 4869 ],
+  hero: [ 5064, 0.055, 4869 ],
+  hud: { top: 547.453125, bottom: 679.453125 },
+  canvas: { top: 0, height: 687.453125 },
+  hp: 80,
+  mp: 50,
+  foe: 500,
+  potions: 2
+}
+PASS combat desktop:false b0c9cd4243fe595ebcc002d66a939390e8ffd88ba8445452bdb7e6b1c70c26dd

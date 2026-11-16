@@ -1,0 +1,18 @@
+PASS desktop {
+  ceilingVisible: true,
+  roof: [ 1.8200000953674318, 1.8200000953674318 ],
+  wall: [ 3.50900000333786, 3.5149999856948853, 4.00900000333786 ],
+  meshes: 3,
+  vertices: 4464,
+  pointLights: 2,
+  instanced: 872
+}
+PASS phone {
+  ceilingVisible: true,
+  roof: [ 1.8200000953674318, 1.8200000953674318 ],
+  wall: [ 3.50900000333786, 3.5149999856948853, 4.00900000333786 ],
+  meshes: 3,
+  vertices: 4464,
+  pointLights: 2,
+  instanced: 872
+}

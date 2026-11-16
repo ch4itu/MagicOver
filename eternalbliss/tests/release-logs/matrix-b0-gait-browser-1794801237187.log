@@ -1,0 +1,12 @@
+desktop samples 176 max limb 0.3149366192220072
+PASS desktop 176
+phone-touch samples 86 max limb 0.2662225485817945
+AssertionError [ERR_ASSERTION]: body gait does not bob the FP camera
+    at /workspace/MagicOver/eternalbliss/tests/gait-browser.cjs:18:154 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}

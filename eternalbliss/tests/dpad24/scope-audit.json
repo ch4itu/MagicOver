@@ -1,0 +1,10 @@
+{
+  "time": "2026-11-16T07:08:08.645116+00:00",
+  "test": "D-pad patch exact scope",
+  "before": "b0c9cd4243fe595ebcc002d66a939390e8ffd88ba8445452bdb7e6b1c70c26dd",
+  "after": "18ecff7c1bfd4f12502b8216e2720b8b3c32e2f62d0fde033b719c33906bdf0c",
+  "result": "PASS entire HTML differs only by this CSS replacement; all 29 inline scripts and all other bytes unchanged",
+  "old": "/* PR #2: retain touch movement only in compact/touch landscape layouts. */\n@media (max-width: 768px), (max-height: 520px) and (pointer: coarse) {\n    body.eb-capture-clean #mobile-controls { display:grid!important; }\n}\n@media (min-width: 769px) and (min-height: 521px) {\n    #mobile-controls, body.eb-capture-clean #mobile-controls { display:none!important; }\n}",
+  "new": "/* PR #2: keep desktop controls hidden by default; retain touch movement at every size, including hybrids. */\n@media (max-width: 768px), (any-pointer: coarse) {\n    #mobile-controls, body.eb-capture-clean #mobile-controls { display:grid!important; }\n}",
+  "scriptBlocks": 29
+}
