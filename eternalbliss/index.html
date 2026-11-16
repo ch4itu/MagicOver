@@ -4511,7 +4511,19 @@ function repeatMovement() {
         if (directions.length === 2 && !sharedWorld.active()) {
             // One actual diagonal grid step in solo mode, not a zig-zag.
             const a = moveDirections[directions[0]], b = moveDirections[directions[1]];
-            movePlayer(a[0] + b[0], a[1] + b[1]);
+            if (!movePlayer(a[0] + b[0], a[1] + b[1])) {
+                // R15.57: a blocked diagonal slides along whichever side is open, instead of stopping dead at
+                // shorelines, bridges and rocks. Only tiles that can simply be walked (or sailed) onto are tried.
+                // The side with the longer open run is tried first, so the hero follows a shore or a bridge rather
+                // than stepping into the nearest corner.
+                const open = (x, y) => gameState.sailingMoves > 0 ? adventureTile(x, y) === 'water' && !solidStructure(x, y) :
+                    canEntityMoveTo(x, y) && !npcs.some(n => Math.round(n.x) === x && Math.round(n.y) === y) &&
+                    !enemies.some(e => Math.hypot(e.x - x, e.y - y) < .6);
+                const run = ([sx, sy]) => { let n = 0; while (n < 4 && open(gameState.player.x + sx * (n + 1), gameState.player.y + sy * (n + 1))) n++; return n; };
+                for (const [sx, sy] of [a, b].sort((p, q) => run(q) - run(p))) {
+                    if (run([sx, sy]) && movePlayer(sx, sy)) break;
+                }
+            }
         } else {
             // R14.3: shared rollup supports cardinal steps only. Never alternate
             // axes for a held diagonal: that produces the unwanted zig-zag.
@@ -10533,6 +10545,17 @@ window.addEventListener('load', () => {
         // Only solo Farlands uses the eye-level combat presentation; shared/legacy battle framing is unchanged.
         eyeActive() { return this.eyeMode && (!this.combat || this.combat.eye); }
 
+        // R15.57: where on screen (-1..1) the resting hand goes: beside the battle panel when there is room to its
+        // right, otherwise just above it on the right.
+        eyeHandTarget() {
+            const hud=document.getElementById('eb-battle-hud'), frame=this.canvas.getBoundingClientRect();
+            if(!hud||hud.hidden||!frame.width||!frame.height)return null;
+            const r=hud.getBoundingClientRect();
+            if(!r.width)return null;
+            const right=(r.right-frame.left)/frame.width*2-1, top=1-(r.top-frame.top)/frame.height*2;
+            return right<.55 ? [.74,-.45] : [.58,Math.min(.15,top+.24)];
+        }
+
         // A camera-local copy of the existing sword arm gives FP its own visible stroke. No combat rule or RNG here.
         renderEyeCombat(now, dt) {
             const c=this.combat, active=this.eyeActive() && c?.eye;
@@ -10540,6 +10563,12 @@ window.addEventListener('load', () => {
             if (!this.eyeHands) {
                 const hand=this.hero.arms[1].clone(true);
                 hand.position.set(0,0,0); hand.rotation.set(0,0,0);
+                // R15.57: seen from the eye, the hanging upper-arm sleeve ended in mid-air above the hand. It is replaced
+                // by a forearm running from the hand down past the frame edge, and a marker at the hand lets the arm be
+                // placed where the battle panel does not cover it.
+                const sleeve=hand.children.find(o=>o.isMesh);
+                if(sleeve){const forearm=sleeve.clone();forearm.scale.y=3.4;forearm.position.y=-.15-.182*3.4/2;sleeve.visible=false;hand.add(forearm);}
+                this.eyeHandMark=new T.Object3D(); this.eyeHandMark.position.set(.02,-.18,0); hand.add(this.eyeHandMark);
                 this.eyeHands=new T.Group(); this.eyeHands.add(hand);
                 this.eyeCamera.add(this.eyeHands); this.scene.add(this.eyeCamera);
                 this.eyeSwordArm=hand;
@@ -10554,8 +10583,23 @@ window.addEventListener('load', () => {
             const gripX=.30-.18*(1-fit);
             const hit=v?.action==='enemy' && !this.reduced ? Math.max(0,1-Math.abs(a-.53)/.16) : 0;
             this.eyeHands.scale.setScalar(fit);
-            this.eyeHands.position.set(gripX*(1-stroke)*fit,(-.28+stroke*.19+lift*.10)*fit,-.55-stroke*.16+.025*hit);
-            this.eyeHands.rotation.set(-.45-stroke*.65-lift*.35+.12*hit,0,-.22+stroke*1.15);
+            const pose=(s,l,h)=>{
+                this.eyeHands.position.set(gripX*(1-s)*fit,(-.28+s*.19+l*.10)*fit,-.55-s*.16+.025*h);
+                this.eyeHands.rotation.set(-.45-s*.65-l*.35+.12*h,0,-.22+s*1.15);
+                this.eyeHands.updateMatrix();
+            };
+            // R15.57: the resting hand is moved to a spot the battle panel leaves open; the swing keeps its own motion.
+            pose(0,0,0);
+            const target=this.eyeHandTarget();
+            let shift=null;
+            if(target){
+                this.eyeSwordArm.updateMatrix();
+                const p=this.eyeHandMark.position.clone().applyMatrix4(this.eyeSwordArm.matrix).applyMatrix4(this.eyeHands.matrix);
+                const depth=Math.max(.1,-p.z), halfH=Math.tan(this.eyeCamera.fov*Math.PI/360)*depth, halfW=halfH*this.eyeCamera.aspect;
+                shift=[target[0]*halfW-p.x,target[1]*halfH-p.y];
+            }
+            pose(stroke,lift,hit);
+            if(shift){this.eyeHands.position.x+=shift[0];this.eyeHands.position.y+=shift[1];}
             const sword=this.eyeSwordArm.children.find(o=>o.isGroup);
             if(sword)sword.rotation.x=0;
         }
@@ -10868,6 +10912,11 @@ window.addEventListener('load', () => {
                         const ax=cx+dx,az=cz+dz,id=ax+','+az;
                         if(ax<0||az<0||ax*80>=Farlands.size||az*80>=Farlands.size)continue;
                         const hash=((Math.imul(ax+319,73856093)^Math.imul(az+713,19349663))>>>0);
+                        // R15.57: a cell's mooring keeps the spot it was first given for the rest of the session. It was
+                        // re-chosen near the player each time the cell came back into range, so a boat the player had
+                        // taken reappeared at a new spot beside the one parked elsewhere.
+                        if(!this.mooringSpots)this.mooringSpots=new Map();
+                        if(this.mooringSpots.has(id)){wanted.set(id,this.mooringSpots.get(id));continue;}
                         const startX=ax*80,startY=az*80;
                         let best=null,bestScore=Infinity;
                         for(let oy=2;oy<78;oy+=2)for(let ox=2;ox<78;ox+=2){
@@ -10880,7 +10929,7 @@ window.addEventListener('load', () => {
                             const score=Math.hypot(x-player.x,y-player.y)+((hash+ox*17+oy*29)%23)*.05;
                             if(score<bestScore){best={x,y};bestScore=score;}
                         }
-                        if(best)wanted.set(id,best);
+                        if(best){wanted.set(id,best);this.mooringSpots.set(id,best);}
                     }
                     for(const [id,v] of this.coastalBoats)if(!wanted.has(id)){
                         this.scene.remove(v.model);this.coastalBoats.delete(id);
