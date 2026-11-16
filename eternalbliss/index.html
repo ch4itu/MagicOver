@@ -4511,15 +4511,18 @@ function repeatMovement() {
         if (directions.length === 2 && !sharedWorld.active()) {
             // One actual diagonal grid step in solo mode, not a zig-zag.
             const a = moveDirections[directions[0]], b = moveDirections[directions[1]];
+            // R15.57: a blocked diagonal slides along whichever side is open, instead of stopping dead at
+            // shorelines, bridges and rocks. Only tiles that can simply be walked (or sailed) onto are tried.
+            // The side with the longer open run is tried first, so the hero follows a shore or a bridge rather
+            // than stepping into the nearest corner. When the slide is going to happen, "Path Blocked!" is not shown.
+            const open = (x, y) => gameState.sailingMoves > 0 ? adventureTile(x, y) === 'water' && !solidStructure(x, y) :
+                canEntityMoveTo(x, y) && !npcs.some(n => Math.round(n.x) === x && Math.round(n.y) === y) &&
+                !enemies.some(e => Math.hypot(e.x - x, e.y - y) < .6);
+            const run = ([sx, sy]) => { let n = 0; while (n < 4 && open(gameState.player.x + sx * (n + 1), gameState.player.y + sy * (n + 1))) n++; return n; };
+            const { x: hx, y: hy } = gameState.player;
+            if (!(open(hx + a[0] + b[0], hy + a[1] + b[1]) && open(hx + a[0], hy + a[1]) && open(hx + b[0], hy + b[1])) && (run(a) || run(b)))
+                lastBlockedAt = performance.now();
             if (!movePlayer(a[0] + b[0], a[1] + b[1])) {
-                // R15.57: a blocked diagonal slides along whichever side is open, instead of stopping dead at
-                // shorelines, bridges and rocks. Only tiles that can simply be walked (or sailed) onto are tried.
-                // The side with the longer open run is tried first, so the hero follows a shore or a bridge rather
-                // than stepping into the nearest corner.
-                const open = (x, y) => gameState.sailingMoves > 0 ? adventureTile(x, y) === 'water' && !solidStructure(x, y) :
-                    canEntityMoveTo(x, y) && !npcs.some(n => Math.round(n.x) === x && Math.round(n.y) === y) &&
-                    !enemies.some(e => Math.hypot(e.x - x, e.y - y) < .6);
-                const run = ([sx, sy]) => { let n = 0; while (n < 4 && open(gameState.player.x + sx * (n + 1), gameState.player.y + sy * (n + 1))) n++; return n; };
                 for (const [sx, sy] of [a, b].sort((p, q) => run(q) - run(p))) {
                     if (run([sx, sy]) && movePlayer(sx, sy)) break;
                 }
