@@ -3138,6 +3138,7 @@ function renderClassicBoat() {
 let lastBlockedAt = -Infinity;
 let queuedEncounter = 0;
 let walkingTimer = 0;
+let ebLocalStepObserver=null; // Renderer-only accepted steps; never serialized or sent to a shared world.
 
 function movePlayer(dx, dy) {
     if (movementBlocked()) return false;
@@ -3155,8 +3156,10 @@ function movePlayer(dx, dy) {
     if (dx && dy && (!cornerOpen(gameState.player.x + dx, gameState.player.y) ||
                      !cornerOpen(gameState.player.x, gameState.player.y + dy))) return false;
     if (canMoveTo(newX, newY)) {
+        const fromX=gameState.player.x,fromY=gameState.player.y;
         gameState.player.x = newX;
         gameState.player.y = newY;
+        ebLocalStepObserver?.(fromX,fromY,newX,newY);
 
         gameState.player.isMoving = true;
         gameState.player.moveCount++;
@@ -10356,13 +10359,50 @@ window.addEventListener('load', () => {
             this.camera.updateMatrixWorld();
         }
 
+        recordLocalStep(fromX,fromZ,x,z) {
+            if(!this.active||!ebFarlands.inRealm()||sharedWorld.active()){this.localStepPath=null;return;}
+            let path=this.localStepPath,tail=path?.points.at(-1);
+            if(!path||path.map!==worldMap||tail.x!==fromX||tail.z!==fromZ){
+                path=this.localStepPath={map:worldMap,origin:{x:fromX,z:fromZ},confirmed:false,
+                    points:[{x:fromX,z:fromZ,diagonal:!!this.hero.soloStepDiagonal}]};
+            }
+            path.points.push({x,z,diagonal:Math.abs(x-fromX)===1&&Math.abs(z-fromZ)===1});
+            if(path.points.length>128)this.localStepPath=null; // Bounded background backlog; resume by the normal relocation path.
+        }
+
         animateActor(model, x, z, y, time, dt, stepping = false, staged = false) {
             const position = model.group.position;
             const beforeX=position.x,beforeZ=position.z;
             const dx = x - position.x;
             const dz = z - position.z;
             const changed = x !== model.lastX || z !== model.lastZ;
-            const jump = Math.abs(dx) > 3 || Math.abs(dz) > 3;
+            let jump = Math.abs(dx) > 3 || Math.abs(dz) > 3,walkDistance=null;
+            const localHero=model===this.hero&&ebFarlands.inRealm()&&!sharedWorld.active();
+            let path=localHero?this.localStepPath:null;
+            if(path){
+                const tail=path.points.at(-1),origin=path.origin;
+                if(this.reduced||staged||path.map!==worldMap||tail.x!==x||tail.z!==z||
+                    (!path.confirmed&&(origin.x!==model.lastX||origin.z!==model.lastZ)))path=this.localStepPath=null;
+                else path.confirmed=true;
+            }
+            if(model===this.hero&&!localHero)this.localStepPath=null;
+            if(path){
+                // Follow actual accepted waypoints, including turns. A slow frame is not a teleport.
+                // Use bounded real elapsed time for local travel only; animations/shared/legacy keep their old timestep.
+                let seconds=this.localTravelSeconds??dt;walkDistance=0;jump=false;
+                while(path.points.length){
+                    const point=path.points[0],vx=point.x-position.x,vz=point.z-position.z,distance=Math.hypot(vx,vz);
+                    if(distance<.00001){path.points.shift();continue;}
+                    if(seconds<=0)break;
+                    const speed=(ebHorseMounted&&ebFarlands.surface()?15.38:8.33)*(point.diagonal?Math.SQRT2:1),travel=Math.min(distance,speed*seconds);
+                    position.set(position.x+vx/distance*travel,y,position.z+vz/distance*travel);
+                    model.group.rotation.y=Math.atan2(vx,vz);model.soloStepDiagonal=point.diagonal;
+                    model.stepUntil=time+.22;walkDistance+=travel;seconds-=travel/speed;
+                    if(travel>=distance-.00001)path.points.shift();else break;
+                }
+                position.y=y;model.lastX=x;model.lastZ=z;
+                if(!path.points.length)this.localStepPath=null;
+            }else{
             if (changed) {
                 if (model === this.hero && !sharedWorld.active()) {
                     const stepX = x - (model.lastX ?? x);
@@ -10409,13 +10449,14 @@ window.addEventListener('load', () => {
                 if (distance < .008 || distance <= travel) position.set(x, y, z);
                 else position.set(position.x + dx / distance * travel, y, position.z + dz / distance * travel);
             }
+            }
             if (!model.body) return;
             // Solo hero/residents advance a stride only by their real rendered travel, not global time/tile phase.
             // This changes joint poses only; authoritative locations and the movement interpolation above stay intact.
             const localGait=ebFarlands.inRealm()&&!sharedWorld.active()&&!gameState.inBattle&&
                 (model===this.hero||model.ebResidentGait)&&!(model===this.hero&&(ebHorseMounted||gameState.sailingMoves>0));
             if(localGait){
-                const moved=jump||this.reduced?0:Math.hypot(position.x-beforeX,position.z-beforeZ);
+                const moved=jump||this.reduced?0:(walkDistance??Math.hypot(position.x-beforeX,position.z-beforeZ));
                 if(jump||this.reduced){model.gaitPhase=0;model.gaitBlend=0;}
                 model.gaitPhase=((model.gaitPhase||0)+moved*(model===this.hero?2.28:11))%(Math.PI*2);
                 const target=moved>.00001?1:0;
@@ -10679,7 +10720,9 @@ window.addEventListener('load', () => {
 
         draw(now) {
             if (!this.active) return;
-            const dt = Math.min(.050, (now - (this.lastFrame || now - 16)) / 1000);
+            const elapsed=Math.max(0,(now-(this.lastFrame||now-16))/1000);
+            const dt = Math.min(.050,elapsed);
+            this.localTravelSeconds=Math.min(.25,elapsed);
             const time = now / 1000;
             this.lastFrame = now;
             this.applySky(dt);
@@ -11115,6 +11158,7 @@ window.addEventListener('load', () => {
 
         try {
             view = new WorldView(canvas, layer, world);
+        ebLocalStepObserver=(...step)=>view.recordLocalStep(...step);
             ebEyeDirectionProvider=()=>view.eyeYaw;
             display('3d');
         } catch (error) {
