@@ -14117,7 +14117,31 @@ const ebFarlands = (() => {
         return true;
     }
     const errandThanks=task=>`<div style="margin-top:14px;padding:10px;border:1px solid rgba(230,190,100,.5);border-radius:10px">"Back from ${escapeMapText(task.target.name)} already? Good. That tells me what I needed to know. Here, for your trouble."<div style="margin-top:8px;font-weight:700">Errand done · +${ERRAND_GOLD} gold · +${ERRAND_XP} XP</div></div>`;
-    // Talking to the giver: reports a reached errand, or says what is still owed.
+    // Accepting, from the errand window or from the giver's offer: the same step either way.
+    function acceptErrand(task) {
+        if(errandState(task)!=='new')return false;
+        journey.spent.add(task.taken);
+        journey.pin=task.target.id;
+        showFloatingText('Errand accepted · reach '+task.target.name,gameState.player.x*32+16,gameState.player.y*32-38,'#f1cf83');
+        saveNow();updateHint();
+        return true;
+    }
+    // The giver's offer: Accept takes the errand through acceptErrand; Not now just closes the conversation.
+    function acceptOfferedErrand() {
+        const site=Farlands.nearbySite(gameState.player.x,gameState.player.y);
+        if(!site?.station||sharedWorld.active())return;
+        acceptErrand(errandFor(site));
+        closeModal();
+    }
+    // Every errand in hand, with its next step, for the journal.
+    function errandsInHand() {
+        if(!journey||!surface()||sharedWorld.active())return [];
+        return Farlands.sites.filter(site=>site.station&&journey.spent.has('errand-taken-'+site.id)&&!journey.spent.has('errand-'+site.id)).map(site=>{
+            const task=errandFor(site),reached=errandState(task)==='reached';
+            return {site:reached?site:task.target,label:reached?'Report to '+task.giver.split(',')[0]+' at '+site.name:'Errand for '+task.giver.split(',')[0]+': reach '+task.target.name};
+        });
+    }
+    // Talking to the giver: offers the errand, reports a reached one, or says what is still owed.
     function errandTalk(npc) {
         if(!journey||!surface()||sharedWorld.active())return '';
         const site=Farlands.nearbySite(gameState.player.x,gameState.player.y);
@@ -14127,6 +14151,7 @@ const ebFarlands = (() => {
         const state=errandState(task);
         if(state==='reached'&&finishErrand(task))return errandThanks(task);
         if(state==='taken')return `<div style="margin-top:14px;opacity:.9">"Have you been to ${escapeMapText(task.target.name)} yet? Come and tell me when you have."</div>`;
+        if(state==='new')return `<div style="margin-top:14px;padding:10px;border:1px solid rgba(230,190,100,.5);border-radius:10px">"Could you ${escapeMapText(task.ask)}? Come back here and tell me when you have."<div style="margin:6px 0 10px;opacity:.85">Reward: ${ERRAND_GOLD} gold and ${ERRAND_XP} XP</div><div style="display:flex;gap:10px;justify-content:center"><button type="button" class="btn btn-primary" id="eb-errand-accept" style="min-height:44px" onclick="ebFarlands.acceptOfferedErrand()">Accept</button><button type="button" class="btn" id="eb-errand-later" style="min-height:44px" onclick="closeModal()">Not now</button></div></div>`;
         return '';
     }
     function openLocalErrand() {
@@ -14456,12 +14481,8 @@ const ebFarlands = (() => {
             if(!activeErrand)return;
             const task=activeErrand,state=errandState(task);
             if(state==='done')return;
-            if(state==='new'){
-                journey.spent.add(task.taken);
-                showFloatingText('Errand accepted · reach '+task.target.name,gameState.player.x*32+16,gameState.player.y*32-38,'#f1cf83');
-            }
-            journey.pin=state==='reached'?task.site.id:task.target.id;
-            saveNow();get('eb-local-tasks').close();updateHint();
+            if(!acceptErrand(task)){journey.pin=state==='reached'?task.site.id:task.target.id;saveNow();updateHint();}
+            get('eb-local-tasks').close();
         });
         get('eb-task-complete').addEventListener('click',()=>{
             if(!activeErrand)return;
@@ -14660,7 +14681,7 @@ const ebFarlands = (() => {
     });
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
-    return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
+    return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
         completeHerbLesson,storyFlag,markStory,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
@@ -14987,7 +15008,9 @@ const ebJournal = (() => {
             document.getElementById('modalTitle').textContent = '📖 Explorer’s Journal';
             const quest=ebStory.objective();
             const storyCard=quest ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.5);border-radius:10px;text-align:left"><strong>🔔 The Silent Harvest · Story Quest</strong><p style="margin:8px 0">The Harvest Bell lies in the locked archive beneath the Old Tollhouse. Find the ward key at Millbend, defeat the Archive Warden, recover the bell and return it to Mira at Wayfarer’s Rest.</p><p style="margin:0"><strong>Now:</strong> ${escapeMapText(quest.label)}</p></section>` : '';
-            document.getElementById('modalContent').innerHTML = storyCard+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
+            const errands=ebFarlands.errandsInHand().map(e=>`<li style="margin:6px 0">${escapeMapText(e.label)} <button type="button" class="btn" style="min-height:40px;margin-left:6px" onclick="ebFarlands.pin('${e.site.id}');closeModal()">Show</button></li>`).join('');
+            const errandCard=errands ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.35);border-radius:10px;text-align:left"><strong>📜 Errands</strong><ul style="margin:6px 0 0;padding-left:18px">${errands}</ul></section>` : '';
+            document.getElementById('modalContent').innerHTML = storyCard+errandCard+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
         }
         releaseMovement();
         document.getElementById('interactionModal').style.display='flex';
@@ -15022,10 +15045,10 @@ const ebJournal = (() => {
     // R15.36: the HUD goal: the first unfinished chapter and its next landmark. A tap pins that landmark (the Atlas pin,
     // so the card shows its distance and direction); a second tap opens this journal.
     function nextGoal() {
-        const errand=ebFarlands.errandGoal(); // R15.57: an errand in hand whose place is pinned
-        if (errand) return {quest:{label:errand.label},next:errand.site,errand:true};
         const quest=ebStory.objective();
         if (quest && !quest.done) return {quest,next:quest.site??null};
+        const errand=ebFarlands.errandGoal(); // R15.57: an errand in hand whose place is pinned, when no story step is open
+        if (errand) return {quest:{label:errand.label},next:errand.site,errand:true};
         if (!ebFarlands.surface()) return null;
         const visited=ebFarlands.discoveries();
         for (const chapter of chapters) {
