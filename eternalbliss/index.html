@@ -3697,9 +3697,11 @@ function talkToNPC(npc) {
     document.getElementById('modalTitle').textContent = npc.name;
     const storyLine = npc.name==='Mira, the Cartographer' && ebFarlands.surface() && !sharedWorld.active()
         ? ebStory.mira() : '';
+    // R15.59: Mira and Nessa greet you according to the hour, the story and what you have talked about before.
+    const opener = typeof ebLivingRest !== 'undefined' ? ebLivingRest.opener(npc) : null;
     document.getElementById('modalContent').innerHTML = `
         <div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>
-        <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(npc.dialogue)}"</div>
+        <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(opener ?? npc.dialogue)}"</div>
         ${storyLine}
         ${ebFarlands.errandTalk(npc)}
         ${typeof ebJournal !== 'undefined' ? ebJournal.hint(npc) : ''}
@@ -3711,6 +3713,7 @@ function talkToNPC(npc) {
     document.getElementById('interactionModal').style.display = 'flex';
     ebVillageWork.attach(npc);
     ebJournal.attachLead(npc);
+    if (typeof ebLivingRest !== 'undefined') ebLivingRest.attach(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
 }
 
@@ -11134,6 +11137,8 @@ window.addEventListener('load', () => {
                     const b=model.ebWorkBlend,sway=this.reduced?0:Math.sin(time*2.6)*.09;
                     model.arms.forEach((arm,i)=>{arm.rotation.x=arm.rotation.x*(1-b)+(-.65+(i?1:-1)*sway)*b;});
                 }
+                // R15.59: Mira and Nessa at work, at their real scheduled places (pose and facing only).
+                if(kind==='npc' && model.arms?.length && model.body) ebLivingRest.pose(data,model,time,dt,this.reduced,now);
                 if (label) {
                     const position = model.group.position;
                     const title = this.actorTitle(record);
@@ -13940,6 +13945,14 @@ const ebFarlands = (() => {
         updateHint();saveNow();
         return true;
     }
+    // R15.59: what Mira and Nessa remember of your conversations. Only these two names and plain topic words are
+    // accepted, so a marker can never stand in for a quest, errand, item or enemy record in the same journal.
+    function markTalk(id) {
+        if (!journey || sharedWorld.active() || !/^talk-(mira|nessa)-[a-z]+(-[a-z]+)?$/.test(id) || journey.spent.has(id)) return false;
+        journey.spent.add(id);
+        saveNow();
+        return true;
+    }
     function refreshStoryHint() { if(journey)updateHint(); }
     function saveStoryNow() { if(journey)saveNow(); }
 
@@ -14791,7 +14804,7 @@ const ebFarlands = (() => {
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
     return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
-        completeHerbLesson,storyFlag,markStory,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
+        completeHerbLesson,storyFlag,markStory,markTalk,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
 </script>
@@ -15090,6 +15103,234 @@ const ebVillageWork=(()=>{
         box.append(p,b);b.addEventListener('click',()=>{if(!closeEnough(npc)||ebFarlands.storyFlag(KEY))return;session={npc,step:0};render();});
     }
     return {attach,working};
+})();
+</script>
+<script data-source="living-rest.js">
+// R15.59 Living Wayfarer's Rest, phase 1: Mira and Nessa. Solo Farlands only, never in a shared world or an interior.
+// Conversations read the story, errand and herb records and never grant them; what the two remember of you is a few
+// `talk-mira-*` / `talk-nessa-*` markers in the existing journal. Their activities change only the pose and facing of a
+// resident already standing at a scheduled place: positions, schedules and walking stay with ebLife.
+const ebLivingRest=(()=>{
+    const MIRA='Mira, the Cartographer', NESSA='Nessa, the Orchard Keeper';
+    const solo=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior;
+    const rest=()=>Farlands.byId.get('rest');
+    function who(npc){
+        if(!npc||!solo())return null;
+        const r=rest(); if(!r||Math.hypot(npc.x-r.x,npc.y-r.y)>14)return null;
+        if(npc.name===MIRA)return 'mira';
+        if(npc.name===NESSA&&npc.routine)return 'nessa';
+        return null;
+    }
+    const knows=id=>ebFarlands.storyFlag('talk-'+id);
+    const remember=id=>ebFarlands.markTalk('talk-'+id);
+    const quest=id=>ebFarlands.storyFlag('quest-vault-'+id);
+    const part=()=>{const h=ebLife.hour();return h<6?'night':h<11?'morning':h<17?'day':h<22?'evening':'night';};
+    const stage=()=>quest('reward')?'rung':quest('guardian')?'guardian':quest('gate')?'gate':quest('key')?'key':quest('met')?'told':'new';
+    // Where Nessa is in her day: at the stall, at the shrine, or on her way between them.
+    function place(npc){
+        if(npc.name===MIRA)return 'well';
+        const slot=npc.life?.slot;
+        if(!slot||slot.home||npc.indoors)return 'home';
+        if(Math.hypot(npc.x-slot.x,npc.y-slot.y)>=.08)return 'walking';
+        return slot.from===6?'stall':slot.from===17?'shrine':'other';
+    }
+
+    // ---- what they say -----------------------------------------------------------------------------------------
+    function miraOpener(first){
+        const p=part();
+        if(first)return 'A new face at the well. I am Mira; I keep the maps of Wayfarer’s Rest and of the roads out of it. '+
+            (p==='evening'||p==='night'?'Mind the step, the light goes early here.':'Mind the rope, it is still wet from the morning bucket.');
+        let line={morning:'Morning. The well is cold and full, as it should be.',day:'Back again? I am checking the well stones; one shifted in the spring rain.',
+            evening:'Evening. I write up the day’s roads before the light goes.',night:'Late to be walking. Sit by the well a moment, if you like.'}[p];
+        if(stage()==='rung')line+=' Listen: the bell kept the hour all day.';
+        if(knows('mira-asked-nessa')&&knows('nessa-met'))line+=' Did Nessa ever tell you why she goes to the shrine?';
+        else if(knows('mira-asked-well'))line+=' The water mark is a finger higher than when you last asked, by the way.';
+        else if(knows('mira-asked-roads'))line+=' Did the roads hold up the way I drew them?';
+        return line;
+    }
+    function nessaOpener(first,npc){
+        const at=place(npc), rung=stage()==='rung';
+        if(first)return {stall:'Nessa, orchard keeper. Everything on this stall grew on the hill behind the cottage. Have a look.',
+            shrine:'Oh, you startled me. I am Nessa; I keep the orchard. I come to the shrine every evening.',
+            walking:'Nessa, orchard keeper. Walk with me if you like; I am late, as always.'}[at]??'Nessa, orchard keeper.';
+        let line={stall:rung?'Apples, pears, cider, and plenty of each. The pickers keep the bell’s hours again.':'Apples, pears, cider. Fewer than last year, but sweet.',
+            shrine:'Evening. The bruised apples come here; the good ones go to market.',
+            walking:'I cannot stop long, I am due at the '+(npc.life?.slot?.from===17?'shrine':'stall')+'.'}[at]??'Hello again.';
+        if(at==='stall'&&knows('nessa-cider'))line+=' Another cup of cider?';
+        else if(knows('nessa-asked-mira'))line+=' Has Mira shown you her ledger yet?';
+        return line;
+    }
+    function opener(npc){
+        const id=who(npc); if(!id)return null;
+        const first=!knows(id+'-met');
+        return id==='mira'?miraOpener(first):nessaOpener(first,npc);
+    }
+    const topics={
+        mira:[
+            {id:'well',label:'What are you doing at the well?',say:()=>['morning','day'].includes(part())?
+                'Measuring. Every morning I drop a knotted cord and write down the water mark. Thirty-one years of marks in this ledger. A well that drops tells you a dry summer is coming before the orchard knows it.':
+                'Writing the day up: who came in by which road, how high the water stood, what the ferrymen said. Maps are not only lines; they are what people tell you.'},
+            {id:'bell',label:'About the Harvest Bell',say:()=>({
+                told:'The bell at Bell Orchard has been silent since its brass ward key was lost by the creek at Millbend. Start there; the Atlas marks the old road.',
+                key:'You have the ward key? Then the iron door beneath the Old Tollhouse will open for it. Go armed. The archive was never left unguarded.',
+                gate:'The gate is open, but the Archive Warden still keeps the inner chamber. Rest at the inn before you face it.',
+                guardian:'The Warden is beaten? Then the bell is somewhere in that chamber. Bring it to me and the orchard can keep its hours again.',
+                rung:'It is back where it belongs, and Nessa’s pickers start at first bell again. I wrote your name in the ledger beside the date. That is the only reward that lasts.',
+                new:'There is an old trouble in the valley. Ask me again once you have settled in.'})[stage()]},
+            {id:'nessa',label:'Tell me about Nessa',say:()=>{
+                let line=stage()==='rung'?'Nessa has been humming all week. Do not tell her I said so.':
+                    'Nessa keeps the orchard on the hill. She sells at her stall by day and leaves apples at the shrine each evening. Without the bell her pickers argue about the hour, and she takes it to heart.';
+                if(knows('nessa-cider'))line+=' And you tried her cider. Brave.';
+                else if(knows('nessa-met'))line+=' You have met her, then. Ask her about the shrine; she will pretend she does not want to talk about it.';
+                else line+=' You will find her by the orchard stall in the day.';
+                return line;}},
+            {id:'roads',label:'Maps and the roads',say:()=>{
+                let line='The Atlas shows the caravan and ferry routes between waystations. I redraw them when the ferrymen tell me a ford has moved.';
+                const errand=ebFarlands.errandsInHand()[0];
+                if(errand)line+=' You are carrying an errand: '+errand.label.replace(/^Errand for /,'')+'. It is on your Atlas.';
+                if(ebFarlands.storyFlag('work-rest-herbs'))line+=' Tamsin says the parcels you bundled went out on the boat.';
+                return line;}}
+        ],
+        nessa:[
+            {id:'orchard',label:'How is the orchard?',say:()=>stage()==='rung'?
+                'Heavy branches, and the pickers keep the bell’s hours. I may even have pears to spare for the Exchange this year.':
+                'Thin. The pickers used to start at first bell. Now one starts at dawn and another at noon, and the late apples drop and bruise. I keep the bruised ones for the shrine.'},
+            {id:'shrine',label:'Why the apples at the shrine?',say:npc=>'My mother kept the orchard before me, and her mother before her. Each evening the orchard keeper leaves the first and last apples of the day for travellers who did not finish their road. Wren says it is for the pilgrims. I say it is for everyone.'+
+                (place(npc)==='shrine'?' You can see them there now, on the stone.':'')},
+            {id:'mira',label:'What do you make of Mira?',say:()=>{
+                let line='She measures the well every single morning and writes it down. People laugh, but she knew about the dry summer before anyone.';
+                const s=stage();
+                if(s==='rung')line+=' When you brought the bell back she had to sit down. All the years I have known her, I never saw that.';
+                else if(s!=='new')line+=' She has you chasing the bell, has she? If anyone can read those old roads, it is her.';
+                return line;}},
+            {id:'cider',label:'Buy a cup of cider (5 gold)',when:npc=>place(npc)==='stall',act:()=>{
+                const hero=gameState.player;
+                if(gameState.inventory.gold<5)return 'You are a few coins short. Come back when your purse is heavier.';
+                if(hero.hp>=hero.maxHp)return 'You look hale enough. Save your coins for the road.';
+                const healed=Math.min(12,hero.maxHp-hero.hp);
+                gameState.inventory.gold-=5; hero.hp+=healed; updateUI();
+                remember('nessa-cider'); ebFarlands.saveStoryNow();
+                return `She pours a cup of cloudy cider from the cool jug. You recover ${healed} HP.`;}}
+        ]
+    };
+
+    // ---- the conversation in the existing window --------------------------------------------------------------
+    let talk=null;
+    const visible=()=>document.getElementById('interactionModal').style.display==='flex'&&talk?.box.isConnected;
+    function button(label,onChoose){
+        const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;
+        b.style.cssText='min-height:44px;width:100%;text-align:left;margin:0';
+        b.addEventListener('click',()=>{if(visible())onChoose();});
+        return b;
+    }
+    function render(answer){
+        const {box,npc,id}=talk;
+        box.replaceChildren();
+        const list=document.createElement('div');list.style.cssText='display:flex;flex-direction:column;gap:8px;margin-top:10px';
+        talk.choices=[];
+        const add=(label,fn)=>{const b=button(`${talk.choices.length+1}. ${label}`,fn);talk.choices.push(fn);list.append(b);};
+        if(answer!==undefined){
+            const p=document.createElement('p');p.setAttribute('role','status');p.setAttribute('aria-live','polite');
+            p.style.cssText='margin:0;line-height:1.55';p.textContent=answer;box.append(p);
+            add('Ask something else',()=>render());
+        }else{
+            const p=document.createElement('p');p.style.cssText='margin:0;font-weight:600';p.textContent='Ask '+npc.name.split(',')[0]+' about…';box.append(p);
+            for(const topic of topics[id]){
+                if(topic.when&&!topic.when(npc))continue;
+                add(topic.label,()=>{
+                    if(who(npc)!==id)return;
+                    const text=topic.act?topic.act(npc):topic.say(npc);
+                    if(!topic.act)remember(`${id}-asked-${topic.id}`);
+                    render(text);
+                });
+            }
+        }
+        add('Goodbye',()=>{talk=null;closeModal();});
+        box.append(list);
+    }
+    function attach(npc){
+        talk=null;
+        const id=who(npc); if(!id)return;
+        const box=document.createElement('section');box.id='eb-living-talk';
+        box.style.cssText='margin-top:16px;padding:12px;border:1px solid rgba(230,190,100,.45);border-radius:10px;text-align:left';
+        document.getElementById('modalContent').append(box);
+        remember(id+'-met');
+        talk={box,npc,id,choices:[]};
+        render();
+    }
+    // Number keys pick a choice while the conversation is open; Escape still closes the window as before.
+    document.addEventListener('keydown',event=>{
+        if(!visible()||event.ctrlKey||event.metaKey||event.altKey||event.repeat)return;
+        const n=Number(event.key);
+        if(Number.isInteger(n)&&n>=1&&n<=talk.choices.length){event.preventDefault();talk.choices[n-1]();}
+    });
+
+    // ---- what they are doing -------------------------------------------------------------------------------
+    // The centre of a named landmark near (x,y), from the same prop map the Use key reads; looked up once.
+    const marks=new Map();
+    function landmark(name,x,y){
+        const key=name+x+','+y;
+        if(!marks.has(key)){
+            let sx=0,sy=0,n=0;
+            for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++)if(Farlands.propNear(x+dx,y+dy,0)?.name===name){sx+=x+dx;sy+=y+dy;n++;}
+            marks.set(key,n?{x:sx/n,y:sy/n}:null);
+        }
+        return marks.get(key);
+    }
+    // Mira: by day she measures the well, in the evening she writes up her ledger facing the road, and she raises a
+    // hand to a traveller who comes up from a distance. Nessa: arranges her wares at the stall and turns to reach out
+    // to you when you come close; at the shrine in the evening she bows to leave the day's apples. (Poses only: no props.)
+    function activity(npc,id,hero,now,model){
+        if(gameState.inBattle||(npc.walkingUntil||0)>now)return null;
+        const at=place(npc), h=ebLife.hour(), near=Math.hypot(hero.x-npc.x,hero.y-npc.y);
+        if(id==='mira'){
+            const far=model.ebLifeFar??true;
+            if(near>6)model.ebLifeFar=true;
+            else if(near<4&&far){model.ebLifeFar=false;model.ebLifeGreet=now+2200;}
+            if((model.ebLifeGreet||0)>now)return {kind:'greet',face:hero};
+            if(h>=6&&h<18)return {kind:'well',face:landmark('The square well',npc.x,npc.y)};
+            if(h>=18&&h<22)return {kind:'ledger',face:landmark('Signpost',npc.x,npc.y)};
+            return null;
+        }
+        if(at==='stall')return near<3?{kind:'offer',face:hero}:{kind:'wares',face:landmark('Orchard stall',npc.x,npc.y)};
+        if(at==='shrine')return {kind:'shrine',face:landmark('Wayside shrine',npc.x,npc.y)};
+        return null;
+    }
+    // Target joint angles: lean of the body, then left and right arm (x forward-up, z outward).
+    function target(kind,t,still){
+        const wave=still?0:Math.sin(t), slow=still?0:Math.sin(t*.7);
+        switch(kind){
+            case 'well': return {lean:.11+.05*slow,arms:[[-.35,0],[-1.0+.12*wave*.6,0]]};
+            case 'ledger': return {lean:.06,arms:[[-.9,.05],[-.95,.15+.05*(still?0:Math.sin(t*6))]]};
+            case 'greet': return {lean:0,arms:[[-2.7,-.2+.25*(still?0:Math.sin(t*9))],[0,0]]};
+            case 'wares': {const r=still?0:Math.sin(t*1.1);return {lean:.1,arms:[[-.8-.3*Math.max(0,r),0],[-.5-.3*Math.max(0,-r),0]]};}
+            case 'offer': return {lean:.03,arms:[[-1.35,0],[-.1,0]]};
+            case 'shrine': return {lean:.2,arms:[[-.7,0],[-.7,0]]};
+        }
+        return null;
+    }
+    // Called each frame after the walk animation has set the joints: blends toward the activity pose and, while
+    // standing, turns toward what they are working on. The model's position is never touched.
+    function pose(npc,model,time,dt,reduced,now){
+        const id=who(npc);
+        if(!id&&!model.ebLifeBlend)return;
+        const act=id?activity(npc,id,gameState.player,now,model):null;
+        if(act)model.ebLifeKind=act.kind;
+        const goal=target(model.ebLifeKind,time,reduced);
+        model.ebLifeBlend=(model.ebLifeBlend||0)+((act?1:0)-(model.ebLifeBlend||0))*(reduced?1:1-Math.exp(-5*Math.min(dt,.1)));
+        const b=model.ebLifeBlend;
+        if(b<.001){model.ebLifeBlend=0;model.body.rotation.x=0;model.arms.forEach(arm=>arm.rotation.z=0);return;}
+        if(!goal)return;
+        model.body.rotation.x=goal.lean*b;
+        model.arms.forEach((arm,i)=>{arm.rotation.x=arm.rotation.x*(1-b)+goal.arms[i][0]*b;arm.rotation.z=goal.arms[i][1]*b*(i?-1:1);});
+        if(act?.face){
+            const want=Math.atan2(act.face.x-npc.x,act.face.y-npc.y);
+            let turn=want-model.group.rotation.y; turn=Math.atan2(Math.sin(turn),Math.cos(turn));
+            model.group.rotation.y+=reduced?turn:turn*(1-Math.exp(-4*Math.min(dt,.1)));
+        }
+    }
+
+    return {who,opener,attach,place,pose};
 })();
 </script>
 <script data-source="r14-adventure-journal.js">
