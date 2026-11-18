@@ -13623,6 +13623,31 @@ const Farlands = (() => {
                             actors.buildings.push(building(site.name+' '+label,'house',x+dx,y+dy,site.region,site.id+'-'+label,site.story));
                     }
                 }
+                // R16: purposeful outer-ring residents, consistent across unload/reload. The authored residents retain
+                // their identities and routines. The ring avoids the village square, doorways and original interaction spots.
+                const additions=[
+                    [-10,0,'Cook','I prepare hot meals for travelers before the road takes them onward.'],
+                    [10,3,'Courier','I carry local news and messages to the next waystation.'],
+                    [0,10,'Weaver','I weave and mend cloth for the carts that pass through.'],
+                    [0,-10,'Mason','I repair the old stonework and the roads after winter.'],
+                    [9,-8,'Caravan Guard','I walk beside the caravans so they arrive safely.'],
+                    [-9,8,'Peddler','I bring small goods to the hamlets beyond the market.'],
+                    [-10,-7,'Woodcutter','I bring fuel and timber from the woods.'],
+                    [10,9,'Caretaker','I keep the public paths and resting places in good order.']
+                ];
+                let added=0,limit=site.settlement?8:5;
+                for(let i=0;i<additions.length&&added<limit;i++){
+                    const [dx,dy,role,words]=additions[i],ax=x+dx,ay=y+dy;
+                    if(ax<2||ay<2||ax>=size-2||ay>=size-2 ||
+                        ['water','mountain','lava'].includes(sample(ax,ay)) ||
+                        (site===start&&propAt(ax,ay)?.solid) ||
+                        actors.buildings.some(b=>Math.hypot(b.x-ax,b.y-ay)<2) ||
+                        actors.npcs.some(n=>Math.hypot(n.x-ax,n.y-ay)<2) ||
+                        actors.enemies.some(n=>Math.hypot(n.x-ax,n.y-ay)<2))continue;
+                    actors.npcs.push({name:site.name+' '+role,class:role==='Caravan Guard'?'guard':role==='Peddler'?'merchant':'villager',
+                        x:ax,y:ay,dialogue:words+' '+site.story,realmId:site.id+'-r16-'+i,movable:i===1||i===5});
+                    added++;
+                }
                 if (site===start) actors.items.push({x:x+2,y,type:'health_potion',value:1,realmId:'rest-welcome'});
             } else {
                 const structure=building(name,'house',x+2,y-2,region,id+'-structure',story);
@@ -13656,6 +13681,38 @@ const Farlands = (() => {
                 if (!['water','mountain','lava'].includes(sample(x-1,y))) actors.npcs.push({
                     name:'Traveling Surveyor',class:'merchant',x:x-1,y,dialogue:regions[region].note
                 });
+            }
+        }
+        // R16: an occasional useful traveler on an existing road, not a grid of new villages or buildings.
+        // Every cell yields the same traveler and position regardless of where the player first approaches it.
+        // Limit to one per roadside cell and use the existing normal NPC model, interaction and patrol systems.
+        if(hash(cx,cy,196)>.20){
+            const roles=['Courier','Pilgrim','Caravan Guard','Peddler','Surveyor'];
+            const pick=Math.floor(hash(cx,cy,197)*roles.length),role=roles[pick];
+            const ox=Math.floor(hash(cx,cy,198)*4),oy=Math.floor(hash(cx,cy,199)*4);
+            let point=null;
+            for(let dy=2+oy;dy<cellSize-2&&!point;dy+=4){
+                for(let dx=2+ox;dx<cellSize-2;dx+=4){
+                    const tx=left+dx,ty=top+dy;
+                    if(tx>=size-2||ty>=size-2||nearbySite(tx,ty)||Math.hypot(tx-start.x,ty-start.y)<28 ||
+                        !trailAt(tx,ty)||!['road','grass','stone','sand','snow'].includes(sample(tx,ty)) ||
+                        actors.npcs.some(n=>Math.hypot(n.x-tx,n.y-ty)<3) ||
+                        actors.enemies.some(n=>Math.hypot(n.x-tx,n.y-ty)<3) ||
+                        actors.buildings.some(b=>Math.hypot(b.x-tx,b.y-ty)<3))continue;
+                    point={x:tx,y:ty};break;
+                }
+            }
+            if(point){
+                const region=regionAt(point.x,point.y);
+                const words={
+                    Courier:'I am carrying news between the waystations. A safer road is worth more than a short one.',
+                    Pilgrim:'I follow the old shrines. It is easier to walk with others than alone.',
+                    'Caravan Guard':'The caravans need escorts where the roads run far from settled ground.',
+                    Peddler:'Small villages need needles, salt and other goods as much as the towns do.',
+                    Surveyor:'I mark water crossings and changes to the trail so the next traveler can find them.'
+                };
+                actors.npcs.push({name:regions[region].name+' '+role,class:role==='Caravan Guard'?'guard':role==='Peddler'?'merchant':'villager',
+                    x:point.x,y:point.y,dialogue:words[role],realmId:'road-r16-'+cx+'-'+cy,movable:true});
             }
         }
         // R15.54: use the original authored waystations, 27 named villages,
@@ -15392,7 +15449,7 @@ const ebRpgAccess=(()=>{
         const n=npc.name.toLowerCase();
         const roles=['waykeeper','provisioner','trail warden','herbalist','storyteller','craftsperson','pilgrim',
             'wheelwright','farmer','shepherd','baker','gardener','merchant','village elder','surveyor','guard',
-            'fisher','innkeeper','keeper'];
+            'fisher','innkeeper','keeper','courier','weaver','mason','peddler','woodcutter','caretaker','cook'];
         return roles.find(r=>n.includes(r))||'traveller';
     };
     const work={
@@ -15415,6 +15472,13 @@ const ebRpgAccess=(()=>{
         fisher:'I repair nets and watch the water for the next catch.',
         innkeeper:'I offer a warm fire and shelter for the night.',
         keeper:'I keep this place ready for anyone arriving from the road.',
+        courier:'I carry messages and news between villages.',
+        weaver:'I repair cloth and weave coverings for the carts.',
+        mason:'I keep the stonework and bridges sound.',
+        peddler:'I carry small goods to places the big caravans skip.',
+        woodcutter:'I gather wood for fires and repairs.',
+        caretaker:'I clean the meeting places and tend to travelers.',
+        cook:'I feed people on their way through.',
         traveller:'I stop wherever the road brings me.'
     };
     function response(npc,topic){
