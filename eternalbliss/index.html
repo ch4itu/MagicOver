@@ -2833,6 +2833,32 @@ function solidStructure(x,y) {
     return adventureTile(x,y) === 'wall' || buildingFootprints.has(y*gameState.world.width+x);
 }
 
+// R15.58: the tiles under a drawn Farlands boat hull. art.boat() is an oval hull about 1.3 tiles wide and 2.5 long
+// (radius .46 scaled .68 x 1.21, then 2.05 x 2.25); `scale` is any extra model scale and `heading` its rotation.y.
+// A boat placed by checking only its centre tile laid its hull over bridges, jetties and the shore.
+function boatHullTiles(x, y, heading, scale = 1) {
+    const across = .46*.68*2.05*scale*.97, along = .46*1.21*2.25*scale*.97, c = Math.cos(heading), s = Math.sin(heading);
+    const tiles = new Map();
+    for (let i = 0; i < 24; i++) for (const k of [1, .55]) {
+        const lx = Math.cos(i/24*Math.PI*2)*across*k, lz = Math.sin(i/24*Math.PI*2)*along*k;
+        const tx = Math.round(x + lx*c + lz*s), ty = Math.round(y - lx*s + lz*c);
+        tiles.set(tx+','+ty, [tx, ty]);
+    }
+    return [...tiles.values()];
+}
+// Whether the hull reaches a figure standing at the centre of tile (px,py), `margin` being the figure's half-width.
+function boatHullCovers(x, y, heading, px, py, margin = .25, scale = 1) {
+    const across = .46*.68*2.05*scale + margin, along = .46*1.21*2.25*scale + margin, c = Math.cos(heading), s = Math.sin(heading);
+    const dx = px-x, dy = py-y, lx = dx*c - dy*s, lz = dx*s + dy*c;
+    return (lx/across)**2 + (lz/along)**2 <= 1;
+}
+// The first of `headings` at which the whole hull is over water, or null.
+function boatFitsWater(x, y, tileAt, scale = 1, headings = [.6, .6+Math.PI/2, .6+Math.PI/4, .6-Math.PI/4]) {
+    for (const heading of headings)
+        if (boatHullTiles(x, y, heading, scale).every(([tx, ty]) => tileAt(tx, ty) === 'water')) return heading;
+    return null;
+}
+
 function keepPlayerOnWalkableTile(terrainChanged) {
     const { x,y } = gameState.player;
     const tile = adventureTile(x,y);
@@ -10927,11 +10953,16 @@ window.addEventListener('load', () => {
                             const x=startX+ox,y=startY+oy;
                             if(x>=Farlands.size-2||y>=Farlands.size-2||Farlands.sample(x,y)!=='water')continue;
                             const shore=[[1,0],[-1,0],[0,1],[0,-1],[2,0],[-2,0],[0,2],[0,-2]].some(([vx,vy])=>
-                                Farlands.sample(x+vx,y+vy)!=='water');
+                                !['water','mountain','lava'].includes(Farlands.sample(x+vx,y+vy)));
                             if(!shore)continue;
-                            // Prefer shoreline near the player's current location, stable until cell changes.
-                            const score=Math.hypot(x-player.x,y-player.y)+((hash+ox*17+oy*29)%23)*.05;
-                            if(score<bestScore){best={x,y};bestScore=score;}
+                            // R15.58: the spot depends on the cell alone. Choosing the shore nearest the player put a
+                            // cell's boat wherever the player first came into range (often where they were about to land),
+                            // and moved it after a reload. The whole hull must lie over water: no boat on a bridge, a
+                            // jetty or the shore, and never a one-tile pool enclosed by a bridge.
+                            const score=(hash^Math.imul(ox*131+oy+7,2654435761))>>>0;
+                            if(score>=bestScore)continue;
+                            const heading=boatFitsWater(x,y,Farlands.sample);
+                            if(heading!==null){best={x,y,heading};bestScore=score;}
                         }
                         if(best){wanted.set(id,best);this.mooringSpots.set(id,best);}
                     }
@@ -10945,7 +10976,7 @@ window.addEventListener('load', () => {
                 }
                 for(const v of this.coastalBoats.values()){
                     v.model.visible=!afloat && !takenFrom(v.position) && Math.hypot(player.x-v.position.x,player.y-v.position.y)<this.visibleRadius()+15;
-                    if(v.model.visible){v.model.position.set(v.position.x,seaLevel+.08+Math.sin(time*1.1+v.position.x)*.025,v.position.y);v.model.rotation.y=.6;}
+                    if(v.model.visible){v.model.position.set(v.position.x,seaLevel+.08+Math.sin(time*1.1+v.position.x)*.025,v.position.y);v.model.rotation.y=v.position.heading??.6;}
                 }
             } else {
                 this.coastalCell='';
@@ -10958,19 +10989,21 @@ window.addEventListener('load', () => {
                     Math.hypot(player.x-vessel.station.x,player.y-vessel.station.y)<this.visibleRadius()+20;
                 vessel.model.visible=visible;
                 if(!visible)continue;
-                if(!vessel.position){
+                if(vessel.position===null){
+                    // R15.58: the nearest water where the whole (scaled) hull floats, not just its centre tile.
                     let closest=null, distance=Infinity;
                     for(let dy=-24;dy<=24;dy+=2) for(let dx=-24;dx<=24;dx+=2){
                         const x=vessel.station.x+dx,y=vessel.station.y+dy;
-                        if(Farlands.sample(x,y)!=='water')continue;
                         const d=dx*dx+dy*dy;
-                        if(d<distance){closest={x,y};distance=d;}
+                        if(d>=distance||Farlands.sample(x,y)!=='water')continue;
+                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.model.scale.x,[.35,.35+Math.PI/2,.35+Math.PI/4,.35-Math.PI/4]);
+                        if(heading!==null){closest={x,y,heading};distance=d;}
                     }
-                    vessel.position=closest;
+                    vessel.position=closest||false; // searched once even when nothing fits
                 }
                 if(vessel.position){
                     vessel.model.position.set(vessel.position.x,seaLevel+.1+Math.sin(time*1.2+vessel.station.x)*.025,vessel.position.y);
-                    vessel.model.rotation.y=.35+Math.sin(time*.5+vessel.station.y)*.025;
+                    vessel.model.rotation.y=vessel.position.heading+Math.sin(time*.5+vessel.station.y)*.025;
                 } else vessel.model.visible=false;
             }
             this.ship.position.set(here.x, seaLevel + bob, here.z);
@@ -13719,6 +13752,15 @@ const ebFarlands = (() => {
             place:where, horseOwned:save?.horseOwned===true, horsePlace:save?.horsePlace && validTile(save.horsePlace.x) && validTile(save.horsePlace.y) ? {x:save.horsePlace.x,y:save.horsePlace.y} : null, cells:new Map(), scene:null
         };
     }
+    // R15.58: the boat the player took is kept with the save, so a reload neither brings it back to its mooring (a
+    // second boat beside the one in use or parked) nor loses the parked one. Optional: older saves have no `boat`.
+    function restoreBoat(save) {
+        const validTile = (n) => Number.isInteger(n) && n>=0 && n<Farlands.size;
+        const taken = save?.boat?.taken, parked = save?.boat?.parked;
+        window.__ebTakenMooring = validTile(taken?.x) && validTile(taken?.y) ? {x:taken.x,y:taken.y} : null;
+        window.__ebParkedBoat = validTile(parked?.x) && validTile(parked?.y) && journey.terrain.tileAt(parked.x,parked.y)==='water' ?
+            {x:parked.x,y:parked.y,heading:Number.isFinite(parked.heading) ? parked.heading : 0} : null;
+    }
 
     function map() {
         return { width:Farlands.size,height:Farlands.size,terrain:journey.terrain,
@@ -13772,7 +13814,7 @@ const ebFarlands = (() => {
     function enter(restoring = false) {
         if (sharedWorld.active() || gameState.inBattle || inRealm() || buildingInterior) return false;
         home={map:captureAdventureMap(),x:gameState.player.x,y:gameState.player.y,sailing:gameState.sailingMoves};
-        journey ??= newJourney();
+        if (!journey) { journey = newJourney(); restoreBoat(null); }
         putPlayer(journey.place);
         if (!restoring) saveNow();
         return true;
@@ -13795,7 +13837,7 @@ const ebFarlands = (() => {
             buildingInterior?.outside.map.terrain instanceof Farlands.Terrain;
         state.farlands={version:1,active,place:active ? recordLocation() : journey.place,
             station:journey.station,pin:journey.pin,horseOwned:journey.horseOwned,horsePlace:journey.horsePlace,visited:[...journey.visited],spent:[...journey.spent],
-            edits:[...journey.terrain.edits]};
+            edits:[...journey.terrain.edits],boat:{taken:window.__ebTakenMooring||null,parked:window.__ebParkedBoat||null}};
         if (active && home) {
             state.map=home.map;
             Object.assign(state.player,{x:home.x,y:home.y,targetX:home.x,targetY:home.y});
@@ -13808,6 +13850,7 @@ const ebFarlands = (() => {
     function restore(save) {
         if (save?.version!==1) return;
         journey=newJourney(save);
+        restoreBoat(save);
         if (save.active===true) enter(true);
     }
 
@@ -14013,7 +14056,31 @@ const ebFarlands = (() => {
                 !['water','lava','mountain'].includes(journey.terrain.tileAt(p.x,p.y)) && !solidStructure(p.x,p.y));
         if(!land)return;
         // Capture the water tile before relocating the player to shore.
-        window.__ebParkedBoat={x:gameState.player.x,y:gameState.player.y,heading:0};
+        // R15.58: turn the parked boat to lie along the water. It was always heading 0, so a boat docked beside a
+        // bridge or a shore running that way lay across the planks, and over the tile the hero stepped onto.
+        // A hull 2.5 tiles long cannot lie in a one-tile inlet, so the boat is moored at the nearest water tile, reached by
+        // water within four tiles and close enough to board again from the landing tile, where the whole hull floats
+        // clear of the hero; failing that, where it docked, turned to cover the least land.
+        const sx=gameState.player.x, sy=gameState.player.y, wet=(x,y)=>journey.terrain.tileAt(x,y)==='water';
+        const covers=(x,y,h)=>boatHullCovers(x,y,h,land.x,land.y);
+        let bx=sx, by=sy, heading=0, dry=Infinity;
+        const seen=new Set([sx+','+sy]), queue=[[sx,sy]];
+        for(let i=0;i<queue.length;i++){
+            const [x,y]=queue[i];
+            const h=Math.hypot(x-land.x,y-land.y)>4 ? null :
+                boatFitsWater(x,y,(tx,ty)=>journey.terrain.tileAt(tx,ty),1,[0,Math.PI/2,Math.PI/4,-Math.PI/4].filter(h=>!covers(x,y,h)));
+            if(h!==null){bx=x;by=y;heading=h;dry=0;break;}
+            for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+                const nx=x+dx, ny=y+dy;
+                if(Math.max(Math.abs(nx-sx),Math.abs(ny-sy))>4||seen.has(nx+','+ny)||!wet(nx,ny)||solidStructure(nx,ny))continue;
+                seen.add(nx+','+ny); queue.push([nx,ny]);
+            }
+        }
+        if(dry) for(const h of [0,Math.PI/2,Math.PI/4,-Math.PI/4]){
+            const n=boatHullTiles(sx,sy,h).filter(([tx,ty])=>!wet(tx,ty)).length+(covers(sx,sy,h)?100:0);
+            if(n<dry){dry=n;heading=h;}
+        }
+        window.__ebParkedBoat={x:bx,y:by,heading};
         gameState.sailingMoves=0;
         if(journey.horseOwned)journey.horsePlace={x:land.x+1,y:land.y};
         gameState.player.x=land.x;gameState.player.y=land.y;
