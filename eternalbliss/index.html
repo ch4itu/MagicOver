@@ -13940,6 +13940,14 @@ const ebFarlands = (() => {
         updateHint();saveNow();
         return true;
     }
+    // R15.59: what Mira and Nessa remember of your conversations. Only these two names and plain topic words are
+    // accepted, so a marker can never stand in for a quest, errand, item or enemy record in the same journal.
+    function markTalk(id) {
+        if (!journey || sharedWorld.active() || !/^talk-(mira|nessa)-[a-z]+(-[a-z]+)?$/.test(id) || journey.spent.has(id)) return false;
+        journey.spent.add(id);
+        saveNow();
+        return true;
+    }
     function refreshStoryHint() { if(journey)updateHint(); }
     function saveStoryNow() { if(journey)saveNow(); }
 
@@ -14791,7 +14799,7 @@ const ebFarlands = (() => {
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
     return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
-        completeHerbLesson,storyFlag,markStory,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
+        completeHerbLesson,storyFlag,markStory,markTalk,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
 </script>
