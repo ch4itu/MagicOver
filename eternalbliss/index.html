@@ -10589,7 +10589,7 @@ window.addEventListener('load', () => {
         // A camera-local copy of the existing sword arm gives FP its own visible stroke. No combat rule or RNG here.
         renderEyeCombat(now, dt) {
             const c=this.combat, active=this.eyeActive() && c?.eye;
-            if (!active) { if(this.eyeHands)this.eyeHands.visible=false; if(this.eyeForearm)this.eyeForearm.visible=false; return; }
+            if (!active) { if(this.eyeHands)for(const part of [this.eyeHands,this.eyeForearm,this.eyeUpperArm,this.eyeElbow])part.visible=false; return; }
             if (!this.eyeHands) {
                 const hand=this.hero.arms[1].clone(true);
                 hand.position.set(0,0,0); hand.rotation.set(0,0,0);
@@ -10601,13 +10601,13 @@ window.addEventListener('load', () => {
                 this.eyeHands=new T.Group(); this.eyeHands.add(hand);
                 this.eyeCamera.add(this.eyeHands); this.scene.add(this.eyeCamera);
                 this.eyeSwordArm=hand;
-                // R15.58: the forearm is drawn in the camera's own space, from the wrist to an elbow set below the bottom
-                // edge of the view, every frame. A sleeve stretched inside the hand's space came loose from the fist in
-                // perspective and could end inside the frame. Square, slightly tapered, in the sleeve's cloth.
-                const forearm=new T.Mesh(new T.CylinderGeometry(.05,.088,1,4,1),sleeve?.material||new T.MeshStandardMaterial({color:0x2f8d8a}));
-                forearm.geometry.rotateY(Math.PI/4);
-                forearm.castShadow=false;
-                this.eyeForearm=forearm; this.eyeCamera.add(forearm);
+                // R15.58: the arm is drawn in the camera's own space every frame: a forearm and an upper arm of fixed
+                // lengths, bending at the elbow, to a shoulder outside the view. A sleeve stretched inside the hand's space
+                // came loose from the fist in perspective; one straight piece to the corner was far too long when raised.
+                const cloth=sleeve?.material||new T.MeshStandardMaterial({color:0x2f8d8a});
+                const limb=(top,bottom)=>{const m=new T.Mesh(new T.CylinderGeometry(top,bottom,1,4,1),cloth);m.geometry.rotateY(Math.PI/4);this.eyeCamera.add(m);return m;};
+                this.eyeForearm=limb(.05,.064); this.eyeUpperArm=limb(.066,.076);
+                this.eyeElbow=new T.Mesh(new T.BoxGeometry(.1,.1,.1),cloth); this.eyeCamera.add(this.eyeElbow);
                 this.eyeWrist=new T.Vector3(.02,-.205,0);
             }
             const v=ebCombatHUD.visual(now), a=v?.age ?? 0;
@@ -10629,28 +10629,51 @@ window.addEventListener('load', () => {
             pose(0,0,0);
             const target=this.eyeHandTarget();
             let shift=null;
+            this.eyeSwordArm.updateMatrix();
             if(target){
-                this.eyeSwordArm.updateMatrix();
                 const p=this.eyeHandMark.position.clone().applyMatrix4(this.eyeSwordArm.matrix).applyMatrix4(this.eyeHands.matrix);
                 const depth=Math.max(.1,-p.z), halfH=Math.tan(this.eyeCamera.fov*Math.PI/360)*depth, halfW=halfH*this.eyeCamera.aspect;
                 shift=[target[0]*halfW-p.x,target[1]*halfH-p.y];
             }
+            // The shoulder stays put through a swing: right of, below and nearer the eye than the resting wrist.
+            const restWrist=this.eyeWrist.clone().applyMatrix4(this.eyeSwordArm.matrix).applyMatrix4(this.eyeHands.matrix);
+            if(shift){restWrist.x+=shift[0];restWrist.y+=shift[1];}
             pose(stroke,lift,hit);
             if(shift){this.eyeHands.position.x+=shift[0];this.eyeHands.position.y+=shift[1];}
             const sword=this.eyeSwordArm.children.find(o=>o.isGroup);
             if(sword)sword.rotation.x=0;
-            // Wrist in camera space, then the elbow: nearer the eye and beyond the bottom-right corner of the view at its
-            // own depth, so the arm enters from outside the frame in every pose and widens toward the edge.
+            // Two-bone arm: forearm .27 and upper arm .30 (the fist is .087), scaled like the hand. The elbow bends down
+            // and outward; if a swing reaches past the arm's length the shoulder follows the hand, so nothing comes apart.
             this.eyeHands.updateMatrix(); this.eyeSwordArm.updateMatrix();
             const wrist=this.eyeWrist.clone().applyMatrix4(this.eyeSwordArm.matrix).applyMatrix4(this.eyeHands.matrix);
-            const elbowZ=Math.min(-.16,wrist.z+.3), halfH=-elbowZ*Math.tan(this.eyeCamera.fov*Math.PI/360);
-            const elbow=new T.Vector3(halfH*this.eyeCamera.aspect*1.3,-halfH*1.25,elbowZ);
-            const along=wrist.clone().sub(elbow), length=along.length();
-            const forearm=this.eyeForearm;
-            forearm.visible=this.eyeHands.visible;
-            forearm.position.copy(elbow).addScaledVector(along,.5);
-            forearm.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),along.divideScalar(length));
-            forearm.scale.set(fit,length,fit);
+            const fore=.27*fit, upper=.30*fit, reach=fore+upper;
+            const shoulder=restWrist.clone().add(new T.Vector3(.25,-.45,.85).normalize().multiplyScalar(reach*.8));
+            const toWrist=wrist.clone().sub(shoulder);
+            let d=toWrist.length(); const dir=toWrist.divideScalar(d);
+            if(d>reach*.995){
+                // A swing reaches past the arm: the shoulder follows the hand, turned toward the right edge as far as it
+                // takes to stay out of view, so the arm never ends inside the frame.
+                const slope=Math.tan(this.eyeCamera.fov*Math.PI/360), aspect=this.eyeCamera.aspect;
+                const unseen=p=>{const depth=-p.z;return depth<this.eyeCamera.near||Math.abs(p.x)>depth*slope*aspect*1.05||Math.abs(p.y)>depth*slope*1.05;};
+                const back=dir.clone().negate(), side=new T.Vector3(1,-.3,.3).normalize();
+                for(let t=0;t<=1.0001;t+=.1){
+                    const way=back.clone().lerp(side,t).normalize();
+                    shoulder.copy(wrist).addScaledVector(way,reach*.995);
+                    if(unseen(shoulder))break;
+                }
+                dir.copy(wrist).sub(shoulder).normalize(); d=reach*.995;
+            }
+            d=Math.max(d,Math.abs(upper-fore)+.001);
+            const along=(upper*upper-fore*fore+d*d)/(2*d), rise=Math.sqrt(Math.max(0,upper*upper-along*along));
+            const pole=new T.Vector3(1,-1,0); pole.addScaledVector(dir,-pole.dot(dir)).normalize();
+            const elbow=shoulder.clone().addScaledVector(dir,along).addScaledVector(pole,rise);
+            const place=(mesh,from,to)=>{const span=to.clone().sub(from),length=span.length();
+                mesh.visible=this.eyeHands.visible; mesh.position.copy(from).addScaledVector(span,.5);
+                mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),span.divideScalar(length)); mesh.scale.set(fit,length,fit);};
+            place(this.eyeForearm,elbow,wrist);      // narrow end at the wrist
+            place(this.eyeUpperArm,shoulder,elbow);
+            this.eyeElbow.visible=this.eyeHands.visible; this.eyeElbow.position.copy(elbow); this.eyeElbow.scale.setScalar(fit);
+            this.eyeElbow.quaternion.copy(this.eyeUpperArm.quaternion); // a squared joint, turned with the upper arm
         }
 
         useEyeTarget() {
