@@ -3699,10 +3699,12 @@ function talkToNPC(npc) {
         ? ebStory.mira() : '';
     // R15.59: Mira and Nessa greet you according to the hour, the story and what you have talked about before.
     const opener = typeof ebLivingRest !== 'undefined' ? ebLivingRest.opener(npc) : null;
+    const rpgNote = typeof ebRpgQuests !== 'undefined' ? ebRpgQuests.onTalk(npc) : '';
     document.getElementById('modalContent').innerHTML = `
         <div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>
         <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(opener ?? npc.dialogue)}"</div>
         ${storyLine}
+        ${rpgNote ? '<p role="status">'+escapeMapText(rpgNote)+'</p>' : ''}
         ${ebFarlands.errandTalk(npc)}
         ${typeof ebJournal !== 'undefined' ? ebJournal.hint(npc) : ''}
         <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
@@ -3715,6 +3717,7 @@ function talkToNPC(npc) {
     ebJournal.attachLead(npc);
     if (typeof ebLivingRest !== 'undefined') ebLivingRest.attach(npc);
     if (typeof ebRpgAccess !== 'undefined') ebRpgAccess.attach(npc);
+    if (typeof ebRpgQuests !== 'undefined') ebRpgQuests.attach(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
 }
 
@@ -6556,7 +6559,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
                     <span id="eb-shared-badge" aria-live="polite">Solo adventure</span><button type="button" class="eb-panel-button" id="eb-actions-more" aria-expanded="false" aria-controls="eb-world-actions">☰ Actions</button>
                     <button type="button" class="eb-panel-button" id="eb-shared-open" hidden>Play Together</button>
                     <button type="button" class="eb-panel-button" id="eb-duel-nearby" aria-haspopup="dialog" hidden>Duel</button>
-                    <button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-atlas-open" aria-haspopup="dialog" hidden>Atlas</button><button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-station-travel" aria-haspopup="dialog" hidden title="Open available routes from this station">🚋 Travel from station</button><button id="eb-farlands-board" type="button" class="btn" hidden>⛵ Board boat</button><button id="eb-farlands-dock" type="button" class="btn" hidden>⚓ Disembark</button><button id="eb-farlands-local-tasks" type="button" class="btn" hidden>📜 Local errand</button><button id="eb-farlands-people" type="button" class="btn" hidden aria-haspopup="dialog">👥 People nearby</button><button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-horse" hidden aria-pressed="false" title="Solo Farlands only: ride faster on land">🐎 Mount horse</button><span id="eb-horse-help" style="font-size:11px;opacity:.85;max-width:190px" hidden>Buy at a waystation · Mount near your horse · Dismount to park it</span>
+                    <button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-atlas-open" aria-haspopup="dialog" hidden>Atlas</button><button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-station-travel" aria-haspopup="dialog" hidden title="Open available routes from this station">🚋 Travel from station</button><button id="eb-farlands-board" type="button" class="btn" hidden>⛵ Board boat</button><button id="eb-farlands-dock" type="button" class="btn" hidden>⚓ Disembark</button><button id="eb-farlands-local-tasks" type="button" class="btn" hidden>📜 Local errand</button><button id="eb-farlands-people" type="button" class="btn" hidden aria-haspopup="dialog">👥 People nearby</button><button id="eb-farlands-quests" type="button" class="btn" hidden aria-haspopup="dialog">📜 Local quests</button><button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-horse" hidden aria-pressed="false" title="Solo Farlands only: ride faster on land">🐎 Mount horse</button><span id="eb-horse-help" style="font-size:11px;opacity:.85;max-width:190px" hidden>Buy at a waystation · Mount near your horse · Dismount to park it</span>
                 </div>
                 <p id="eb-farlands-hint" hidden></p>
                 <button type="button" class="eb-panel-button" id="eb-room-exit" hidden>Exit building</button>
@@ -14011,6 +14014,26 @@ const ebFarlands = (() => {
         saveNow();
         return true;
     }
+    // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
+    function markRpgQuest(key) {
+        if(!journey||!surface()||sharedWorld.active()||buildingInterior||
+            !/^rq-(taken|step1|step2)-[abc]-[a-z0-9-]+$/.test(key)||journey.spent.has(key))return false;
+        journey.spent.add(key);saveNow();return true;
+    }
+    function completeRpgQuest(id,kind) {
+        if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
+            !/^[a-z0-9-]+$/.test(id)||!['a','b','c'].includes(kind))return false;
+        const site=Farlands.byId.get(id),prefix='rq-';
+        if(!site?.station||Farlands.nearbySite(gameState.player.x,gameState.player.y)?.id!==id)return false;
+        if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
+            !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
+            !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
+            (kind==='a'&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15];
+        journey.spent.add(prefix+'done-'+kind+'-'+id);
+        gameState.inventory.gold+=gold;gameState.player.xp+=xp;
+        checkLevelUp();updateUI();saveNow();updateHint();return true;
+    }
     function refreshStoryHint() { if(journey)updateHint(); }
     function saveStoryNow() { if(journey)saveNow(); }
 
@@ -14019,6 +14042,7 @@ const ebFarlands = (() => {
         const site=Farlands.nearbySite(x,y);
         if (site?.station) journey.station=site.id;
         if (site && !sharedWorld.active()) errandArrived(site);
+        if (site && !sharedWorld.active() && typeof ebRpgQuests!=='undefined') ebRpgQuests.onLocation(site);
         if (site && !journey.visited.has(site.id)) {
             journey.visited.add(site.id);
             if (Farlands.survey.includes(site.id) && Farlands.survey.every(id=>journey.visited.has(id))) {
@@ -14232,6 +14256,7 @@ const ebFarlands = (() => {
         taskButton.hidden=!station?.station;
         if(station?.station) taskButton.textContent='📜 '+station.name+' errand';
         get('eb-farlands-people').hidden=!surface() || shared || !!buildingInterior || gameState.inBattle;
+        get('eb-farlands-quests').hidden=!surface() || shared || !!buildingInterior || gameState.inBattle;
 
         if (!shared) get('eb-shared-badge').textContent=realm ? 'Farlands · Solo' : 'Solo adventure';
         get('mapImporterTrigger').disabled=shared || realm;
@@ -14863,7 +14888,7 @@ const ebFarlands = (() => {
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
     return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
-        completeHerbLesson,storyFlag,markStory,markTalk,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
+        completeHerbLesson,storyFlag,markStory,markTalk,markRpgQuest,completeRpgQuest,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
 </script>
@@ -15524,6 +15549,176 @@ const ebRpgAccess=(()=>{
     return {nearby,openNearby,attach};
 })();
 </script>
+<script data-source="rpg-local-quests.js">
+// R16: three real, finite, once-only quest chains per existing station (54 stations, 162 quests).
+// No fabricated objects: A speaks with two actual local residents; B reaches an actual site;
+// C relays news to an actual waykeeper and then reports back to the actual provisioner.
+const ebRpgQuests=(()=>{
+    const active=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior&&!gameState.inBattle;
+    const sites=()=>Farlands.sites.filter(s=>s.station);
+    const flag=(site,kind,part)=>ebFarlands.storyFlag('rq-'+part+'-'+kind+'-'+site.id);
+    const mark=(site,kind,part)=>ebFarlands.markRpgQuest('rq-'+part+'-'+kind+'-'+site.id);
+    const giverName=(site,kind)=>{
+        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':kind==='b'?'Nessa, the Orchard Keeper':'Ivo, the Millwright';
+        return site.name+(kind==='a'?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
+    };
+    const receiver=(site)=>giverName(site,'a');
+    const neighbor=(site,mode)=>{
+        const entries=Farlands.sites.filter(s=>s.id!==site.id&&s.region===site.region&&
+            (mode==='station'?s.station:true));
+        entries.sort((a,b)=>Math.hypot(a.x-site.x,a.y-site.y)-Math.hypot(b.x-site.x,b.y-site.y));
+        return entries[0]||null;
+    };
+    function plan(site,kind){
+        if(!site?.station||!['a','b','c'].includes(kind))return null;
+        const target=kind==='a'?site:neighbor(site,kind==='c'?'station':'any');
+        if(!target)return null;
+        const heading=kind==='a'?'Meet the local team':kind==='b'?'Check the road to '+target.name:'Carry news to '+target.name;
+        const description=kind==='a'?
+            'Speak with '+giverName(site,'c')+' and '+giverName(site,'b')+', then tell '+giverName(site,'a')+' what they said.':
+            kind==='b'?'Reach '+target.name+' after accepting, then return and tell '+giverName(site,'b')+' what you saw.':
+            'Take road news to '+receiver(target)+'. Speak directly with the recipient and relay it, then report to '+giverName(site,'c')+'.';
+        return {site,target,kind,title:heading,description,giver:giverName(site,kind),reward:kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15]};
+    }
+    const state=q=>flag(q.site,q.kind,'done')?'done':
+        flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
+    const ready=q=>flag(q.site,q.kind,'step1')&&(q.kind!=='a'||flag(q.site,q.kind,'step2'));
+    function next(q){
+        if(q.kind==='a'){
+            if(!flag(q.site,'a','step1'))return {site:q.site,label:'Speak to '+giverName(q.site,'c')};
+            if(!flag(q.site,'a','step2'))return {site:q.site,label:'Speak to '+giverName(q.site,'b')};
+        }else if(!flag(q.site,q.kind,'step1'))
+            return {site:q.target,label:q.kind==='c'?'Relay news to '+receiver(q.target):'Visit '+q.target.name};
+        return {site:q.site,label:'Report to '+q.giver};
+    }
+    const activePlans=()=>sites().flatMap(site=>['a','b','c'].map(k=>plan(site,k)).filter(Boolean))
+        .filter(q=>flag(q.site,q.kind,'taken')&&!flag(q.site,q.kind,'done'));
+    function accept(q){
+        if(!active()||!q||state(q)!=='new')return false;
+        const ok=mark(q.site,q.kind,'taken');
+        if(ok)ebFarlands.pin(q.target.id);
+        return ok;
+    }
+    function report(q,npc){
+        if(!active()||!q||state(q)!=='ready'||npc?.name!==q.giver||
+            !npcs.includes(npc)||Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5)return false;
+        return ebFarlands.completeRpgQuest(q.site.id,q.kind);
+    }
+    function onLocation(site){
+        if(!active())return;
+        for(const q of activePlans()){
+            if(q.kind==='b'&&q.target.id===site.id&&!flag(q.site,'b','step1')){
+                if(mark(q.site,'b','step1')){
+                    showFloatingText('Road checked · return to '+q.giver,gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
+                    ebFarlands.refreshStoryHint();
+                }
+            }
+        }
+    }
+    function onTalk(npc){
+        if(!active()||!npc||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return '';
+        const here=Farlands.nearbySite(npc.x,npc.y),notes=[];
+        for(const q of activePlans()){
+            if(q.kind!=='a'||q.site.id!==here?.id)continue;
+            if(npc.name===giverName(q.site,'c')&&mark(q.site,'a','step1'))notes.push('You have spoken with the provisioner.'); 
+            if(npc.name===giverName(q.site,'b')&&mark(q.site,'a','step2'))notes.push('You have spoken with the trail warden.');
+        }
+        if(notes.length)ebFarlands.refreshStoryHint();
+        return notes.join(' ');
+    }
+    const button=(label,fn)=>{
+        const b=document.createElement('button');b.type='button';b.className='btn';
+        b.style.cssText='min-height:44px;width:100%;text-align:left;margin:4px 0';
+        b.textContent=label;b.addEventListener('click',fn);return b;
+    };
+    function card(q,npc){
+        const box=document.createElement('section');
+        box.style.cssText='text-align:left;margin-top:12px;padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px';
+        const head=document.createElement('strong');head.textContent='📜 '+q.title;
+        const desc=document.createElement('p');desc.textContent=q.description;
+        desc.style.cssText='line-height:1.5;font-size:13px;margin:8px 0';
+        const status=document.createElement('p');status.style.cssText='font-size:13px;margin:5px 0';
+        box.append(head,desc,status);
+        const actions=document.createElement('div');box.append(actions);
+        const refresh=()=>{
+            const v=state(q);actions.replaceChildren();
+            status.textContent=v==='done'?'Completed · reward collected':
+                v==='new'?'Available · reward '+q.reward[0]+' gold and '+q.reward[1]+' XP':
+                'In progress · '+next(q).label;
+            if(v==='new')actions.append(button('Accept quest',()=>{
+                if(accept(q)){refresh();ebFarlands.refreshStoryHint();}
+            }));
+            else if(v==='ready'&&npc?.name===q.giver)actions.append(button('Report back · collect '+q.reward[0]+' gold',()=>{
+                if(report(q,npc)){refresh();status.textContent='Quest completed · +'+q.reward[0]+' gold · +'+q.reward[1]+' XP';}
+            }));
+            else if(v!=='done')actions.append(button('Track next step',()=>{ebFarlands.pin(next(q).site.id);status.textContent='Tracking · '+next(q).label;}));
+        };
+        refresh();return box;
+    }
+    function attach(npc){
+        if(!active()||!npc||npc.fauna||!npcs.includes(npc))return;
+        const content=document.getElementById('modalContent');
+        const here=Farlands.nearbySite(npc.x,npc.y);
+        if(here?.station){
+            for(const kind of ['a','b','c']){
+                const q=plan(here,kind);
+                if(q&&npc.name===q.giver)content.append(card(q,npc));
+            }
+        }
+        // A courier message requires a deliberate handover to the destination's actual waykeeper.
+        for(const q of activePlans()){
+            if(q.kind!=='c'||q.target.id!==here?.id||flag(q.site,'c','step1')||npc.name!==receiver(q.target))continue;
+            const box=document.createElement('section');box.style.cssText='margin-top:12px;text-align:left;padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px';
+            const p=document.createElement('p');p.textContent='News from '+q.site.name+' for '+npc.name+'.';
+            box.append(p,button('Relay the road news',()=>{
+                if(!active()||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return;
+                if(mark(q.site,'c','step1')){
+                    p.textContent='Message received. Return to '+q.giver+' at '+q.site.name+'.';
+                    box.querySelector('button')?.remove();ebFarlands.pin(q.site.id);
+                    ebFarlands.refreshStoryHint();
+                }
+            }));
+            content.append(box);
+        }
+    }
+    function journal(){
+        if(!active())return '';
+        const ongoing=activePlans();
+        if(!ongoing.length)return '';
+        const escape=escapeMapText;
+        return '<section style="padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px;text-align:left"><strong>📜 Local quests · '+ongoing.length+' in progress</strong>'+
+            ongoing.map(q=>'<p style="line-height:1.5">'+escape(q.title)+' · '+escape(next(q).label)+
+                ' <button type="button" class="btn" style="min-height:44px" onclick="ebRpgQuests.track(\''+
+                q.kind+'\',\''+q.site.id+'\')">Track</button></p>').join('')+'</section>';
+    }
+    function track(kind,id){
+        const q=plan(Farlands.byId.get(id),kind);
+        if(!active()||!q||!flag(q.site,kind,'taken')||flag(q.site,kind,'done'))return false;
+        const ok=ebFarlands.pin(next(q).site.id);closeModal();return ok;
+    }
+    function goal(){
+        if(!active())return null;
+        for(const q of activePlans()){
+            const step=next(q);
+            if(ebFarlands.pinned()===step.site.id)return {label:'Local quest · '+step.label,site:step.site};
+        }
+        return null;
+    }
+    function board(){
+        if(!active()||movementBlocked())return;
+        const site=Farlands.nearbySite(gameState.player.x,gameState.player.y);
+        if(!site?.station){if(typeof ebJournal!=='undefined')ebJournal.open();return;}
+        document.getElementById('modalTitle').textContent='📜 '+site.name+' quests';
+        const content=document.getElementById('modalContent');content.replaceChildren();
+        const intro=document.createElement('p');intro.textContent='Talk to local residents to follow these quests, or accept one here. Report to the actual giver for a reward.';
+        content.append(intro);
+        for(const kind of ['a','b','c']){const q=plan(site,kind);if(q)content.append(card(q,null));}
+        releaseMovement();document.getElementById('interactionModal').style.display='flex';
+    }
+    document.getElementById('eb-farlands-quests')?.addEventListener('click',board);
+    return {plan,accept,onTalk,onLocation,attach,board,journal,track,goal};
+})();
+</script>
 <script data-source="r14-adventure-journal.js">
 // R14: read-only Farlands exploration stories. Uses the existing saved discovery set;
 // never writes to shared accounts, changes combat, or duplicates reward grants.
@@ -15551,7 +15746,7 @@ const ebJournal = (() => {
             const storyCard=quest ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.5);border-radius:10px;text-align:left"><strong>🔔 The Silent Harvest · Story Quest</strong><p style="margin:8px 0">The Harvest Bell lies in the locked archive beneath the Old Tollhouse. Find the ward key at Millbend, defeat the Archive Warden, recover the bell and return it to Mira at Wayfarer’s Rest.</p><p style="margin:0"><strong>Now:</strong> ${escapeMapText(quest.label)}</p></section>` : '';
             const errands=ebFarlands.errandsInHand().map(e=>`<li style="margin:6px 0">${escapeMapText(e.label)} <button type="button" class="btn" style="min-height:40px;margin-left:6px" onclick="ebFarlands.pin('${e.site.id}');closeModal()">Show</button></li>`).join('');
             const errandCard=errands ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.35);border-radius:10px;text-align:left"><strong>📜 Errands</strong><ul style="margin:6px 0 0;padding-left:18px">${errands}</ul></section>` : '';
-            document.getElementById('modalContent').innerHTML = storyCard+errandCard+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
+            document.getElementById('modalContent').innerHTML = storyCard+errandCard+(typeof ebRpgQuests!=='undefined'?ebRpgQuests.journal():'')+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
         }
         releaseMovement();
         document.getElementById('interactionModal').style.display='flex';
@@ -15590,6 +15785,8 @@ const ebJournal = (() => {
         if (quest && !quest.done) return {quest,next:quest.site??null};
         const errand=ebFarlands.errandGoal(); // R15.57: an errand in hand whose place is pinned, when no story step is open
         if (errand) return {quest:{label:errand.label},next:errand.site,errand:true};
+        const local=typeof ebRpgQuests!=='undefined'?ebRpgQuests.goal():null;
+        if(local)return {quest:{label:local.label},next:local.site,errand:true};
         if (!ebFarlands.surface()) return null;
         const visited=ebFarlands.discoveries();
         for (const chapter of chapters) {
