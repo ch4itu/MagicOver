@@ -13698,11 +13698,18 @@ const Farlands = (() => {
                 for(let dx=2+ox;dx<cellSize-2;dx+=4){
                     const tx=left+dx,ty=top+dy;
                     if(tx>=size-2||ty>=size-2||nearbySite(tx,ty)||Math.hypot(tx-start.x,ty-start.y)<28 ||
-                        !trailAt(tx,ty)||!['road','grass','stone','sand','snow'].includes(sample(tx,ty)) ||
-                        actors.npcs.some(n=>Math.hypot(n.x-tx,n.y-ty)<3) ||
-                        actors.enemies.some(n=>Math.hypot(n.x-tx,n.y-ty)<3) ||
-                        actors.buildings.some(b=>Math.hypot(b.x-tx,b.y-ty)<3))continue;
-                    point={x:tx,y:ty};break;
+                        !trailAt(tx,ty))continue;
+                    // Stay off the actual path: villagers and travelers must not become immovable roadblocks.
+                    for(const [vx,vy] of [[-2,0],[2,0],[0,-2],[0,2],[-3,0],[3,0],[0,-3],[0,3]]){
+                        const sx=tx+vx,sy=ty+vy;
+                        if(sx<2||sy<2||sx>=size-2||sy>=size-2||nearbySite(sx,sy)||
+                            trailAt(sx,sy)||!['grass','sand','snow','stone','mud'].includes(sample(sx,sy))||
+                            actors.npcs.some(n=>Math.hypot(n.x-sx,n.y-sy)<3)||
+                            actors.enemies.some(n=>Math.hypot(n.x-sx,n.y-sy)<3)||
+                            actors.buildings.some(n=>Math.hypot(n.x-sx,n.y-sy)<3))continue;
+                        point={x:sx,y:sy};break;
+                    }
+                    if(point)break;
                 }
             }
             if(point){
@@ -13715,7 +13722,7 @@ const Farlands = (() => {
                     Surveyor:'I mark water crossings and changes to the trail so the next traveler can find them.'
                 };
                 actors.npcs.push({name:regions[region].name+' '+role,class:role==='Caravan Guard'?'guard':role==='Peddler'?'merchant':'villager',
-                    x:point.x,y:point.y,dialogue:words[role],realmId:'road-r16-'+cx+'-'+cy,movable:true});
+                    x:point.x,y:point.y,dialogue:words[role],realmId:'road-r16-'+cx+'-'+cy,movable:false});
             }
         }
         // R15.54: use the original authored waystations, 27 named villages,
