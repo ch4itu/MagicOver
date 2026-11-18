@@ -10583,25 +10583,32 @@ window.addEventListener('load', () => {
             const r=hud.getBoundingClientRect();
             if(!r.width)return null;
             const right=(r.right-frame.left)/frame.width*2-1, top=1-(r.top-frame.top)/frame.height*2;
-            return right<.55 ? [.74,-.45] : [.58,Math.min(.15,top+.24)];
+            return right<.55 ? [.70,-.30] : [.58,Math.min(.15,top+.24)]; // R15.58: room below the hand for the forearm
         }
 
         // A camera-local copy of the existing sword arm gives FP its own visible stroke. No combat rule or RNG here.
         renderEyeCombat(now, dt) {
             const c=this.combat, active=this.eyeActive() && c?.eye;
-            if (!active) { if(this.eyeHands)this.eyeHands.visible=false; return; }
+            if (!active) { if(this.eyeHands)this.eyeHands.visible=false; if(this.eyeForearm)this.eyeForearm.visible=false; return; }
             if (!this.eyeHands) {
                 const hand=this.hero.arms[1].clone(true);
                 hand.position.set(0,0,0); hand.rotation.set(0,0,0);
-                // R15.57: seen from the eye, the hanging upper-arm sleeve ended in mid-air above the hand. It is replaced
-                // by a forearm running from the hand down past the frame edge, and a marker at the hand lets the arm be
-                // placed where the battle panel does not cover it.
+                // R15.57: seen from the eye, the hanging upper-arm sleeve ended in mid-air above the hand; it is hidden. A
+                // marker at the hand lets the arm be placed where the battle panel does not cover it.
                 const sleeve=hand.children.find(o=>o.isMesh);
-                if(sleeve){const forearm=sleeve.clone();forearm.scale.y=3.4;forearm.position.y=-.15-.182*3.4/2;sleeve.visible=false;hand.add(forearm);}
+                if(sleeve)sleeve.visible=false;
                 this.eyeHandMark=new T.Object3D(); this.eyeHandMark.position.set(.02,-.18,0); hand.add(this.eyeHandMark);
                 this.eyeHands=new T.Group(); this.eyeHands.add(hand);
                 this.eyeCamera.add(this.eyeHands); this.scene.add(this.eyeCamera);
                 this.eyeSwordArm=hand;
+                // R15.58: the forearm is drawn in the camera's own space, from the wrist to an elbow set below the bottom
+                // edge of the view, every frame. A sleeve stretched inside the hand's space came loose from the fist in
+                // perspective and could end inside the frame. Square, slightly tapered, in the sleeve's cloth.
+                const forearm=new T.Mesh(new T.CylinderGeometry(.05,.088,1,4,1),sleeve?.material||new T.MeshStandardMaterial({color:0x2f8d8a}));
+                forearm.geometry.rotateY(Math.PI/4);
+                forearm.castShadow=false;
+                this.eyeForearm=forearm; this.eyeCamera.add(forearm);
+                this.eyeWrist=new T.Vector3(.02,-.205,0);
             }
             const v=ebCombatHUD.visual(now), a=v?.age ?? 0;
             const stroke=v?.action==='attack' ? Math.sin(Math.PI*Math.min(1,a/.85)) : 0;
@@ -10632,6 +10639,18 @@ window.addEventListener('load', () => {
             if(shift){this.eyeHands.position.x+=shift[0];this.eyeHands.position.y+=shift[1];}
             const sword=this.eyeSwordArm.children.find(o=>o.isGroup);
             if(sword)sword.rotation.x=0;
+            // Wrist in camera space, then the elbow: nearer the eye and beyond the bottom-right corner of the view at its
+            // own depth, so the arm enters from outside the frame in every pose and widens toward the edge.
+            this.eyeHands.updateMatrix(); this.eyeSwordArm.updateMatrix();
+            const wrist=this.eyeWrist.clone().applyMatrix4(this.eyeSwordArm.matrix).applyMatrix4(this.eyeHands.matrix);
+            const elbowZ=Math.min(-.16,wrist.z+.3), halfH=-elbowZ*Math.tan(this.eyeCamera.fov*Math.PI/360);
+            const elbow=new T.Vector3(halfH*this.eyeCamera.aspect*1.3,-halfH*1.25,elbowZ);
+            const along=wrist.clone().sub(elbow), length=along.length();
+            const forearm=this.eyeForearm;
+            forearm.visible=this.eyeHands.visible;
+            forearm.position.copy(elbow).addScaledVector(along,.5);
+            forearm.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),along.divideScalar(length));
+            forearm.scale.set(fit,length,fit);
         }
 
         useEyeTarget() {
