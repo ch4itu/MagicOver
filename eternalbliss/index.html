@@ -15480,7 +15480,7 @@ const ebRpgAccess=(()=>{
     const roleOf=npc=>{
         const n=npc.name.toLowerCase();
         const roles=['waykeeper','provisioner','trail warden','herbalist','storyteller','craftsperson','pilgrim',
-            'wheelwright','farmer','shepherd','baker','gardener','merchant','village elder','surveyor','guard',
+            'wheelwright','millwright','farmer','shepherd','baker','gardener','merchant','village elder','surveyor','guard',
             'fisher','innkeeper','keeper','courier','weaver','mason','peddler','woodcutter','caretaker','cook'];
         return roles.find(r=>n.includes(r))||'traveller';
     };
@@ -15493,6 +15493,7 @@ const ebRpgAccess=(()=>{
         craftsperson:'I repair tools and keep the settlement working.',
         pilgrim:'I follow the shrines and mark safe places to rest.',
         wheelwright:'I mend carts, axles and wheels before they take the road.',
+        millwright:'I keep the waterwheels turning and the timber moving downriver.',
         farmer:'Our fields feed the village, and the weather decides our work.',
         shepherd:'I tend the herds and keep them on safe ground.',
         baker:'I rise early so travelers have bread before setting out.',
