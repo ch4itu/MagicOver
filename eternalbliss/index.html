@@ -11137,6 +11137,8 @@ window.addEventListener('load', () => {
                     const b=model.ebWorkBlend,sway=this.reduced?0:Math.sin(time*2.6)*.09;
                     model.arms.forEach((arm,i)=>{arm.rotation.x=arm.rotation.x*(1-b)+(-.65+(i?1:-1)*sway)*b;});
                 }
+                // R15.59: Mira and Nessa at work, at their real scheduled places (pose and facing only).
+                if(kind==='npc' && model.arms?.length && model.body) ebLivingRest.pose(data,model,time,dt,this.reduced,now);
                 if (label) {
                     const position = model.group.position;
                     const title = this.actorTitle(record);
@@ -15263,7 +15265,72 @@ const ebLivingRest=(()=>{
         if(Number.isInteger(n)&&n>=1&&n<=talk.choices.length){event.preventDefault();talk.choices[n-1]();}
     });
 
-    return {who,opener,attach,place};
+    // ---- what they are doing -------------------------------------------------------------------------------
+    // The centre of a named landmark near (x,y), from the same prop map the Use key reads; looked up once.
+    const marks=new Map();
+    function landmark(name,x,y){
+        const key=name+x+','+y;
+        if(!marks.has(key)){
+            let sx=0,sy=0,n=0;
+            for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++)if(Farlands.propNear(x+dx,y+dy,0)?.name===name){sx+=x+dx;sy+=y+dy;n++;}
+            marks.set(key,n?{x:sx/n,y:sy/n}:null);
+        }
+        return marks.get(key);
+    }
+    // Mira: by day she measures the well, in the evening she writes up her ledger facing the road, and she raises a
+    // hand to a traveller who comes up from a distance. Nessa: arranges her wares at the stall and turns to reach out
+    // to you when you come close; at the shrine in the evening she bows to leave the day's apples. (Poses only: no props.)
+    function activity(npc,id,hero,now,model){
+        if(gameState.inBattle||(npc.walkingUntil||0)>now)return null;
+        const at=place(npc), h=ebLife.hour(), near=Math.hypot(hero.x-npc.x,hero.y-npc.y);
+        if(id==='mira'){
+            const far=model.ebLifeFar??true;
+            if(near>6)model.ebLifeFar=true;
+            else if(near<4&&far){model.ebLifeFar=false;model.ebLifeGreet=now+2200;}
+            if((model.ebLifeGreet||0)>now)return {kind:'greet',face:hero};
+            if(h>=6&&h<18)return {kind:'well',face:landmark('The square well',npc.x,npc.y)};
+            if(h>=18&&h<22)return {kind:'ledger',face:landmark('Signpost',npc.x,npc.y)};
+            return null;
+        }
+        if(at==='stall')return near<3?{kind:'offer',face:hero}:{kind:'wares',face:landmark('Orchard stall',npc.x,npc.y)};
+        if(at==='shrine')return {kind:'shrine',face:landmark('Wayside shrine',npc.x,npc.y)};
+        return null;
+    }
+    // Target joint angles: lean of the body, then left and right arm (x forward-up, z outward).
+    function target(kind,t,still){
+        const wave=still?0:Math.sin(t), slow=still?0:Math.sin(t*.7);
+        switch(kind){
+            case 'well': return {lean:.11+.05*slow,arms:[[-.35,0],[-1.0+.12*wave*.6,0]]};
+            case 'ledger': return {lean:.06,arms:[[-.9,.05],[-.95,.15+.05*(still?0:Math.sin(t*6))]]};
+            case 'greet': return {lean:0,arms:[[-2.7,-.2+.25*(still?0:Math.sin(t*9))],[0,0]]};
+            case 'wares': {const r=still?0:Math.sin(t*1.1);return {lean:.1,arms:[[-.8-.3*Math.max(0,r),0],[-.5-.3*Math.max(0,-r),0]]};}
+            case 'offer': return {lean:.03,arms:[[-1.35,0],[-.1,0]]};
+            case 'shrine': return {lean:.2,arms:[[-.7,0],[-.7,0]]};
+        }
+        return null;
+    }
+    // Called each frame after the walk animation has set the joints: blends toward the activity pose and, while
+    // standing, turns toward what they are working on. The model's position is never touched.
+    function pose(npc,model,time,dt,reduced,now){
+        const id=who(npc);
+        if(!id&&!model.ebLifeBlend)return;
+        const act=id?activity(npc,id,gameState.player,now,model):null;
+        if(act)model.ebLifeKind=act.kind;
+        const goal=target(model.ebLifeKind,time,reduced);
+        model.ebLifeBlend=(model.ebLifeBlend||0)+((act?1:0)-(model.ebLifeBlend||0))*(reduced?1:1-Math.exp(-5*Math.min(dt,.1)));
+        const b=model.ebLifeBlend;
+        if(b<.001){model.ebLifeBlend=0;model.body.rotation.x=0;model.arms.forEach(arm=>arm.rotation.z=0);return;}
+        if(!goal)return;
+        model.body.rotation.x=goal.lean*b;
+        model.arms.forEach((arm,i)=>{arm.rotation.x=arm.rotation.x*(1-b)+goal.arms[i][0]*b;arm.rotation.z=goal.arms[i][1]*b*(i?-1:1);});
+        if(act?.face){
+            const want=Math.atan2(act.face.x-npc.x,act.face.y-npc.y);
+            let turn=want-model.group.rotation.y; turn=Math.atan2(Math.sin(turn),Math.cos(turn));
+            model.group.rotation.y+=reduced?turn:turn*(1-Math.exp(-4*Math.min(dt,.1)));
+        }
+    }
+
+    return {who,opener,attach,place,pose};
 })();
 </script>
 <script data-source="r14-adventure-journal.js">
