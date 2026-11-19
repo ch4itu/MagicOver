@@ -3699,10 +3699,12 @@ function talkToNPC(npc) {
         ? ebStory.mira() : '';
     // R15.59: Mira and Nessa greet you according to the hour, the story and what you have talked about before.
     const opener = typeof ebLivingRest !== 'undefined' ? ebLivingRest.opener(npc) : null;
+    const rpgNote = typeof ebRpgQuests !== 'undefined' ? ebRpgQuests.onTalk(npc) : '';
     document.getElementById('modalContent').innerHTML = `
         <div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>
         <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(opener ?? npc.dialogue)}"</div>
         ${storyLine}
+        ${rpgNote ? '<p role="status">'+escapeMapText(rpgNote)+'</p>' : ''}
         ${ebFarlands.errandTalk(npc)}
         ${typeof ebJournal !== 'undefined' ? ebJournal.hint(npc) : ''}
         <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
@@ -3714,6 +3716,8 @@ function talkToNPC(npc) {
     ebVillageWork.attach(npc);
     ebJournal.attachLead(npc);
     if (typeof ebLivingRest !== 'undefined') ebLivingRest.attach(npc);
+    if (typeof ebRpgAccess !== 'undefined') ebRpgAccess.attach(npc);
+    if (typeof ebRpgQuests !== 'undefined') ebRpgQuests.attach(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
 }
 
@@ -6202,7 +6206,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
  html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-capture-location-closed) #eb-actions-collapse::after{content:'−';font-size:20px}
  html[data-eb-farlands][data-eb-immersive="first"] #eb-world-actions{flex:1 1 100%;margin-top:0}
  html[data-eb-farlands][data-eb-immersive="first"] #eb-actions-more:not([hidden]){display:inline-flex;align-items:center;min-height:44px}
- html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-actions-open) :is(#eb-shared-open,#eb-farlands-atlas-open,#eb-farlands-station-travel,#eb-farlands-local-tasks,#eb-horse-help,#eb-shared-badge,#eb-farlands-horse[data-eb-buy="true"]){display:none!important}
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-actions-open) :is(#eb-shared-open,#eb-farlands-atlas-open,#eb-farlands-station-travel,#eb-farlands-local-tasks,#eb-farlands-people,#eb-farlands-quests,#eb-horse-help,#eb-shared-badge,#eb-farlands-horse[data-eb-buy="true"]){display:none!important}
  html[data-eb-farlands][data-eb-immersive="first"] .location-info :is(.desktop-controls-hint,#eb-farlands-hint){display:none}
 }
 @media (min-width:900px) and (max-height:520px){html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-actions-open) #eb-world-clock{display:none}}
@@ -6220,7 +6224,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 @media (max-width: 768px), (max-height: 520px) and (pointer: coarse) {
     html[data-eb-farlands] #eb-actions-more:not([hidden]) { display: inline-flex; align-items: center; }
     html[data-eb-farlands] .location-info:not(.eb-actions-open) :is(#eb-shared-open, #eb-farlands-atlas-open,
-        #eb-farlands-station-travel, #eb-farlands-local-tasks, #eb-horse-help,
+        #eb-farlands-station-travel, #eb-farlands-local-tasks, #eb-farlands-people, #eb-farlands-quests, #eb-horse-help,
         #eb-farlands-horse[data-eb-buy="true"]) { display: none !important; }
     html[data-eb-farlands] .location-info:not(.eb-actions-open) #eb-shared-badge { display: none; } /* shown inside Actions */
     #eb-goal-chip { min-height: 44px; }
@@ -6555,7 +6559,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
                     <span id="eb-shared-badge" aria-live="polite">Solo adventure</span><button type="button" class="eb-panel-button" id="eb-actions-more" aria-expanded="false" aria-controls="eb-world-actions">☰ Actions</button>
                     <button type="button" class="eb-panel-button" id="eb-shared-open" hidden>Play Together</button>
                     <button type="button" class="eb-panel-button" id="eb-duel-nearby" aria-haspopup="dialog" hidden>Duel</button>
-                    <button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-atlas-open" aria-haspopup="dialog" hidden>Atlas</button><button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-station-travel" aria-haspopup="dialog" hidden title="Open available routes from this station">🚋 Travel from station</button><button id="eb-farlands-board" type="button" class="btn" hidden>⛵ Board boat</button><button id="eb-farlands-dock" type="button" class="btn" hidden>⚓ Disembark</button><button id="eb-farlands-local-tasks" type="button" class="btn" hidden>📜 Local errand</button><button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-horse" hidden aria-pressed="false" title="Solo Farlands only: ride faster on land">🐎 Mount horse</button><span id="eb-horse-help" style="font-size:11px;opacity:.85;max-width:190px" hidden>Buy at a waystation · Mount near your horse · Dismount to park it</span>
+                    <button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-atlas-open" aria-haspopup="dialog" hidden>Atlas</button><button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-station-travel" aria-haspopup="dialog" hidden title="Open available routes from this station">🚋 Travel from station</button><button id="eb-farlands-board" type="button" class="btn" hidden>⛵ Board boat</button><button id="eb-farlands-dock" type="button" class="btn" hidden>⚓ Disembark</button><button id="eb-farlands-local-tasks" type="button" class="btn" hidden>📜 Local errand</button><button id="eb-farlands-people" type="button" class="btn" hidden aria-haspopup="dialog">👥 People nearby</button><button id="eb-farlands-quests" type="button" class="btn" hidden aria-haspopup="dialog">📜 Local quests</button><button type="button" class="eb-panel-button eb-atlas-button" id="eb-farlands-horse" hidden aria-pressed="false" title="Solo Farlands only: ride faster on land">🐎 Mount horse</button><span id="eb-horse-help" style="font-size:11px;opacity:.85;max-width:190px" hidden>Buy at a waystation · Mount near your horse · Dismount to park it</span>
                 </div>
                 <p id="eb-farlands-hint" hidden></p>
                 <button type="button" class="eb-panel-button" id="eb-room-exit" hidden>Exit building</button>
@@ -13622,6 +13626,40 @@ const Farlands = (() => {
                             actors.buildings.push(building(site.name+' '+label,'house',x+dx,y+dy,site.region,site.id+'-'+label,site.story));
                     }
                 }
+                // R16.1: is (ax,ay) reachable on foot from the site centre within 14 tiles? A resident placed on ground
+                // cut off by water or rock could not be spoken to (8 of 263 before this check).
+                const walkableFrom=(sx,sy,ax,ay)=>{
+                    const open=(px,py)=>!['water','mountain','lava'].includes(sample(px,py)),seen=new Set([sx+','+sy]),queue=[[sx,sy]];
+                    for(let i=0;i<queue.length;i++){const [px,py]=queue[i];if(px===ax&&py===ay)return true;
+                        for(const [vx,vy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=px+vx,ny=py+vy;
+                            if(Math.abs(nx-sx)>14||Math.abs(ny-sy)>14||seen.has(nx+','+ny)||!open(nx,ny))continue;seen.add(nx+','+ny);queue.push([nx,ny]);}}
+                    return false;};
+                // R16: purposeful outer-ring residents, consistent across unload/reload. The authored residents retain
+                // their identities and routines. The ring avoids the village square, doorways and original interaction spots.
+                const additions=[
+                    [-10,0,'Cook','I prepare hot meals for travelers before the road takes them onward.'],
+                    [10,3,'Courier','I carry local news and messages to the next waystation.'],
+                    [0,10,'Weaver','I weave and mend cloth for the carts that pass through.'],
+                    [0,-10,'Mason','I repair the old stonework and the roads after winter.'],
+                    [9,-8,'Caravan Guard','I walk beside the caravans so they arrive safely.'],
+                    [-9,8,'Peddler','I bring small goods to the hamlets beyond the market.'],
+                    [-10,-7,'Woodcutter','I bring fuel and timber from the woods.'],
+                    [10,9,'Caretaker','I keep the public paths and resting places in good order.']
+                ];
+                let added=0,limit=site.settlement?8:5;
+                for(let i=0;i<additions.length&&added<limit;i++){
+                    const [dx,dy,role,words]=additions[i],ax=x+dx,ay=y+dy;
+                    if(ax<2||ay<2||ax>=size-2||ay>=size-2 ||
+                        ['water','mountain','lava'].includes(sample(ax,ay)) ||
+                        (site===start&&propAt(ax,ay)?.solid) ||
+                        actors.buildings.some(b=>Math.hypot(b.x-ax,b.y-ay)<2) ||
+                        actors.npcs.some(n=>Math.hypot(n.x-ax,n.y-ay)<2) ||
+                        actors.enemies.some(n=>Math.hypot(n.x-ax,n.y-ay)<2)||
+                        !walkableFrom(x,y,ax,ay))continue;
+                    actors.npcs.push({name:site.name+' '+role,class:role==='Caravan Guard'?'guard':role==='Peddler'?'merchant':'villager',
+                        x:ax,y:ay,dialogue:words+' '+site.story,realmId:site.id+'-r16-'+i,movable:i===1||i===5});
+                    added++;
+                }
                 if (site===start) actors.items.push({x:x+2,y,type:'health_potion',value:1,realmId:'rest-welcome'});
             } else {
                 const structure=building(name,'house',x+2,y-2,region,id+'-structure',story);
@@ -13655,6 +13693,45 @@ const Farlands = (() => {
                 if (!['water','mountain','lava'].includes(sample(x-1,y))) actors.npcs.push({
                     name:'Traveling Surveyor',class:'merchant',x:x-1,y,dialogue:regions[region].note
                 });
+            }
+        }
+        // R16: an occasional useful traveler on an existing road, not a grid of new villages or buildings.
+        // Every cell yields the same traveler and position regardless of where the player first approaches it.
+        // Limit to one per roadside cell and use the existing normal NPC model, interaction and patrol systems.
+        if(hash(cx,cy,196)>.20){
+            const roles=['Courier','Pilgrim','Caravan Guard','Peddler','Surveyor'];
+            const pick=Math.floor(hash(cx,cy,197)*roles.length),role=roles[pick];
+            const ox=Math.floor(hash(cx,cy,198)*4),oy=Math.floor(hash(cx,cy,199)*4);
+            let point=null;
+            for(let dy=2+oy;dy<cellSize-2&&!point;dy+=4){
+                for(let dx=2+ox;dx<cellSize-2;dx+=4){
+                    const tx=left+dx,ty=top+dy;
+                    if(tx>=size-2||ty>=size-2||nearbySite(tx,ty)||Math.hypot(tx-start.x,ty-start.y)<28 ||
+                        !trailAt(tx,ty))continue;
+                    // Stay off the actual path: villagers and travelers must not become immovable roadblocks.
+                    for(const [vx,vy] of [[-2,0],[2,0],[0,-2],[0,2],[-3,0],[3,0],[0,-3],[0,3]]){
+                        const sx=tx+vx,sy=ty+vy;
+                        if(sx<2||sy<2||sx>=size-2||sy>=size-2||nearbySite(sx,sy)||
+                            trailAt(sx,sy)||!['grass','sand','snow','stone','mud'].includes(sample(sx,sy))||
+                            actors.npcs.some(n=>Math.hypot(n.x-sx,n.y-sy)<3)||
+                            actors.enemies.some(n=>Math.hypot(n.x-sx,n.y-sy)<3)||
+                            actors.buildings.some(n=>Math.hypot(n.x-sx,n.y-sy)<3))continue;
+                        point={x:sx,y:sy};break;
+                    }
+                    if(point)break;
+                }
+            }
+            if(point){
+                const region=regionAt(point.x,point.y);
+                const words={
+                    Courier:'I am carrying news between the waystations. A safer road is worth more than a short one.',
+                    Pilgrim:'I follow the old shrines. It is easier to walk with others than alone.',
+                    'Caravan Guard':'The caravans need escorts where the roads run far from settled ground.',
+                    Peddler:'Small villages need needles, salt and other goods as much as the towns do.',
+                    Surveyor:'I mark water crossings and changes to the trail so the next traveler can find them.'
+                };
+                actors.npcs.push({name:regions[region].name+' '+role,class:role==='Caravan Guard'?'guard':role==='Peddler'?'merchant':'villager',
+                    x:point.x,y:point.y,dialogue:words[role],realmId:'road-r16-'+cx+'-'+cy,movable:false});
             }
         }
         // R15.54: use the original authored waystations, 27 named villages,
@@ -13953,6 +14030,27 @@ const ebFarlands = (() => {
         saveNow();
         return true;
     }
+    // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
+    function markRpgQuest(key) {
+        if(!journey||!surface()||sharedWorld.active()||buildingInterior||
+            !/^rq-(taken|step1|step2)-[abc]-[a-z0-9-]+$/.test(key)||journey.spent.has(key))return false;
+        journey.spent.add(key);saveNow();return true;
+    }
+    function completeRpgQuest(id,kind) {
+        if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
+            !/^[a-z0-9-]+$/.test(id)||!['a','b','c'].includes(kind))return false;
+        const site=Farlands.byId.get(id),prefix='rq-';
+        // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
+        if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
+        if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
+            !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
+            !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
+            (kind==='a'&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15];
+        journey.spent.add(prefix+'done-'+kind+'-'+id);
+        gameState.inventory.gold+=gold;gameState.player.xp+=xp;
+        checkLevelUp();updateUI();saveNow();updateHint();return true;
+    }
     function refreshStoryHint() { if(journey)updateHint(); }
     function saveStoryNow() { if(journey)saveNow(); }
 
@@ -13961,6 +14059,7 @@ const ebFarlands = (() => {
         const site=Farlands.nearbySite(x,y);
         if (site?.station) journey.station=site.id;
         if (site && !sharedWorld.active()) errandArrived(site);
+        if (site && !sharedWorld.active() && typeof ebRpgQuests!=='undefined') ebRpgQuests.onLocation(site);
         if (site && !journey.visited.has(site.id)) {
             journey.visited.add(site.id);
             if (Farlands.survey.includes(site.id) && Farlands.survey.every(id=>journey.visited.has(id))) {
@@ -14173,6 +14272,8 @@ const ebFarlands = (() => {
         const taskButton=get('eb-farlands-local-tasks');
         taskButton.hidden=!station?.station;
         if(station?.station) taskButton.textContent='📜 '+station.name+' errand';
+        get('eb-farlands-people').hidden=!surface() || shared || !!buildingInterior || gameState.inBattle;
+        get('eb-farlands-quests').hidden=!surface() || shared || !!buildingInterior || gameState.inBattle;
 
         if (!shared) get('eb-shared-badge').textContent=realm ? 'Farlands · Solo' : 'Solo adventure';
         get('mapImporterTrigger').disabled=shared || realm;
@@ -14804,7 +14905,7 @@ const ebFarlands = (() => {
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
     return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
-        completeHerbLesson,storyFlag,markStory,markTalk,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
+        completeHerbLesson,storyFlag,markStory,markTalk,markRpgQuest,completeRpgQuest,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
 </script>
@@ -15333,6 +15434,315 @@ const ebLivingRest=(()=>{
     return {who,opener,attach,place,pose};
 })();
 </script>
+<script data-source="rpg-access.js">
+// R16: solo Farlands ergonomics. Existing schedules, Mira/Nessa dialogue, special tasks,
+// direct tapping and Space selection are unchanged. No shared-world activity or network.
+const ebRpgAccess=(()=>{
+    const active=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior&&!gameState.inBattle;
+    const inReach=npc=>npcs.includes(npc)&&!npc.indoors&&Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)<=1.5;
+    const compass=(x,y)=>{
+        const dx=x-gameState.player.x,dy=y-gameState.player.y;
+        if(Math.abs(dx)<.5&&Math.abs(dy)<.5)return 'here';
+        const a=Math.atan2(dx,-dy),dirs=['N','NE','E','SE','S','SW','W','NW'];
+        return dirs[(Math.round(a/(Math.PI/4))+8)%8];
+    };
+    function nearby(){
+        if(!active())return [];
+        const all=new Set([...npcs,...(typeof ebLife!=='undefined'?ebLife.roster():[])]);
+        return [...all].filter(n=>!n.fauna&&n.name&&Number.isFinite(n.x)&&Number.isFinite(n.y))
+            .map(n=>({npc:n,distance:Math.hypot(n.x-gameState.player.x,n.y-gameState.player.y)}))
+            .filter(n=>n.distance<=18)
+            .sort((a,b)=>a.distance-b.distance||a.npc.name.localeCompare(b.npc.name)).slice(0,18);
+    }
+    function button(label,fn){
+        const b=document.createElement('button');b.type='button';b.className='btn';
+        b.textContent=label;b.style.cssText='min-height:44px;text-align:left;max-width:100%';
+        b.addEventListener('click',fn);return b;
+    }
+    function openNearby(refresh=false){
+        if(!active()||(!refresh&&movementBlocked()))return;
+        const modal=document.getElementById('interactionModal'),content=document.getElementById('modalContent');
+        document.getElementById('modalTitle').textContent='👥 People nearby';content.replaceChildren();
+        const hint=document.createElement('p');hint.textContent='Live positions. Follow the direction, then speak from nearby.';
+        hint.style.cssText='line-height:1.5;font-size:13px;margin-bottom:10px';content.append(hint);
+        const people=nearby();
+        if(!people.length){
+            const empty=document.createElement('p');empty.textContent='No residents nearby. Look for the next settlement in the Atlas.';
+            content.append(empty);
+        }
+        for(const entry of people){
+            const npc=entry.npc,distance=entry.distance;
+            const row=document.createElement('div');
+            row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid rgba(210,190,150,.18);padding:7px 0';
+            const label=document.createElement('div');label.style.cssText='min-width:0;flex:1';
+            const strong=document.createElement('strong');strong.textContent=npc.name;
+            const note=document.createElement('div');note.style.cssText='opacity:.8;font-size:12px';
+            note.textContent=npc.indoors?'At home · try in daylight':distance<.5?'Here':Math.ceil(distance)+' tiles '+compass(npc.x,npc.y);
+            label.append(strong,note);row.append(label);
+            if(inReach(npc)){
+                // R16.1: a resident on patrol may have walked out of reach since the list was drawn: show the list
+                // again with live distances instead of a Talk button that silently does nothing.
+                const talk=button('Talk',()=>{if(!active())return;if(!inReach(npc)){openNearby(true);return;}closeModal();useWorldActor('npc',npc);});
+                talk.style.minWidth='66px';row.append(talk);
+            }
+            content.append(row);
+        }
+        releaseMovement();modal.style.display='flex';
+    }
+    const roleOf=npc=>{
+        const n=npc.name.toLowerCase();
+        const roles=['waykeeper','provisioner','trail warden','herbalist','storyteller','craftsperson','pilgrim',
+            'wheelwright','millwright','farmer','shepherd','baker','gardener','merchant','village elder','surveyor','guard',
+            'fisher','innkeeper','keeper','courier','weaver','mason','peddler','woodcutter','caretaker','cook'];
+        return roles.find(r=>n.includes(r))||'traveller';
+    };
+    const work={
+        waykeeper:'I keep an eye on the roads and help travelers find their way.',
+        provisioner:'I check the caravans and make sure people have supplies.',
+        'trail warden':'I walk the paths and look for damaged bridges or trouble.',
+        herbalist:'I gather herbs and prepare remedies for travelers.',
+        storyteller:'I collect stories from every caravan passing through.',
+        craftsperson:'I repair tools and keep the settlement working.',
+        pilgrim:'I follow the shrines and mark safe places to rest.',
+        wheelwright:'I mend carts, axles and wheels before they take the road.',
+        millwright:'I keep the waterwheels turning and the timber moving downriver.',
+        farmer:'Our fields feed the village, and the weather decides our work.',
+        shepherd:'I tend the herds and keep them on safe ground.',
+        baker:'I rise early so travelers have bread before setting out.',
+        gardener:'I tend the vegetable plots and orchard beds.',
+        merchant:'I exchange local goods and hear news from other regions.',
+        'village elder':'I look after the people here and remember the settlement’s history.',
+        surveyor:'I record roads and rivers as they change.',
+        guard:'I keep watch. Beyond the village the roads can be dangerous.',
+        fisher:'I repair nets and watch the water for the next catch.',
+        innkeeper:'I offer a warm fire and shelter for the night.',
+        keeper:'I keep this place ready for anyone arriving from the road.',
+        courier:'I carry messages and news between villages.',
+        weaver:'I repair cloth and weave coverings for the carts.',
+        mason:'I keep the stonework and bridges sound.',
+        peddler:'I carry small goods to places the big caravans skip.',
+        woodcutter:'I gather wood for fires and repairs.',
+        caretaker:'I clean the meeting places and tend to travelers.',
+        cook:'I feed people on their way through.',
+        traveller:'I stop wherever the road brings me.'
+    };
+    function response(npc,topic){
+        const region=Farlands.regions[Farlands.regionAt(npc.x,npc.y)];
+        const site=Farlands.nearbySite(npc.x,npc.y);
+        if(topic==='work')return work[roleOf(npc)];
+        if(topic==='news'){
+            if(ebFarlands.storyFlag('quest-vault-reward')&&site?.region==='hearth')
+                return 'The Harvest Bell has returned. Even the travelers keep time by it.';
+            return region.name+': '+region.note+' The road changes with the season; the waykeeper may know more.';
+        }
+        const others=Farlands.sites.filter(s=>s.id!==site?.id&&s.region===(site?.region||Farlands.regionAt(npc.x,npc.y)))
+            .sort((a,b)=>Math.hypot(a.x-npc.x,a.y-npc.y)-Math.hypot(b.x-npc.x,b.y-npc.y)).slice(0,2);
+        return others.length?'Travelers mention '+others.map(s=>s.name).join(' and ')+'. Find them in the Atlas.':
+            'We are in '+region.name+'. The Atlas will show you the nearest landmarks and routes.';
+    }
+    let chat=null;
+    const visible=()=>!!chat?.box?.isConnected&&document.getElementById('interactionModal').style.display==='flex';
+    function display(npc,topic){
+        if(!visible())return;
+        const box=chat.box;box.replaceChildren();
+        const p=document.createElement('p');p.textContent=topic?response(npc,topic):'What would you like to know?';
+        p.style.cssText='line-height:1.5;margin:0 0 8px';box.append(p);
+        const choices=document.createElement('div');choices.style.cssText='display:flex;flex-direction:column;gap:8px';
+        const add=(label,fn)=>{const b=button(label,fn);b.style.width='100%';choices.append(b);};
+        if(topic)add('Ask something else',()=>display(npc));
+        else{
+            add('About your work',()=>display(npc,'work'));
+            add('Local news',()=>display(npc,'news'));
+            add('Places nearby',()=>display(npc,'places'));
+        }
+        add('Goodbye',()=>{chat=null;closeModal();});box.append(choices);
+    }
+    function attach(npc){
+        chat=null;
+        if(!active()||npc.fauna||!npcs.includes(npc)||(typeof ebLivingRest!=='undefined'&&ebLivingRest.who(npc)))return;
+        const box=document.createElement('section');
+        box.style.cssText='margin-top:14px;padding:12px;border:1px solid rgba(230,190,100,.35);border-radius:10px;text-align:left';
+        document.getElementById('modalContent').append(box);
+        chat={box,npc};display(npc);
+    }
+    document.getElementById('eb-farlands-people')?.addEventListener('click',()=>openNearby());
+    return {nearby,openNearby,attach};
+})();
+</script>
+<script data-source="rpg-local-quests.js">
+// R16: three real, finite, once-only quest chains per existing station (54 stations, 162 quests).
+// No fabricated objects: A speaks with two actual local residents; B reaches an actual site;
+// C relays news to an actual waykeeper and then reports back to the actual provisioner.
+const ebRpgQuests=(()=>{
+    const active=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior&&!gameState.inBattle;
+    const sites=()=>Farlands.sites.filter(s=>s.station);
+    // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
+    // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
+    const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
+    const stationAt=(x,y)=>sites().filter(s=>within(s,x,y)).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]??null;
+    const flag=(site,kind,part)=>ebFarlands.storyFlag('rq-'+part+'-'+kind+'-'+site.id);
+    const mark=(site,kind,part)=>ebFarlands.markRpgQuest('rq-'+part+'-'+kind+'-'+site.id);
+    const giverName=(site,kind)=>{
+        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':kind==='b'?'Nessa, the Orchard Keeper':'Ivo, the Millwright';
+        return site.name+(kind==='a'?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
+    };
+    const receiver=(site)=>giverName(site,'a');
+    const neighbor=(site,mode)=>{
+        const entries=Farlands.sites.filter(s=>s.id!==site.id&&s.region===site.region&&
+            (mode==='station'?s.station:true));
+        entries.sort((a,b)=>Math.hypot(a.x-site.x,a.y-site.y)-Math.hypot(b.x-site.x,b.y-site.y));
+        return entries[0]||null;
+    };
+    function plan(site,kind){
+        if(!site?.station||!['a','b','c'].includes(kind))return null;
+        const target=kind==='a'?site:neighbor(site,kind==='c'?'station':'any');
+        if(!target)return null;
+        const heading=kind==='a'?'Meet the local team':kind==='b'?'Check the road to '+target.name:'Carry news to '+target.name;
+        const description=kind==='a'?
+            'Speak with '+giverName(site,'c')+' and '+giverName(site,'b')+', then tell '+giverName(site,'a')+' what they said.':
+            kind==='b'?'Reach '+target.name+' after accepting, then return and tell '+giverName(site,'b')+' what you saw.':
+            'Take road news to '+receiver(target)+'. Speak directly with the recipient and relay it, then report to '+giverName(site,'c')+'.';
+        return {site,target,kind,title:heading,description,giver:giverName(site,kind),reward:kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15]};
+    }
+    const state=q=>flag(q.site,q.kind,'done')?'done':
+        flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
+    const ready=q=>flag(q.site,q.kind,'step1')&&(q.kind!=='a'||flag(q.site,q.kind,'step2'));
+    function next(q){
+        if(q.kind==='a'){
+            if(!flag(q.site,'a','step1'))return {site:q.site,label:'Speak to '+giverName(q.site,'c')};
+            if(!flag(q.site,'a','step2'))return {site:q.site,label:'Speak to '+giverName(q.site,'b')};
+        }else if(!flag(q.site,q.kind,'step1'))
+            return {site:q.target,label:q.kind==='c'?'Relay news to '+receiver(q.target):'Visit '+q.target.name};
+        return {site:q.site,label:'Report to '+q.giver};
+    }
+    const activePlans=()=>sites().flatMap(site=>['a','b','c'].map(k=>plan(site,k)).filter(Boolean))
+        .filter(q=>flag(q.site,q.kind,'taken')&&!flag(q.site,q.kind,'done'));
+    function accept(q){
+        if(!active()||!q||state(q)!=='new')return false;
+        const ok=mark(q.site,q.kind,'taken');
+        if(ok)ebFarlands.pin(q.target.id);
+        return ok;
+    }
+    function report(q,npc){
+        if(!active()||!q||state(q)!=='ready'||npc?.name!==q.giver||
+            !npcs.includes(npc)||Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5)return false;
+        return ebFarlands.completeRpgQuest(q.site.id,q.kind);
+    }
+    function onLocation(site){
+        if(!active())return;
+        for(const q of activePlans()){
+            if(q.kind==='b'&&within(q.target,gameState.player.x,gameState.player.y)&&!flag(q.site,'b','step1')){
+                if(mark(q.site,'b','step1')){
+                    showFloatingText('Road checked · return to '+q.giver,gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
+                    ebFarlands.refreshStoryHint();
+                }
+            }
+        }
+    }
+    function onTalk(npc){
+        if(!active()||!npc||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return '';
+        const here=stationAt(npc.x,npc.y),notes=[];
+        for(const q of activePlans()){
+            if(q.kind!=='a'||q.site.id!==here?.id)continue;
+            if(npc.name===giverName(q.site,'c')&&mark(q.site,'a','step1'))notes.push('You have spoken with '+npc.name+'.');
+            if(npc.name===giverName(q.site,'b')&&mark(q.site,'a','step2'))notes.push('You have spoken with '+npc.name+'.');
+        }
+        if(notes.length)ebFarlands.refreshStoryHint();
+        return notes.join(' ');
+    }
+    const button=(label,fn)=>{
+        const b=document.createElement('button');b.type='button';b.className='btn';
+        b.style.cssText='min-height:44px;width:100%;text-align:left;margin:4px 0';
+        b.textContent=label;b.addEventListener('click',fn);return b;
+    };
+    function card(q,npc){
+        const box=document.createElement('section');
+        box.style.cssText='text-align:left;margin-top:12px;padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px';
+        const head=document.createElement('strong');head.textContent='📜 '+q.title;
+        const desc=document.createElement('p');desc.textContent=q.description;
+        desc.style.cssText='line-height:1.5;font-size:13px;margin:8px 0';
+        const status=document.createElement('p');status.style.cssText='font-size:13px;margin:5px 0';
+        box.append(head,desc,status);
+        const actions=document.createElement('div');box.append(actions);
+        const refresh=()=>{
+            const v=state(q);actions.replaceChildren();
+            status.textContent=v==='done'?'Completed · reward collected':
+                v==='new'?'Available · reward '+q.reward[0]+' gold and '+q.reward[1]+' XP':
+                'In progress · '+next(q).label;
+            if(v==='new')actions.append(button('Accept quest',()=>{
+                if(accept(q)){refresh();ebFarlands.refreshStoryHint();}
+            }));
+            else if(v==='ready'&&npc?.name===q.giver)actions.append(button('Report back · collect '+q.reward[0]+' gold',()=>{
+                if(report(q,npc)){refresh();status.textContent='Quest completed · +'+q.reward[0]+' gold · +'+q.reward[1]+' XP';}
+            }));
+            else if(v!=='done')actions.append(button('Track next step',()=>{ebFarlands.pin(next(q).site.id);status.textContent='Tracking · '+next(q).label;}));
+        };
+        refresh();return box;
+    }
+    function attach(npc){
+        if(!active()||!npc||npc.fauna||!npcs.includes(npc))return;
+        const content=document.getElementById('modalContent');
+        const here=stationAt(npc.x,npc.y);
+        if(here){
+            for(const kind of ['a','b','c']){
+                const q=plan(here,kind);
+                if(q&&npc.name===q.giver)content.append(card(q,npc));
+            }
+        }
+        // A courier message requires a deliberate handover to the destination's actual waykeeper.
+        for(const q of activePlans()){
+            if(q.kind!=='c'||q.target.id!==here?.id||flag(q.site,'c','step1')||npc.name!==receiver(q.target))continue;
+            const box=document.createElement('section');box.style.cssText='margin-top:12px;text-align:left;padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px';
+            const p=document.createElement('p');p.textContent='News from '+q.site.name+' for '+npc.name+'.';
+            box.append(p,button('Relay the road news',()=>{
+                if(!active()||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return;
+                if(mark(q.site,'c','step1')){
+                    p.textContent='Message received. Return to '+q.giver+' at '+q.site.name+'.';
+                    box.querySelector('button')?.remove();ebFarlands.pin(q.site.id);
+                    ebFarlands.refreshStoryHint();
+                }
+            }));
+            content.append(box);
+        }
+    }
+    function journal(){
+        if(!active())return '';
+        const ongoing=activePlans();
+        if(!ongoing.length)return '';
+        const escape=escapeMapText;
+        return '<section style="padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px;text-align:left"><strong>📜 Local quests · '+ongoing.length+' in progress</strong>'+
+            ongoing.map(q=>'<p style="line-height:1.5">'+escape(q.title)+' · '+escape(next(q).label)+
+                ' <button type="button" class="btn" style="min-height:44px" onclick="ebRpgQuests.track(\''+
+                q.kind+'\',\''+q.site.id+'\')">Track</button></p>').join('')+'</section>';
+    }
+    function track(kind,id){
+        const q=plan(Farlands.byId.get(id),kind);
+        if(!active()||!q||!flag(q.site,kind,'taken')||flag(q.site,kind,'done'))return false;
+        const ok=ebFarlands.pin(next(q).site.id);closeModal();return ok;
+    }
+    function goal(){
+        if(!active())return null;
+        for(const q of activePlans()){
+            const step=next(q);
+            if(ebFarlands.pinned()===step.site.id)return {label:'Local quest · '+step.label,site:step.site};
+        }
+        return null;
+    }
+    function board(){
+        if(!active()||movementBlocked())return;
+        const site=stationAt(gameState.player.x,gameState.player.y);
+        if(!site){if(typeof ebJournal!=='undefined')ebJournal.open();return;}
+        document.getElementById('modalTitle').textContent='📜 '+site.name+' quests';
+        const content=document.getElementById('modalContent');content.replaceChildren();
+        const intro=document.createElement('p');intro.textContent='Talk to local residents to follow these quests, or accept one here. Report to the actual giver for a reward.';
+        content.append(intro);
+        for(const kind of ['a','b','c']){const q=plan(site,kind);if(q)content.append(card(q,null));}
+        releaseMovement();document.getElementById('interactionModal').style.display='flex';
+    }
+    document.getElementById('eb-farlands-quests')?.addEventListener('click',board);
+    return {plan,accept,onTalk,onLocation,attach,board,journal,track,goal};
+})();
+</script>
 <script data-source="r14-adventure-journal.js">
 // R14: read-only Farlands exploration stories. Uses the existing saved discovery set;
 // never writes to shared accounts, changes combat, or duplicates reward grants.
@@ -15360,7 +15770,7 @@ const ebJournal = (() => {
             const storyCard=quest ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.5);border-radius:10px;text-align:left"><strong>🔔 The Silent Harvest · Story Quest</strong><p style="margin:8px 0">The Harvest Bell lies in the locked archive beneath the Old Tollhouse. Find the ward key at Millbend, defeat the Archive Warden, recover the bell and return it to Mira at Wayfarer’s Rest.</p><p style="margin:0"><strong>Now:</strong> ${escapeMapText(quest.label)}</p></section>` : '';
             const errands=ebFarlands.errandsInHand().map(e=>`<li style="margin:6px 0">${escapeMapText(e.label)} <button type="button" class="btn" style="min-height:40px;margin-left:6px" onclick="ebFarlands.pin('${e.site.id}');closeModal()">Show</button></li>`).join('');
             const errandCard=errands ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.35);border-radius:10px;text-align:left"><strong>📜 Errands</strong><ul style="margin:6px 0 0;padding-left:18px">${errands}</ul></section>` : '';
-            document.getElementById('modalContent').innerHTML = storyCard+errandCard+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
+            document.getElementById('modalContent').innerHTML = storyCard+errandCard+(typeof ebRpgQuests!=='undefined'?ebRpgQuests.journal():'')+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
         }
         releaseMovement();
         document.getElementById('interactionModal').style.display='flex';
@@ -15399,6 +15809,8 @@ const ebJournal = (() => {
         if (quest && !quest.done) return {quest,next:quest.site??null};
         const errand=ebFarlands.errandGoal(); // R15.57: an errand in hand whose place is pinned, when no story step is open
         if (errand) return {quest:{label:errand.label},next:errand.site,errand:true};
+        const local=typeof ebRpgQuests!=='undefined'?ebRpgQuests.goal():null;
+        if(local)return {quest:{label:local.label},next:local.site,errand:true};
         if (!ebFarlands.surface()) return null;
         const visited=ebFarlands.discoveries();
         for (const chapter of chapters) {
