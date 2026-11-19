@@ -3773,19 +3773,22 @@ function escapeMapText(value) {
 
 function talkToNPC(npc) {
     document.getElementById('modalTitle').textContent = npc.name;
+    const rewardedBefore = ebFarlands.storyFlag('quest-vault-reward');
     const storyLine = npc.name==='Mira, the Cartographer' && ebFarlands.surface() && !sharedWorld.active()
         ? ebStory.mira() : '';
+    const storyReady = storyLine && !rewardedBefore && ebFarlands.storyFlag('quest-vault-reward');
     // R15.59: Mira and Nessa greet you according to the hour, the story and what you have talked about before.
     const opener = typeof ebLivingRest !== 'undefined' ? ebLivingRest.opener(npc) : null;
     const rpgNote = typeof ebRpgQuests !== 'undefined' ? ebRpgQuests.onTalk(npc) : '';
+    const unified = ebFarlands.surface() && !sharedWorld.active() && !buildingInterior;
     document.getElementById('modalContent').innerHTML = `
-        <div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>
+        ${unified ? ebTalkHead(npc) : `<div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>`}
         <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(opener ?? npc.dialogue)}"</div>
-        ${storyLine}
         ${rpgNote ? '<p role="status">'+escapeMapText(rpgNote)+'</p>' : ''}
+        ${storyLine ? (storyReady ? '<div role="status">'+storyLine+'</div>' : '<div data-eb-pane="quests">'+storyLine+'</div>') : ''}
         ${ebFarlands.errandTalk(npc)}
         ${typeof ebJournal !== 'undefined' ? ebJournal.hint(npc) : ''}
-        <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
+        <div class="eb-esc-hint" style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
             Press ESC or click Close to continue your journey
         </div>
     `;
@@ -3796,7 +3799,48 @@ function talkToNPC(npc) {
     if (typeof ebLivingRest !== 'undefined') ebLivingRest.attach(npc);
     if (typeof ebRpgAccess !== 'undefined') ebRpgAccess.attach(npc);
     if (typeof ebRpgQuests !== 'undefined') ebRpgQuests.attach(npc);
+    if (unified) ebOrganizeTalk(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
+}
+
+// R17: one conversation window (solo Farlands). Every part is still built by its own system (living talk, local
+// topics, quest cards, errand offer, herb lesson, story, leads) with its own rules and rewards; this only gives the
+// window a header and shows one part at a time behind a row of tabs, so nothing is stacked or pushed off screen.
+// Parts that need you now (an errand offered, a report or a message ready) open first; a reward just paid (an errand
+// done, the bell returned) stays in view above the tabs whichever part is open.
+function ebTalkHead(npc) {
+    const site = Farlands.nearbySite(npc.x, npc.y);
+    const named = npc.name.includes(',');
+    const role = named ? '' : site && npc.name.startsWith(site.name + ' ') ? npc.name.slice(site.name.length + 1) : '';
+    const where = site ? site.name : '';
+    const line = [role, where].filter(Boolean).join(' · ');
+    return `<div id="eb-talk-head"><span aria-hidden="true">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</span>${line ? '<span>'+escapeMapText(line)+'</span>' : ''}</div>`;
+}
+const ebTalkPanes = [['talk','💬 Talk'],['quests','📜 Quests'],['errand','🧭 Errand'],['help','🌿 Help']];
+function ebOrganizeTalk(npc) {
+    const content = document.getElementById('modalContent');
+    const parts = [...content.querySelectorAll(':scope > [data-eb-pane]')];
+    const present = ebTalkPanes.filter(([id]) => parts.some(el => el.dataset.ebPane === id));
+    if (present.length < 2) return;                     // one part: shown as it is, no tabs
+    const ready = parts.find(el => el.dataset.ebReady)?.dataset.ebPane;
+    const bar = document.createElement('div');
+    bar.id = 'eb-talk-tabs'; bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', 'Talk with ' + npc.name);
+    const show = id => {
+        for (const el of parts) el.hidden = el.dataset.ebPane !== id;
+        for (const b of bar.children) b.setAttribute('aria-selected', String(b.dataset.ebPane === id));
+    };
+    for (const [id, label] of present) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn'; b.dataset.ebPane = id; b.setAttribute('role', 'tab');
+        const n = parts.filter(el => el.dataset.ebPane === id).length;
+        b.textContent = label + (id === 'quests' && n > 1 ? ' · ' + n : '') + (parts.some(el => el.dataset.ebPane === id && el.dataset.ebReady) ? ' ●' : '');
+        b.addEventListener('click', () => show(id));
+        bar.append(b);
+    }
+    content.insertBefore(bar, parts[0]);
+    const hint = content.querySelector(':scope > .eb-esc-hint');
+    if (hint) content.append(hint);
+    show(ready || (present.some(([id]) => id === 'talk') ? 'talk' : present[0][0]));
 }
 
 function interactWithBuilding(building) {
@@ -5931,6 +5975,34 @@ body { height: 100dvh; }
 .import-tab, .preset-card { color: inherit; min-height: 44px; }
 .preset-card { text-align: left; }
 .import-btn, .help-close, #interactionModal .btn, .battle-actions .btn { min-height: 44px; }
+/* R17: the conversation window: a small header, then tabs for the parts this person actually offers. */
+#eb-talk-head { display:flex; align-items:center; justify-content:center; gap:8px; margin:-6px 0 10px; font-size:13px; opacity:.85; }
+#eb-talk-head > span:first-child { font-size:22px; line-height:1; }
+#eb-talk-tabs { position:sticky; top:-16px; z-index:2; display:flex; flex-wrap:wrap; gap:6px; margin:12px -4px 4px; padding:6px 4px;
+    background:rgba(18,34,58,.96); border-radius:10px; }
+#eb-talk-tabs .btn { flex:1 1 0; min-width:0; min-height:44px; padding:6px 8px; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#eb-talk-tabs .btn[aria-selected="true"] { background:#e2c56f; color:#1b2433; border-color:#e2c56f; }
+#modalContent > [data-eb-pane][hidden] { display:none !important; }
+@media (pointer: coarse) { #modalContent .eb-esc-hint { display:none; } }
+/* Short landscape screens: header and words on the left, tabs and the open part on the right; choices two abreast. */
+@media (orientation: landscape) and (max-height: 520px) {
+    #interactionModal .modal-content:has(#eb-talk-head) { width:min(96vw,820px); max-width:820px; padding:10px 14px;
+        max-height:calc(100dvh - 8px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+    #interactionModal .modal-content:has(#eb-talk-head) h3 { font-size:19px; margin:0 0 4px; }
+    #interactionModal .modal-content:has(#eb-talk-head) > div:last-child { margin-top:6px !important; }
+    #modalContent:has(> #eb-talk-head) { display:grid; grid-template-columns:minmax(0,36%) minmax(0,1fr); column-gap:14px;
+        align-items:start; grid-auto-flow:row dense; text-align:left; }
+    #modalContent:has(> #eb-talk-head) > * { grid-column:2; }
+    #modalContent:has(> #eb-talk-head) > #eb-talk-head,
+    #modalContent:has(> #eb-talk-head) > div[style*="italic"],
+    #modalContent:has(> #eb-talk-head) > p[role="status"] { grid-column:1; }
+    #modalContent:has(> #eb-talk-head) > #eb-talk-head { justify-content:flex-start; margin:0 0 6px; }
+    #modalContent:has(> #eb-talk-head) > div[style*="italic"] { font-size:14px; line-height:1.45 !important; }
+    #modalContent:has(> #eb-talk-head) > #eb-talk-tabs { margin-top:0; top:-10px; }
+    #modalContent:has(> #eb-talk-head) > [data-eb-pane] { margin-top:6px !important; }
+    #modalContent:has(> #eb-talk-head) > [data-eb-pane] > div:has(> button) { display:grid !important; grid-template-columns:1fr 1fr; }
+    #modalContent:has(> #eb-talk-head) > [data-eb-pane] .btn { padding:6px 10px; font-size:12px; line-height:1.25; }
+}
 
 @media (pointer: coarse), (max-width: 768px) {
     .main-game { --eb-footer-height: calc(75px + var(--eb-safe-bottom)); }
@@ -14598,9 +14670,11 @@ const ebFarlands = (() => {
         const task=errandFor(site);
         if(npc.name!==task.giver)return '';
         const state=errandState(task);
-        if(state==='reached'&&finishErrand(task))return errandThanks(task);
-        if(state==='taken')return `<div style="margin-top:14px;opacity:.9">"Have you been to ${escapeMapText(task.target.name)} yet? Come and tell me when you have."</div>`;
-        if(state==='new')return `<div style="margin-top:14px;padding:10px;border:1px solid rgba(230,190,100,.5);border-radius:10px">"Could you ${escapeMapText(task.ask)}? Come back here and tell me when you have."<div style="margin:6px 0 10px;opacity:.85">Reward: ${ERRAND_GOLD} gold and ${ERRAND_XP} XP</div><div style="display:flex;gap:10px;justify-content:center"><button type="button" class="btn btn-primary" id="eb-errand-accept" style="min-height:44px" onclick="ebFarlands.acceptOfferedErrand()">Accept</button><button type="button" class="btn" id="eb-errand-later" style="min-height:44px" onclick="closeModal()">Not now</button></div></div>`;
+        // R17: each part says which section of the conversation window it belongs to (presentation only)
+        const pane=(html,ready)=>html.replace('<div ','<div data-eb-pane="errand"'+(ready?' data-eb-ready="1"':'')+' ');
+        if(state==='reached'&&finishErrand(task))return errandThanks(task); // a reward just paid: always in view
+        if(state==='taken')return pane(`<div style="margin-top:14px;opacity:.9">"Have you been to ${escapeMapText(task.target.name)} yet? Come and tell me when you have."</div>`);
+        if(state==='new')return pane(`<div style="margin-top:14px;padding:10px;border:1px solid rgba(230,190,100,.5);border-radius:10px">"Could you ${escapeMapText(task.ask)}? Come back here and tell me when you have."<div style="margin:6px 0 10px;opacity:.85">Reward: ${ERRAND_GOLD} gold and ${ERRAND_XP} XP</div><div style="display:flex;gap:10px;justify-content:center"><button type="button" class="btn btn-primary" id="eb-errand-accept" style="min-height:44px" onclick="ebFarlands.acceptOfferedErrand()">Accept</button><button type="button" class="btn" id="eb-errand-later" style="min-height:44px" onclick="closeModal()">Not now</button></div></div>`,true); // an offer made to you opens first, as before
         return '';
     }
     function openLocalErrand() {
@@ -15453,7 +15527,7 @@ const ebVillageWork=(()=>{
     function attach(npc){
         session=null;
         if(npc?.realmId!=='rest-resident-0'||!ebFarlands.surface()||sharedWorld.active()||buildingInterior)return;
-        const box=document.createElement('section');box.id='eb-village-work';box.style.cssText='margin-top:16px;padding:12px;border:1px solid #7f9e79;border-radius:8px;text-align:left';
+        const box=document.createElement('section');box.id='eb-village-work';box.dataset.ebPane='help';box.style.cssText='margin-top:16px;padding:12px;border:1px solid #7f9e79;border-radius:8px;text-align:left';
         document.getElementById('modalContent').append(box);
         if(ebFarlands.storyFlag(KEY)){box.textContent='Herb lesson complete · the parcels you helped bundle are on their way.';return;}
         const b=document.createElement('button');b.type='button';b.className='btn';b.id='eb-herb-start';b.style.minHeight='44px';b.disabled=!closeEnough(npc);b.textContent='Help bundle herbs';
@@ -15574,7 +15648,7 @@ const ebLivingRest=(()=>{
 
     // ---- the conversation in the existing window --------------------------------------------------------------
     let talk=null;
-    const visible=()=>document.getElementById('interactionModal').style.display==='flex'&&talk?.box.isConnected;
+    const visible=()=>document.getElementById('interactionModal').style.display==='flex'&&talk?.box.isConnected&&!talk.box.hidden;
     function button(label,onChoose){
         const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;
         b.style.cssText='min-height:44px;width:100%;text-align:left;margin:0';
@@ -15609,7 +15683,7 @@ const ebLivingRest=(()=>{
     function attach(npc){
         talk=null;
         const id=who(npc); if(!id)return;
-        const box=document.createElement('section');box.id='eb-living-talk';
+        const box=document.createElement('section');box.id='eb-living-talk';box.dataset.ebPane='talk';
         box.style.cssText='margin-top:16px;padding:12px;border:1px solid rgba(230,190,100,.45);border-radius:10px;text-align:left';
         document.getElementById('modalContent').append(box);
         remember(id+'-met');
@@ -15821,7 +15895,7 @@ const ebRpgAccess=(()=>{
     function attach(npc){
         chat=null;
         if(!active()||npc.fauna||!npcs.includes(npc)||(typeof ebLivingRest!=='undefined'&&ebLivingRest.who(npc)))return;
-        const box=document.createElement('section');
+        const box=document.createElement('section');box.dataset.ebPane='talk';
         box.style.cssText='margin-top:14px;padding:12px;border:1px solid rgba(230,190,100,.35);border-radius:10px;text-align:left';
         document.getElementById('modalContent').append(box);
         chat={box,npc};display(npc);
@@ -15947,13 +16021,13 @@ const ebRpgQuests=(()=>{
         if(here){
             for(const kind of ['a','b','c']){
                 const q=plan(here,kind);
-                if(q&&npc.name===q.giver)content.append(card(q,npc));
+                if(q&&npc.name===q.giver){const c=card(q,npc);c.dataset.ebPane='quests';if(state(q)==='ready')c.dataset.ebReady='1';content.append(c);}
             }
         }
         // A courier message requires a deliberate handover to the destination's actual waykeeper.
         for(const q of activePlans()){
             if(q.kind!=='c'||q.target.id!==here?.id||flag(q.site,'c','step1')||npc.name!==receiver(q.target))continue;
-            const box=document.createElement('section');box.style.cssText='margin-top:12px;text-align:left;padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px';
+            const box=document.createElement('section');box.dataset.ebPane='quests';box.dataset.ebReady='1';box.style.cssText='margin-top:12px;text-align:left;padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px';
             const p=document.createElement('p');p.textContent='News from '+q.site.name+' for '+npc.name+'.';
             box.append(p,button('Relay the road news',()=>{
                 if(!active()||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return;
@@ -16058,10 +16132,10 @@ const ebJournal = (() => {
     function hint(npc) {
         if (!npc.realmId || !ebFarlands.inRealm() || sharedWorld.active()) return '';
         const lead=leadFor(npc);
-        if(lead)return `<section style="margin-top:14px;padding:12px;border:1px solid #8d987a;border-radius:8px;text-align:left"><strong>${escapeMapText(npc.name)} · A road worth taking</strong><p>${escapeMapText(lead.story)}</p><p>${escapeMapText(lead.name)} · ${escapeMapText(Farlands.regions[lead.region].name)}</p><div id="eb-rumor-action"></div></section>`;
+        if(lead)return `<section data-eb-pane="quests" style="margin-top:14px;padding:12px;border:1px solid #8d987a;border-radius:8px;text-align:left"><strong>${escapeMapText(npc.name)} · A road worth taking</strong><p>${escapeMapText(lead.story)}</p><p>${escapeMapText(lead.name)} · ${escapeMapText(Farlands.regions[lead.region].name)}</p><div id="eb-rumor-action"></div></section>`;
         const visited=ebFarlands.discoveries();
         const next=chapters.flatMap(ch=>ch.ids).map(id=>Farlands.byId.get(id)).find(site=>site && !visited.has(site.id));
-        return next ? `<p style="margin-top:12px;font-size:13px;opacity:.85">📖 Explorer’s lead: ${escapeMapText(next.name)} in ${escapeMapText(Farlands.regions[next.region].name)}. Check your journal and Atlas.</p>` : '';
+        return next ? `<p data-eb-pane="talk" style="margin-top:12px;font-size:13px;opacity:.85">📖 Explorer’s lead: ${escapeMapText(next.name)} in ${escapeMapText(Farlands.regions[next.region].name)}. Check your journal and Atlas.</p>` : '';
     }
     // R15.36: the HUD goal: the first unfinished chapter and its next landmark. A tap pins that landmark (the Atlas pin,
     // so the card shows its distance and direction); a second tap opens this journal.
