@@ -10668,7 +10668,14 @@ window.addEventListener('load', () => {
                 1 - 2 * (event.clientY - bounds.top) / bounds.height);
             this.ray.setFromCamera(this.eyeMode ? new T.Vector2(0,0) : this.pointer,
                 this.eyeMode ? this.eyeCamera : this.camera);
-            const hits=this.ray.intersectObjects(this.targets || [], false), hit=hits[0];
+            let hits=this.ray.intersectObjects(this.targets || [], false);
+            // R17: in solo Farlands a touch picks what is seen. A building's pick box is a cuboid, larger than a pitched
+            // or tapered roof, so a touch on someone standing behind the roofline can cross the box without touching the
+            // building itself; such box-only hits are passed over.
+            if(!this.eyeMode && ebFarlands.surface() && !sharedWorld.active())
+                hits=hits.filter(h=>{const rec=h.object.userData.record;return rec?.kind!=='building' ||
+                    this.ray.intersectObject(rec.model.group,true).some(v=>v.object!==rec.pick && v.object.visible!==false && v.object.material?.visible!==false);});
+            const hit=hits[0];
             if(this.eyeMode && (!hit || hit.distance>4.4))return null;
             // R17: in solo Farlands, a person standing at a building's front (the inn keeper at the door, a trader at
             // the market) is chosen over the wall the same touch also crosses just before them.
