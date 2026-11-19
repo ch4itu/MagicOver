@@ -6003,6 +6003,9 @@ body { height: 100dvh; }
     #modalContent:has(> #eb-talk-head) > [data-eb-pane] > div:has(> button) { display:grid !important; grid-template-columns:1fr 1fr; }
     #modalContent:has(> #eb-talk-head) > [data-eb-pane] .btn { padding:6px 10px; font-size:12px; line-height:1.25; }
 }
+/* The conversation window appears in place (no slide), so a choice is where it is drawn from the first frame. */
+#interactionModal .modal-content { animation: ebModalFade .25s ease; }
+@keyframes ebModalFade { from { opacity:0; } to { opacity:1; } }
 
 @media (pointer: coarse), (max-width: 768px) {
     .main-game { --eb-footer-height: calc(75px + var(--eb-safe-bottom)); }
