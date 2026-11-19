@@ -14031,7 +14031,8 @@ const ebFarlands = (() => {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
             !/^[a-z0-9-]+$/.test(id)||!['a','b','c'].includes(kind))return false;
         const site=Farlands.byId.get(id),prefix='rq-';
-        if(!site?.station||Farlands.nearbySite(gameState.player.x,gameState.player.y)?.id!==id)return false;
+        // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
+        if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
         if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
             !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
             !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
@@ -15566,6 +15567,10 @@ const ebRpgAccess=(()=>{
 const ebRpgQuests=(()=>{
     const active=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior&&!gameState.inBattle;
     const sites=()=>Farlands.sites.filter(s=>s.station);
+    // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
+    // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
+    const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
+    const stationAt=(x,y)=>sites().filter(s=>within(s,x,y)).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]??null;
     const flag=(site,kind,part)=>ebFarlands.storyFlag('rq-'+part+'-'+kind+'-'+site.id);
     const mark=(site,kind,part)=>ebFarlands.markRpgQuest('rq-'+part+'-'+kind+'-'+site.id);
     const giverName=(site,kind)=>{
@@ -15617,7 +15622,7 @@ const ebRpgQuests=(()=>{
     function onLocation(site){
         if(!active())return;
         for(const q of activePlans()){
-            if(q.kind==='b'&&q.target.id===site.id&&!flag(q.site,'b','step1')){
+            if(q.kind==='b'&&within(q.target,gameState.player.x,gameState.player.y)&&!flag(q.site,'b','step1')){
                 if(mark(q.site,'b','step1')){
                     showFloatingText('Road checked · return to '+q.giver,gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
                     ebFarlands.refreshStoryHint();
@@ -15627,11 +15632,11 @@ const ebRpgQuests=(()=>{
     }
     function onTalk(npc){
         if(!active()||!npc||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return '';
-        const here=Farlands.nearbySite(npc.x,npc.y),notes=[];
+        const here=stationAt(npc.x,npc.y),notes=[];
         for(const q of activePlans()){
             if(q.kind!=='a'||q.site.id!==here?.id)continue;
-            if(npc.name===giverName(q.site,'c')&&mark(q.site,'a','step1'))notes.push('You have spoken with the provisioner.'); 
-            if(npc.name===giverName(q.site,'b')&&mark(q.site,'a','step2'))notes.push('You have spoken with the trail warden.');
+            if(npc.name===giverName(q.site,'c')&&mark(q.site,'a','step1'))notes.push('You have spoken with '+npc.name+'.');
+            if(npc.name===giverName(q.site,'b')&&mark(q.site,'a','step2'))notes.push('You have spoken with '+npc.name+'.');
         }
         if(notes.length)ebFarlands.refreshStoryHint();
         return notes.join(' ');
@@ -15668,8 +15673,8 @@ const ebRpgQuests=(()=>{
     function attach(npc){
         if(!active()||!npc||npc.fauna||!npcs.includes(npc))return;
         const content=document.getElementById('modalContent');
-        const here=Farlands.nearbySite(npc.x,npc.y);
-        if(here?.station){
+        const here=stationAt(npc.x,npc.y);
+        if(here){
             for(const kind of ['a','b','c']){
                 const q=plan(here,kind);
                 if(q&&npc.name===q.giver)content.append(card(q,npc));
@@ -15716,8 +15721,8 @@ const ebRpgQuests=(()=>{
     }
     function board(){
         if(!active()||movementBlocked())return;
-        const site=Farlands.nearbySite(gameState.player.x,gameState.player.y);
-        if(!site?.station){if(typeof ebJournal!=='undefined')ebJournal.open();return;}
+        const site=stationAt(gameState.player.x,gameState.player.y);
+        if(!site){if(typeof ebJournal!=='undefined')ebJournal.open();return;}
         document.getElementById('modalTitle').textContent='📜 '+site.name+' quests';
         const content=document.getElementById('modalContent');content.replaceChildren();
         const intro=document.createElement('p');intro.textContent='Talk to local residents to follow these quests, or accept one here. Report to the actual giver for a reward.';
