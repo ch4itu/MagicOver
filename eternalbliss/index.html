@@ -13554,6 +13554,86 @@ const Farlands = (() => {
     function cache(x,y,id,value = 18) {
         return {x,y,type:'treasure',value,realmId:id};
     }
+    // R17: a working day for the generated residents of every waystation and village, run by ebLife like the people of
+    // Wayfarer's Rest. Each entry is [from hour, place, what they are doing there]; place names refer to this site's
+    // own buildings, roads and fields. Waykeepers keep their post and Rest's authored residents keep their own days.
+    const villageDay = {
+        'Provisioner':[[6,'market','Counting crates at the market before the caravans come in.'],[12,'inn','Eating a quick meal at the inn.'],[13,'market','Trading supplies with travellers at the market.'],[19,'inn','Settling the day’s accounts by the inn fire.'],[22,'home']],
+        'Trail Warden':[[6,'roadA','Checking the road out of the village for washouts.'],[11,'centre','Back in the square to hear what travellers saw on the road.'],[14,'roadB','Walking the far road to the next marker stone.'],[18,'inn','Off duty for the evening at the inn.'],[22,'home']],
+        'Herbalist':[[6,'wild','Gathering herbs at the edge of the village while the dew is on them.'],[11,'market','Selling herb bundles at the market.'],[16,'temple','Bringing remedies to the hall for anyone who is unwell.'],[20,'home']],
+        'Storyteller':[[9,'centre','Telling stories to anyone who stops in the square.'],[14,'inn','Trading tales with the travellers at the inn.'],[23,'home']],
+        'Craftsperson':[[7,'work','Mending tools at the workshop.'],[12,'market','Trading repaired tools at the market.'],[14,'work','Back at the bench, fitting a new handle.'],[19,'inn','Resting tired hands at the inn.'],[22,'home']],
+        'Pilgrim':[[6,'temple','Saying the morning prayers at the hall.'],[10,'centre','Asking travellers about the old roads.'],[15,'temple','Resting at the hall before the evening walk.'],[21,'home']],
+        'Farmer':[[6,'field','Working the fields while it is cool.'],[12,'barn','Hauling the morning’s harvest to the granary.'],[14,'field','Back in the fields until the light goes.'],[19,'inn','Supper at the inn after a long day.'],[21,'home']],
+        'Shepherd':[[6,'pasture','Taking the herd out to pasture.'],[17,'barn','Bringing the herd back to the barn.'],[20,'home']],
+        'Baker':[[5,'market','Baking bread for the morning travellers.'],[13,'home'],[16,'market','Selling the afternoon loaves.'],[20,'home']],
+        'Gardener':[[7,'garden','Weeding the vegetable plots.'],[12,'centre','Drawing water for the gardens.'],[14,'garden','Picking what is ripe for the market.'],[19,'home']],
+        'Merchant':[[8,'market','Trading goods from the waystation at the market.'],[13,'inn','Hearing the news at the inn over a meal.'],[14,'market','Back at the stall, haggling over prices.'],[20,'inn','Counting the day’s takings at the inn.'],[22,'home']],
+        'Village Elder':[[8,'temple','Meeting the villagers in the hall.'],[12,'centre','Walking the square to see how everyone is.'],[17,'temple','Settling a quarrel in the hall.'],[21,'home']],
+        'Cook':[[6,'inn','Cooking breakfast at the inn.'],[10,'market','Buying vegetables at the market.'],[11,'inn','Cooking for the midday crowd at the inn.'],[21,'home']],
+        'Courier':[[7,'roadA','Setting out with letters for the next waystation.'],[12,'market','Collecting new letters at the market.'],[14,'roadB','Carrying messages down the far road.'],[19,'inn','Resting tired feet at the inn.'],[22,'home']],
+        'Weaver':[[7,'work','Weaving cart covers at the workshop.'],[13,'market','Selling cloth at the market.'],[15,'work','Back at the loom.'],[20,'home']],
+        'Mason':[[7,'roadB','Resetting loose stones on the road.'],[12,'inn','A meal and a rest at the inn.'],[13,'roadA','Repairing the road on the other side of the village.'],[19,'home']],
+        'Caravan Guard':[[6,'market','Guarding the caravan as it unloads at the market.'],[11,'roadA','Escorting the caravan to the edge of the village.'],[15,'market','Standing watch over the caravan wagons.'],[20,'inn','Off duty at the inn.'],[23,'home']],
+        'Peddler':[[8,'market','Laying out small wares at the market.'],[13,'centre','Calling out wares in the square.'],[16,'roadA','Taking the leftover wares to the outlying farms.'],[20,'inn','Resting at the inn.'],[22,'home']],
+        'Woodcutter':[[6,'wild','Cutting wood at the edge of the village.'],[12,'work','Stacking timber by the workshop.'],[14,'wild','Back to the woods for another load.'],[19,'home']],
+        'Caretaker':[[7,'temple','Sweeping the hall steps.'],[11,'centre','Tidying the square.'],[15,'temple','Tending the hall garden.'],[20,'home']]
+    };
+    function villageLife(site,actors) {
+        const {x,y} = site, taken = new Set();
+        // Authored places stay clear: the resident tiles of Wayfarer's Rest's own people, and three tiles around Mira, so
+        // Space beside her still reaches her (see restLife).
+        const authored = actors.npcs.filter(n => n.routine).flatMap(n => n.routine.filter(e => !e.home).map(e => [e.x,e.y]))
+            .concat(actors.npcs.filter(n => !n.fauna && !n.movable && !n.routine &&
+                !(n.name.startsWith(site.name+' ') && villageDay[n.name.slice(site.name.length+1)])).map(n => [n.x,n.y]));
+        const blocked = (tx,ty) => ['water','mountain','lava'].includes(sample(tx,ty)) || (site===start && propAt(tx,ty)?.solid) ||
+            actors.buildings.some(b => (b.x===tx && b.y===ty) || (b.fixed && tx>=b.fixed[0] && tx<b.fixed[0]+b.fixed[2] && ty>=b.fixed[1] && ty<b.fixed[1]+b.fixed[3])) ||
+            authored.some(([ax,ay]) => Math.hypot(ax-tx,ay-ty) < 2) || (site===start && Math.hypot(tx-(x-1),ty-(y+1)) <= 3);
+        // the nearest open tile to (ax,ay) that no other resident of this site has been given, at any hour
+        const fit = (ax,ay,from) => {
+            for (let r=0;r<=5;r++) for (let dy=-r;dy<=r;dy++) for (let dx=-r;dx<=r;dx++) {
+                if (Math.max(Math.abs(dx),Math.abs(dy))!==r) continue;
+                const tx=ax+dx, ty=ay+dy, key=tx+','+ty+(from==='door'?'@door':'');
+                if (!blocked(tx,ty) && !taken.has(key)) { taken.add(key); return {x:tx,y:ty}; }
+            }
+            return {x:ax,y:ay};
+        };
+        const named = suffix => actors.buildings.find(b => b.name===site.name+' '+suffix || b.name===suffix);
+        const front = b => b ? {x:b.fixed ? b.fixed[0]+1 : b.x, y:b.fixed ? b.fixed[1]+b.fixed[3] : b.y+1} : null;
+        const ring = (lo,hi,test) => {
+            const found=[];
+            for (let r=lo;r<=hi;r++) for (let a=0;a<16;a++) {
+                const tx=Math.round(x+Math.cos(a*Math.PI/8)*r), ty=Math.round(y+Math.sin(a*Math.PI/8)*r);
+                if (!blocked(tx,ty) && test(tx,ty)) found.push({x:tx,y:ty,a});
+            }
+            return found;
+        };
+        const roads = ring(9,13,(tx,ty) => trailAt(tx,ty));
+        const roadA = roads[0] ?? {x:x-9,y}, roadB = roads.find(t => Math.abs(((t.a-(roads[0]?.a??0))+16)%16-8)<=3) ?? {x:x+9,y};
+        const wild = ring(9,12,(tx,ty) => !trailAt(tx,ty) && ['grass','forest','snow','sand'].includes(sample(tx,ty)))[0] ?? roadB;
+        const services = site.services ?? [];
+        const place = {
+            inn:front(named(services[0])), market:front(named(services[1])), temple:front(named(services[2])), work:front(named(services[3])),
+            centre:{x,y:y+1}, roadA, roadB, wild,
+            field:ring(6,11,(tx,ty) => farmlandAt(tx,ty))[0] ?? wild,
+            garden:front(named('Farmhouse')) ?? wild, pasture:{x:x+9,y:y+6}, barn:front(named('Granary')) ?? front(named('Barn')) ?? wild
+        };
+        const homeOf = role => front(['Farmer','Shepherd','Gardener'].includes(role) ? (named('Farm Cottage') ?? named('Farmhouse')) :
+            ['Provisioner','Cook','Courier','Caravan Guard','Peddler','Trail Warden','Pilgrim','Storyteller'].includes(role) ? named(services[0]) : named('Cottage')) ??
+            front(named(services[0])) ?? {x,y:y+2};
+        actors.npcs.forEach((npc,k) => {
+            if (npc.routine || npc.fauna || !npc.name.startsWith(site.name+' ')) return;
+            const role = npc.name.slice(site.name.length+1), day = villageDay[role];
+            if (!day) return;
+            const late = Math.floor(hash(x+k,y,301)*4)/8;       // up to 45 minutes, so the village does not move in step
+            const door = homeOf(role);
+            Object.assign(npc,{movable:false,homeDoor:fit(door.x,door.y,'door'),
+                routine:day.map(([from,where,says]) => where==='home' ? {from:from+late,home:true} :
+                    {from:from+late,...fit((place[where]??place.centre).x,(place[where]??place.centre).y,from),says,fit:true})});
+            delete npc.patrol;
+        });
+    }
+
     function sceneCell(cx,cy) {
         const actors = {buildings:[],npcs:[],enemies:[],items:[]};
         const left=cx*cellSize, top=cy*cellSize;
@@ -13660,6 +13740,7 @@ const Farlands = (() => {
                         x:ax,y:ay,dialogue:words+' '+site.story,realmId:site.id+'-r16-'+i,movable:i===1||i===5});
                     added++;
                 }
+                villageLife(site,actors); // R17: a working day for the generated residents
                 if (site===start) actors.items.push({x:x+2,y,type:'health_potion',value:1,realmId:'rest-welcome'});
             } else {
                 const structure=building(name,'house',x+2,y-2,region,id+'-structure',story);
@@ -15071,12 +15152,28 @@ const ebLife = (() => {
         return slot;
     }
     const goalOf = (npc,slot) => slot.home ? npc.homeDoor : slot;
+    // R17: a generated resident's place is chosen before the scene's structures are known; the first time it is used
+    // with the scene loaded, a place inside a structure moves to the nearest walkable tile (Rest's authored places do not).
+    function usable(npc,slot) {
+        const goal = goalOf(npc,slot);
+        if (!(slot.fit || (slot.home && npc.routine.some(entry => entry.fit))) || goal.checked) return goal;
+        goal.checked = true;
+        if (canEntityMoveTo(goal.x,goal.y)) return goal;
+        for (let r=1;r<=3;r++) for (let dy=-r;dy<=r;dy++) for (let dx=-r;dx<=r;dx++)
+            if (Math.max(Math.abs(dx),Math.abs(dy))===r && canEntityMoveTo(goal.x+dx,goal.y+dy)) { goal.x+=dx; goal.y+=dy; return goal; }
+        return goal;
+    }
+    const DISTANT = 40;   // R17: beyond this many tiles from the hero a resident does not walk: they are where the hour says
     // Shortest way over walkable tiles, four directions, inside the village and its edges only.
-    function route(fromX,fromY,toX,toY) {
+    // R17: with `closest`, an unreachable goal yields the way to the reachable tile nearest to it instead of nothing.
+    function route(fromX,fromY,toX,toY,closest=false) {
         const span = 18, key = (x,y) => (y-fromY+span*2)*200+(x-fromX+span*2);
         const seen = new Map([[key(fromX,fromY),null]]), queue = [[fromX,fromY]];
+        let best = null, bestD = Infinity;
         for (let i=0;i<queue.length;i++) {
             const [x,y] = queue[i];
+            const d = Math.abs(x-toX)+Math.abs(y-toY);
+            if (closest && d < bestD) { bestD = d; best = [x,y]; }
             if (x===toX && y===toY) {
                 const path = [];
                 for (let at=[x,y];at;at=seen.get(key(at[0],at[1]))) path.push(at);
@@ -15088,6 +15185,11 @@ const ebLife = (() => {
                 seen.set(key(nx,ny),[x,y]);
                 queue.push([nx,ny]);
             }
+        }
+        if (closest && best) {
+            const path = [];
+            for (let at=best;at;at=seen.get(key(at[0],at[1]))) path.push(at);
+            return path.reverse().slice(1);
         }
         return null;
     }
@@ -15126,7 +15228,10 @@ const ebLife = (() => {
                 }
             }
             if (npc.indoors) continue;
-            const goal = goalOf(npc,slot);
+            const goal = usable(npc,slot);
+            if (Math.hypot(hero.x-npc.x,hero.y-npc.y) > DISTANT && (npc.x!==goal.x || npc.y!==goal.y)) {
+                npc.x = goal.x; npc.y = goal.y; life.path = null;
+            }
             if (npc.x===goal.x && npc.y===goal.y) {
                 if (slot.home) {                             // night: in at the door
                     npc.indoors = true;
@@ -15143,6 +15248,13 @@ const ebLife = (() => {
             if (now < life.retry) continue;
             if (!life.path) {
                 life.path = route(Math.round(npc.x),Math.round(npc.y),goal.x,goal.y);
+                // R17: a generated resident whose place cannot be reached takes the nearest reachable tile as the place
+                if (!life.path && goal.checked) {
+                    const near = route(Math.round(npc.x),Math.round(npc.y),goal.x,goal.y,true);
+                    const end = near?.at(-1) ?? [Math.round(npc.x),Math.round(npc.y)];
+                    goal.x = end[0]; goal.y = end[1]; life.path = near;
+                    if (!near?.length) { npc.x = goal.x; npc.y = goal.y; continue; }
+                }
                 if (!life.path) { life.retry = now+5000; continue; }
             }
             const next = life.path[0];
