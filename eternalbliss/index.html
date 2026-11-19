@@ -13633,6 +13633,20 @@ const Farlands = (() => {
         return siteIndex.get(bucketKey(x,y,featureSize))?.find(s =>
             Math.max(Math.abs(s.x-x),Math.abs(s.y-y))<=s.radius);
     }
+    // R17: where the player (or a resident) is. Five landmarks overlap a settlement (Pearl Banks sits 3 tiles from
+    // Shellwick's centre); nearbySite() above returns the first match in index order, so 37 tiles at the heart of
+    // Shellwick resolved to Pearl Banks for the HUD, the station kept for rescue, errand arrival and quest arrival.
+    // Gameplay now resolves to the site whose centre is nearest among those whose area holds the tile; world
+    // generation keeps nearbySite() so no field, prop or spawn moves.
+    function siteAt(x,y) {
+        let best=null,bestD=Infinity;
+        for (const s of siteIndex.get(bucketKey(x,y,featureSize)) ?? []) {
+            if (Math.max(Math.abs(s.x-x),Math.abs(s.y-y))>s.radius) continue;
+            const d=Math.hypot(s.x-x,s.y-y);
+            if (d<bestD) { best=s; bestD=d; }
+        }
+        return best;
+    }
     function trailAt(x,y) {
         return roadIndex.get(bucketKey(x,y,featureSize))?.some(s => {
             const vx=x-s.x, vy=y-s.y;
@@ -14186,7 +14200,7 @@ const Farlands = (() => {
         }
     }
 
-    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite,farmlandAt,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
+    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
         sceneCell,remember,hash};
 })();
 
