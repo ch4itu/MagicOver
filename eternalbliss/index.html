@@ -3048,7 +3048,7 @@ function renderAllEntities() {
         nameOverlay.textContent = npc.name.split(' ')[0];
         npcEl.appendChild(nameOverlay);
         
-        npcEl.onclick = () => useWorldActor('npc', npc);
+        npcEl.onclick = () => ebTapPerson(npc);
         classicSprites.npc.push(npcEl);
         npcEl.title = npc.name;
         worldGrid.appendChild(npcEl);
@@ -3182,6 +3182,7 @@ function movePlayer(dx, dy) {
         const fromX=gameState.player.x,fromY=gameState.player.y;
         gameState.player.x = newX;
         gameState.player.y = newY;
+        ebHeroHeading = [dx,dy];
         ebLocalStepObserver?.(fromX,fromY,newX,newY);
 
         gameState.player.isMoving = true;
@@ -3631,6 +3632,8 @@ function collectItem(index) {
 
 function useWorldActor(kind, data) {
     if (movementBlocked()) return;
+    if (walkRoute?.then && walkRoute.then.npc !== data) { clearWalkRoute(); ebApproach = null; }
+    if (kind === 'npc') ebEngaged = {npc:data,x:gameState.player.x,y:gameState.player.y};
     const group = kind === 'building' ? buildings : kind === 'npc' ? npcs : enemies;
     if (!group.includes(data)) return;
     if (buildingInterior && kind === 'npc' && data.roomHost) { interactInside(data); return; }
@@ -3643,10 +3646,69 @@ function useWorldActor(kind, data) {
     if (distance <= (kind === 'building' ? 2 : 1.5)) {
         if (kind === 'building') interactWithBuilding(data);
         else talkToNPC(data);
-    } else {
+    } else if (!(kind === 'npc' && approachToTalk(data))) {
         showFloatingText('Too far from ' + data.name + '!', gameState.player.x * 32 + 16,
             gameState.player.y * 32 - 20, '#ef4444');
     }
+}
+
+// R17: in solo Farlands, touching someone out of reach walks the hero to a free tile beside them (the existing tap-to-walk
+// route) and opens the conversation on arrival; if they have moved on, the hero follows up to twice more.
+function canApproach(npc) {
+    return ebFarlands.surface() && !sharedWorld.active() && !buildingInterior && !gameState.inBattle && !npc.fauna &&
+        !(gameState.sailingMoves > 0) && npcs.includes(npc) && Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y) <= 18;
+}
+function approachToTalk(npc, tries = 0) {
+    if (!canApproach(npc)) return false;
+    const cx = Math.round(npc.x), cy = Math.round(npc.y), here = gameState.player;
+    const spots = [];
+    for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++) {
+        const tx=cx+dx, ty=cy+dy;
+        if ((dx || dy) && Math.hypot(tx-npc.x,ty-npc.y) <= 1.45 && canEntityMoveTo(tx,ty)) spots.push([tx,ty]);
+    }
+    spots.sort((a,b) => Math.hypot(a[0]-here.x,a[1]-here.y)-Math.hypot(b[0]-here.x,b[1]-here.y));
+    for (const [tx,ty] of spots) {
+        if (tx===here.x && ty===here.y) { arriveToTalk({npc,tries}); return true; }
+        if (walkTo(tx,ty,{npc,tries})) {
+            if (!ebApproachDanger(walkRoute ? walkRoute.steps : [])) return true;
+            clearWalkRoute(); ebApproach = null;
+            showFloatingText('Not safe to walk over', here.x*32+16, here.y*32-20, '#ef4444');
+            return true; // handled: the warning replaces "Too far"
+        }
+    }
+    return false;
+}
+// A walk to talk never leads into a fight: no route step within two tiles of a hostile.
+function ebApproachDanger(steps) {
+    const foes = enemies.filter(e => !e.defeated && Number.isFinite(e.x));
+    return steps.some(([x,y]) => foes.some(e => Math.hypot(e.x-x,e.y-y) <= 2));
+}
+// R17: when one touch lands on people standing together, ask which of them is meant instead of guessing.
+function ebChoosePerson(people) {
+    if (movementBlocked()) return;
+    const content = document.getElementById('modalContent');
+    document.getElementById('modalTitle').textContent = 'Who would you like to talk to?';
+    content.replaceChildren();
+    for (const npc of people) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn'; b.textContent = npc.name;
+        b.style.cssText = 'display:block;width:100%;min-height:44px;margin:0 0 8px;text-align:left';
+        b.addEventListener('click', () => { closeModal(); useWorldActor('npc', npc); });
+        content.append(b);
+    }
+    releaseMovement();
+    document.getElementById('interactionModal').style.display = 'flex';
+}
+function ebTapPerson(npc) {
+    const solo = ebFarlands.surface() && !sharedWorld.active() && !buildingInterior && !npc.fauna;
+    const group = solo ? npcs.filter(n => n === npc || (!n.fauna && !n.indoors && Math.hypot(n.x-npc.x,n.y-npc.y) < .6)) : [npc];
+    if (group.length > 1) ebChoosePerson(group); else useWorldActor('npc', npc);
+}
+function arriveToTalk({npc,tries}) {
+    if (!npcs.includes(npc) || movementBlocked()) return;
+    if (Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y) <= 1.5) { useWorldActor('npc',npc); return; }
+    if (tries < 2 && approachToTalk(npc,tries+1)) return;
+    showFloatingText(npc.name.split(',')[0] + ' has moved on', gameState.player.x*32+16, gameState.player.y*32-20, '#e9c987');
 }
 
 function interact() {
@@ -3661,6 +3723,22 @@ function interact() {
             Math.hypot(gameState.player.x - actor.x, gameState.player.y - actor.y);
         // the nearest in reach, so the building or NPC beside the hero wins over one two steps away
         let nearby = null, nearest = Infinity;
+        // R17: in solo Farlands, among people within reach, the one last touched or walked up to, then the one the
+        // hero faces, then the nearest. A neighbour half a step nearer no longer takes the conversation.
+        if (kind==='npc' && ebFarlands.surface() && !sharedWorld.active()) {
+            const [hx,hy] = ebHeroHeading, hl = Math.hypot(hx,hy) || 1;
+            const reach = actors.filter(actor => !actor.fauna && distance(actor) <= range);
+            const held = ebEngaged && ebEngaged.x===gameState.player.x && ebEngaged.y===gameState.player.y &&
+                reach.includes(ebEngaged.npc) ? ebEngaged.npc : null;
+            const score = actor => actor===held ? -10 : distance(actor) -
+                .6*((actor.x-gameState.player.x)*hx+(actor.y-gameState.player.y)*hy)/hl/Math.max(.01,distance(actor));
+            const pick = reach.sort((a,b) => score(a)-score(b))[0];
+            const mira = reach.find(actor => actor.name==='Mira, the Cartographer');
+            const miraTie = mira && ebFarlands.storyFlag('quest-vault-relic') && !ebFarlands.storyFlag('quest-vault-reward') &&
+                distance(mira) <= Math.min(...reach.map(distance));
+            const chosen = miraTie ? mira : pick;
+            if (chosen) { useWorldActor(kind, chosen); return; }
+        }
         for (const actor of actors) {
             const d = distance(actor);
             // A reachable pending quest wins a distance tie with generic village dialogue.
@@ -4499,6 +4577,10 @@ ebRelativeDirections.lastOctant=null;
 const heldMovement = new Map();
 let movementTimer = 0;
 let walkRoute = null;
+// R17: the direction of the hero's last step and the person last touched or walked up to, for choosing who Space talks
+// to among several within reach. Session state only; never saved or sent.
+// ebEngaged: {npc,x,y}, valid while the hero stays on that tile. ebApproach: the walk-and-talk in progress, if any.
+let ebHeroHeading = [0,1], ebEngaged = null, ebApproach = null;
 
 function movementBlocked() {
     return gameState.inBattle ||
@@ -4519,6 +4601,7 @@ function releaseMovement() {
     heldMovement.forEach(({ button }) => button?.classList.remove('active'));
     heldMovement.clear();
     clearWalkRoute();
+    ebApproach = null;
     const pad = document.getElementById('eb-joystick');
     pad?.classList.remove('active');
     pad?.style.removeProperty('--pad-x');
@@ -4569,9 +4652,18 @@ function repeatMovement() {
         }
     } else if (walkRoute) {
         const { x, y } = gameState.player;
+        if (walkRoute.then && ebApproachDanger([[x, y], ...walkRoute.steps.slice(walkRoute.index, walkRoute.index + 3)])) {
+            clearWalkRoute(); ebApproach = null;
+            showFloatingText('Danger ahead', x * 32 + 16, y * 32 - 20, '#ef4444');
+            return;
+        }
         const step = walkRoute.steps[walkRoute.index];
         if (!step || !movePlayer(step[0] - x, step[1] - y)) clearWalkRoute();
-        else if (walkRoute && ++walkRoute.index >= walkRoute.steps.length) clearWalkRoute();
+        else if (walkRoute && ++walkRoute.index >= walkRoute.steps.length) {
+            const then = walkRoute.then;
+            clearWalkRoute();
+            if (then && then === ebApproach) setTimeout(() => { if (then === ebApproach) { ebApproach = null; arriveToTalk(then); } }, 0);
+        }
     }
     if (heldMovement.size || walkRoute) movementTimer = setTimeout(repeatMovement, ebHorseMounted && ebFarlands.surface() && !sharedWorld.active() ? 65 : 120);
 }
@@ -4582,6 +4674,7 @@ function holdMovement(id, directions, button) {
     const current = heldMovement.get(id);
     if (current?.directions.join() === directions.join()) return;
     clearWalkRoute();
+    ebApproach = null;
     if (current) {
         current.directions = directions;
         current.step = 0;
@@ -4669,7 +4762,7 @@ function findWalkRoute(targetX, targetY) {
     return [];
 }
 
-function walkTo(x, y) {
+function walkTo(x, y, then = null) {
     if (movementBlocked()) return false;
     releaseMovement();
     const steps = findWalkRoute(x, y);
@@ -4680,7 +4773,8 @@ function walkTo(x, y) {
     marker.style.left = (x * 32 + 16) + 'px';
     marker.style.top = (y * 32 + 16) + 'px';
     document.getElementById('worldGrid').append(marker);
-    walkRoute = { x, y, steps, index: 0, marker };
+    walkRoute = { x, y, steps, index: 0, marker, then };
+    ebApproach = then;
     repeatMovement();
     return true;
 }
@@ -10574,9 +10668,17 @@ window.addEventListener('load', () => {
                 1 - 2 * (event.clientY - bounds.top) / bounds.height);
             this.ray.setFromCamera(this.eyeMode ? new T.Vector2(0,0) : this.pointer,
                 this.eyeMode ? this.eyeCamera : this.camera);
-            const hit=this.ray.intersectObjects(this.targets || [], false)[0];
+            const hits=this.ray.intersectObjects(this.targets || [], false), hit=hits[0];
             if(this.eyeMode && (!hit || hit.distance>4.4))return null;
-            return hit?.object.userData.record || null;
+            // R17: in solo Farlands, a person standing at a building's front (the inn keeper at the door, a trader at
+            // the market) is chosen over the wall the same touch also crosses just before them.
+            const first=hit?.object.userData.record;
+            if(first?.kind==='building' && ebFarlands.surface() && !sharedWorld.active()){
+                const person=hits.find(h=>h.object.userData.record?.kind==='npc' && h.distance-hit.distance<=2.5 &&
+                    !h.object.userData.record.data.fauna);
+                if(person)return person.object.userData.record;
+            }
+            return first || null;
         }
 
         // Only solo Farlands uses the eye-level combat presentation; shared/legacy battle framing is unchanged.
@@ -10787,11 +10889,29 @@ window.addEventListener('load', () => {
                 }
             }
             const hit = this.aim(event);
-            if (hit) this.activate(hit);
+            const crowd = hit?.kind === 'npc' ? this.crowdAt(hit) : [];
+            if (crowd.length > 1) ebChoosePerson(crowd);
+            else if (hit) this.activate(hit);
             else if (this.active && event.pointerType !== 'touch' && event.button === 0 &&
                 this.ray.ray.intersectPlane(this.walkPlane, this.groundHit)) {
                 walkTo(Math.round(this.groundHit.x), Math.round(this.groundHit.z));
             }
+        }
+
+        // R17: the people a touch on this person also crosses, standing within a tile behind them (solo
+        // Farlands, third person). One person: an empty list, the touch selects them as before.
+        crowdAt(hit) {
+            if (this.eyeMode || !ebFarlands.surface() || sharedWorld.active() || buildingInterior) return [];
+            const out = [], seen = new Set();
+            let first = null;
+            for (const h of this.ray.intersectObjects(this.targets || [], false)) {
+                const rec = h.object.userData.record;
+                if (rec?.kind !== 'npc' || rec.data.fauna || seen.has(rec.data)) continue;
+                first ??= h.distance;
+                if (h.distance - first > 1) break;
+                seen.add(rec.data); out.push(rec.data);
+            }
+            return out.includes(hit.data) && out.length > 1 ? out : [];
         }
 
         activate(hit) {
@@ -13480,7 +13600,8 @@ const Farlands = (() => {
         3:{name:'Wren, a Pilgrim',home:'chapel',day:[
             [6,-6,3,'I walk the old roads to every waystation. This shrine is for those who did not finish the walk.'],
             [10,1,-2,'The water here is the best on the river road. Drink before Millbend.'],
-            [16,-6,3,['I will stay until the bell rings again. It does not feel right to leave before.','The bell rings again. I will take the road at first light, and gladly.']],
+            // R17: the west side of the shrine, so Wren and Nessa (17:00, in front of it) no longer share a tile
+            [16,-7,4,['I will stay until the bell rings again. It does not feel right to leave before.','The bell rings again. I will take the road at first light, and gladly.']],
             [21]]}
     };
     function restResident(npc,who) {
@@ -15596,6 +15717,10 @@ const ebRpgAccess=(()=>{
                 // again with live distances instead of a Talk button that silently does nothing.
                 const talk=button('Talk',()=>{if(!active())return;if(!inReach(npc)){openNearby(true);return;}closeModal();useWorldActor('npc',npc);});
                 talk.style.minWidth='66px';row.append(talk);
+            }else if(!npc.indoors&&npcs.includes(npc)&&distance<=18){
+                // R17: walk over and talk, with the same approach as touching them in the world
+                const go=button('Go & talk',()=>{if(!active())return;closeModal();if(!approachToTalk(npc))showFloatingText('No way through to '+npc.name.split(',')[0],gameState.player.x*32+16,gameState.player.y*32-20,'#ef4444');});
+                go.style.minWidth='66px';row.append(go);
             }
             content.append(row);
         }
