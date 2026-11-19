@@ -10628,12 +10628,18 @@ window.addEventListener('load', () => {
             if (labels && sx >= 12 && sx <= this.width - 12 && sy >= 12 && sy <= this.height - 12) {
                 const halfWidth = Math.min(node.classList.contains('eb-human-tag') ? 76 : Infinity,node.textContent.length*2.8+8);
                 sx = Math.max(halfWidth + 4, Math.min(this.width - halfWidth - 4, sx));
+                const own = sy;
                 for (const label of labels) {
                     if (Math.abs(sx - label.x) < halfWidth + label.halfWidth && Math.abs(sy - label.y) < 22) {
                         sy = label.y - 22;
                     }
                 }
                 labels.push({ x: sx, y: sy, halfWidth });
+                // R17: in solo Farlands a name lifted off its own figure to clear another name sits over other people;
+                // it stays readable but lets touches through to the figures below it (touching one of them still
+                // selects them, and overlapping figures ask which one).
+                const lifted = sy !== own && ebFarlands.surface() && !sharedWorld.active();
+                if (node.style.pointerEvents !== (lifted ? 'none' : '')) node.style.pointerEvents = lifted ? 'none' : '';
             }
             const visible = depth > -1 && depth < 1 && sx >= 12 && sx <= this.width - 12 &&
                 sy >= 12 && sy <= this.height - 12;
@@ -10672,9 +10678,14 @@ window.addEventListener('load', () => {
             // R17: in solo Farlands a touch picks what is seen. A building's pick box is a cuboid, larger than a pitched
             // or tapered roof, so a touch on someone standing behind the roofline can cross the box without touching the
             // building itself; such box-only hits are passed over.
-            if(!this.eyeMode && ebFarlands.surface() && !sharedWorld.active())
-                hits=hits.filter(h=>{const rec=h.object.userData.record;return rec?.kind!=='building' ||
-                    this.ray.intersectObject(rec.model.group,true).some(v=>v.object!==rec.pick && v.object.visible!==false && v.object.material?.visible!==false);});
+            const solo=!this.eyeMode && ebFarlands.surface() && !sharedWorld.active();
+            if(solo) hits=hits.filter(h=>{const rec=h.object.userData.record;return rec?.kind!=='building' || this.seen(rec);});
+            // People keep their generous touch boxes, but when the touch is on one person's figure and only on the box
+            // of someone standing just in front, the person whose figure it is wins.
+            if(solo && hits[0]?.object.userData.record?.kind==='npc' && !this.seen(hits[0].object.userData.record)){
+                const shown=hits.find(h=>{const rec=h.object.userData.record;return rec?.kind==='npc' && !rec.data.fauna && this.seen(rec);});
+                if(shown) hits=[shown,...hits.filter(h=>h!==shown)];
+            }
             const hit=hits[0];
             if(this.eyeMode && (!hit || hit.distance>4.4))return null;
             // R17: in solo Farlands, a person standing at a building's front (the inn keeper at the door, a trader at
@@ -10905,15 +10916,21 @@ window.addEventListener('load', () => {
             }
         }
 
-        // R17: the people a touch on this person also crosses, standing within a tile behind them (solo
-        // Farlands, third person). One person: an empty list, the touch selects them as before.
+        // R17: the people whose figures this touch crosses, standing within a tile of each other (solo Farlands, third
+        // person): figures that really overlap on screen. One person: an empty list, the touch selects them as before.
+        // Whether this touch ray crosses the visible figure of an actor, not only its invisible touch box.
+        seen(rec) {
+            return this.ray.intersectObject(rec.model.group, true).some(v => v.object !== rec.pick &&
+                v.object.visible !== false && v.object.material?.visible !== false);
+        }
+
         crowdAt(hit) {
             if (this.eyeMode || !ebFarlands.surface() || sharedWorld.active() || buildingInterior) return [];
             const out = [], seen = new Set();
             let first = null;
             for (const h of this.ray.intersectObjects(this.targets || [], false)) {
                 const rec = h.object.userData.record;
-                if (rec?.kind !== 'npc' || rec.data.fauna || seen.has(rec.data)) continue;
+                if (rec?.kind !== 'npc' || rec.data.fauna || seen.has(rec.data) || !this.seen(rec)) continue;
                 first ??= h.distance;
                 if (h.distance - first > 1) break;
                 seen.add(rec.data); out.push(rec.data);
