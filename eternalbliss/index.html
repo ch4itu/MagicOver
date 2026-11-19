@@ -13626,6 +13626,14 @@ const Farlands = (() => {
                             actors.buildings.push(building(site.name+' '+label,'house',x+dx,y+dy,site.region,site.id+'-'+label,site.story));
                     }
                 }
+                // R16.1: is (ax,ay) reachable on foot from the site centre within 14 tiles? A resident placed on ground
+                // cut off by water or rock could not be spoken to (8 of 263 before this check).
+                const walkableFrom=(sx,sy,ax,ay)=>{
+                    const open=(px,py)=>!['water','mountain','lava'].includes(sample(px,py)),seen=new Set([sx+','+sy]),queue=[[sx,sy]];
+                    for(let i=0;i<queue.length;i++){const [px,py]=queue[i];if(px===ax&&py===ay)return true;
+                        for(const [vx,vy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=px+vx,ny=py+vy;
+                            if(Math.abs(nx-sx)>14||Math.abs(ny-sy)>14||seen.has(nx+','+ny)||!open(nx,ny))continue;seen.add(nx+','+ny);queue.push([nx,ny]);}}
+                    return false;};
                 // R16: purposeful outer-ring residents, consistent across unload/reload. The authored residents retain
                 // their identities and routines. The ring avoids the village square, doorways and original interaction spots.
                 const additions=[
@@ -13646,7 +13654,8 @@ const Farlands = (() => {
                         (site===start&&propAt(ax,ay)?.solid) ||
                         actors.buildings.some(b=>Math.hypot(b.x-ax,b.y-ay)<2) ||
                         actors.npcs.some(n=>Math.hypot(n.x-ax,n.y-ay)<2) ||
-                        actors.enemies.some(n=>Math.hypot(n.x-ax,n.y-ay)<2))continue;
+                        actors.enemies.some(n=>Math.hypot(n.x-ax,n.y-ay)<2)||
+                        !walkableFrom(x,y,ax,ay))continue;
                     actors.npcs.push({name:site.name+' '+role,class:role==='Caravan Guard'?'guard':role==='Peddler'?'merchant':'villager',
                         x:ax,y:ay,dialogue:words+' '+site.story,realmId:site.id+'-r16-'+i,movable:i===1||i===5});
                     added++;
