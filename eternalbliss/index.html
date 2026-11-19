@@ -3804,6 +3804,7 @@ function talkToNPC(npc) {
     if (typeof ebLivingRest !== 'undefined') ebLivingRest.attach(npc);
     if (typeof ebRpgAccess !== 'undefined') ebRpgAccess.attach(npc);
     if (typeof ebRpgQuests !== 'undefined') ebRpgQuests.attach(npc);
+    if (unified) ebTradeAttach(npc);
     if (unified) ebOrganizeTalk(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
 }
@@ -3839,7 +3840,60 @@ function ebTalkHead(npc) {
     const line = [role, where].filter(Boolean).join(' · ');
     return `<div id="eb-talk-head"><span aria-hidden="true">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</span>${line ? '<span>'+escapeMapText(line)+'</span>' : ''}</div>`;
 }
-const ebTalkPanes = [['talk','💬 Talk'],['quests','📜 Quests'],['errand','🧭 Errand'],['help','🌿 Help']];
+const ebTalkPanes = [['talk','💬 Talk'],['trade','🪙 Trade'],['quests','📜 Quests'],['errand','🧭 Errand'],['help','🌿 Help']];
+// R17: trading with a resident who is keeping a stall. The goods and prices are the shop's own (interactWithBuilding,
+// 'shop'), bought through the shop's own buyItem: the same gold check, the same inventory, nothing else to keep.
+// Solo Farlands only (shared worlds keep their shop service). Offered by Provisioners and Merchants (the shop's four
+// goods) and Peddlers (the two potions), only while they stand at their market place in the hours their day puts
+// them there. There is no inventory limit in the game, so none is added; the journey is saved straight after a buy.
+const ebTradeGoods = [['health','🧪 Health Potion','Restores 30-50 HP',15,'healthPotions'],['mana','🔮 Mana Potion','Restores 20-30 MP',10,'manaPotions'],
+    ['boat','⛵ Boat','Cross water for 15 moves',50,'boats'],['pickaxe','⛏️ Pickaxe','Break mountains (10 uses)',75,'pickaxe']];
+function ebTrader(npc) {
+    if (!ebFarlands.surface() || sharedWorld.active() || buildingInterior || !npc?.ebRole || npc.indoors) return null;
+    const slot = npc.life?.slot;
+    if (!slot || slot.where !== 'market' || Math.hypot(npc.x-slot.x, npc.y-slot.y) > .08) return null;
+    return npc.ebRole === 'Provisioner' || npc.ebRole === 'Merchant' ? ebTradeGoods :
+        npc.ebRole === 'Peddler' ? ebTradeGoods.slice(0,2) : null;
+}
+function ebTradeAttach(npc) {
+    const goods = ebTrader(npc);
+    if (!goods) return;
+    const box = document.createElement('section');
+    box.dataset.ebPane = 'trade'; box.id = 'eb-trade';
+    box.style.cssText = 'margin-top:14px;padding:12px;border:1px solid rgba(230,190,100,.35);border-radius:10px;text-align:left';
+    const draw = note => {
+        box.replaceChildren();
+        const head = document.createElement('p');
+        head.style.cssText = 'margin:0 0 8px;line-height:1.4';
+        head.textContent = (note ? note + ' ' : '') + 'You have ' + gameState.inventory.gold + ' gold.';
+        box.append(head);
+        for (const [type, label, use, cost, field] of goods) {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.08)';
+            const text = document.createElement('div');
+            const owned = gameState.inventory[field] ?? 0;
+            text.innerHTML = '<strong></strong><div style="font-size:12px;opacity:.8"></div>';
+            text.firstChild.textContent = label;
+            text.lastChild.textContent = use + ' · you have ' + owned + (type === 'pickaxe' ? ' uses' : '');
+            const buy = document.createElement('button');
+            buy.type = 'button'; buy.className = 'btn btn-primary'; buy.style.minWidth = '96px';
+            buy.textContent = cost + ' gold';
+            buy.disabled = gameState.inventory.gold < cost;
+            buy.setAttribute('aria-label', 'Buy ' + label.replace(/^\S+\s/, '') + ' for ' + cost + ' gold');
+            buy.addEventListener('click', () => {
+                if (!ebTrader(npc) || gameState.inventory.gold < cost) { draw('You cannot buy that now.'); return; }
+                const before = gameState.inventory.gold;
+                buyItem(type, cost);
+                if (gameState.inventory.gold === before - cost) ebFarlands.saveStoryNow();
+                draw(gameState.inventory.gold === before - cost ? 'Bought.' : 'Not bought.');
+            });
+            row.append(text, buy);
+            box.append(row);
+        }
+    };
+    draw('');
+    document.getElementById('modalContent').append(box);
+}
 function ebOrganizeTalk(npc) {
     const content = document.getElementById('modalContent');
     const parts = [...content.querySelectorAll(':scope > [data-eb-pane]')];
