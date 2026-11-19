@@ -3813,6 +3813,14 @@ function talkToNPC(npc) {
 // window a header and shows one part at a time behind a row of tabs, so nothing is stacked or pushed off screen.
 // Parts that need you now (an errand offered, a report or a message ready) open first; a reward just paid (an errand
 // done, the bell returned) stays in view above the tabs whichever part is open.
+// R17: the resident the player has picked: walking to them, talking with them, or last touched / spoken to while
+// still nearby. Shown with a ring and a highlighted name (presentation only).
+function ebSelectedNpc() {
+    if (ebApproach?.npc && npcs.includes(ebApproach.npc)) return ebApproach.npc;
+    if (ebTalkOpen()) return ebTalkPartner;
+    const e = ebEngaged?.npc;
+    return e && npcs.includes(e) && !e.indoors && Math.hypot(e.x-gameState.player.x, e.y-gameState.player.y) <= 4 ? e : null;
+}
 // The person whose conversation window is open (solo Farlands), and whether that window is the only thing open.
 let ebTalkPartner = null;
 function ebTalkOpen() {
@@ -5539,6 +5547,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 .eb-name:hover { background: #33483c; }
 .eb-name-enemy { color: #ffc9a3; border-color: #b96a59aa; }
+.eb-name-selected { color: #1b2433; background: #ffd45a; border-color: #fff3c4; font-size: 11px; box-shadow: 0 0 0 2px #ffd45a66, 0 2px 6px #0c18195e; }
 .eb-float {
     white-space: nowrap;
     font-size: 12px;
@@ -9747,6 +9756,12 @@ window.addEventListener('load', () => {
             this.walkTarget.rotation.x = -Math.PI / 2;
             this.walkTarget.visible = false;
             this.scene.add(this.walkTarget);
+            // R17: the person you have selected (touched, walking to, or talking with) stands in a ring of their own.
+            this.selectRing = new T.Mesh(new T.RingGeometry(.36, .46, 32),
+                new T.MeshBasicMaterial({ color: 0xffd45a, transparent: true, opacity: .9, depthWrite: false }));
+            this.selectRing.rotation.x = -Math.PI / 2;
+            this.selectRing.visible = false;
+            this.scene.add(this.selectRing);
             this.projection = new T.Vector3();
             this.pickGeometry = new T.BoxGeometry(1, 1, 1);
             this.pickMaterial = new T.MeshBasicMaterial({ visible: false });
@@ -9872,6 +9887,7 @@ window.addEventListener('load', () => {
             canvas.addEventListener('pointermove', event => {
                 if (event.pointerType !== 'mouse') return;
                 const record = this.aim(event);
+                this.hoverData = record?.data || null;
                 canvas.style.cursor = record ? 'pointer' : '';
                 canvas.title = record ? this.actorTitle(record) : '';
             });
@@ -11353,6 +11369,16 @@ window.addEventListener('load', () => {
 
             const labels = [];
             this.project(this.heroTag,here.x,here.y+this.hero.height+.19,here.z,labels);
+            // R17: in solo Farlands (third person) a resident's name shows when they are among the three nearest within
+            // 3 tiles, selected or under the mouse; everyone else stays in the scene, touchable, without a name over them.
+            const contextual = !this.eyeMode && ebFarlands.surface() && !sharedWorld.active() && !buildingInterior;
+            const chosen = contextual ? ebSelectedNpc() : null;
+            const chosenRecord = chosen && this.actors.get(chosen);
+            // in a gathering, only the three nearest within 3 tiles keep their names
+            const named = new Set(contextual ? npcs.filter(n => !n.indoors && !n.fauna && Math.hypot(n.x-here.x, n.y-here.z) <= 3)
+                .sort((a,b) => Math.hypot(a.x-here.x,a.y-here.z)-Math.hypot(b.x-here.x,b.y-here.z)).slice(0,3) : []);
+            this.selectRing.visible = Boolean(chosenRecord);
+            if (chosenRecord) this.selectRing.position.set(chosenRecord.model.group.position.x, tileTop + .02, chosenRecord.model.group.position.z);
             for (const record of this.actors.values()) {
                 const { data, model, kind, label } = record;
                 // Original/shared world scaling remains as before. Only
@@ -11381,7 +11407,10 @@ window.addEventListener('load', () => {
                     const position = model.group.position;
                     const title = this.actorTitle(record);
                     if (label.textContent !== title) label.textContent = title;
-                    if (kind === 'remote' || Math.hypot(data.x - here.x, data.y - here.z) <= 6.2) {
+                    const away = Math.hypot(data.x - here.x, data.y - here.z);
+                    const quiet = contextual && kind === 'npc' && !named.has(data) && data !== chosen && data !== this.hoverData;
+                    if (kind === 'npc') label.classList.toggle('eb-name-selected', data === chosen);
+                    if (kind === 'remote' || (away <= 6.2 && !quiet)) {
                         this.project(label, position.x, model.height * model.group.scale.y + tileTop + .15, position.z, labels);
                     } else label.hidden = true;
                 }
