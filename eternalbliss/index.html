@@ -2496,10 +2496,15 @@ function initializeMovingEntities(keepPatrol = false) {
 
 function updateMovingEntities() {
     if (sharedWorld.active()) { sharedWorld.animate(); return; }
-    if (gameState.inBattle || movementBlocked()) return;
+    // R17: which open windows stop the world. Menus, the Atlas, the journal, help, lists and every dialog pause it as
+    // before. A conversation in solo Farlands does not: the village goes on around you, except the person you are
+    // talking to (held where they stand, their day resumes when you close) and hostiles (they wait, so no fight can
+    // start while a window is open). Shared worlds never come here.
+    const talking = ebTalkOpen();
+    if (gameState.inBattle || (movementBlocked() && !talking)) return;
     const now = performance.now();
 
-    enemies.forEach(enemy => {
+    if (!talking) enemies.forEach(enemy => {
         if (!enemy.patrol || !enemy.patrol.enabled) return;
 
         const distToPlayer = Math.sqrt(
@@ -2590,9 +2595,9 @@ function updateMovingEntities() {
         }
     });
 
-    ebLife.tick(now); // R15.56: residents with a day walk to where the hour takes them
+    ebLife.tick(now, talking ? ebTalkPartner : null); // R15.56: residents with a day walk to where the hour takes them
     npcs.forEach(npc => {
-        if (!npc.patrol || !npc.patrol.enabled) return;
+        if (!npc.patrol || !npc.patrol.enabled || (talking && npc === ebTalkPartner)) return;
 
         npc.patrol.angle += npc.patrol.speed;
         const { originX, originY, radius, angle, speed } = npc.patrol;
@@ -3808,7 +3813,17 @@ function talkToNPC(npc) {
 // window a header and shows one part at a time behind a row of tabs, so nothing is stacked or pushed off screen.
 // Parts that need you now (an errand offered, a report or a message ready) open first; a reward just paid (an errand
 // done, the bell returned) stays in view above the tabs whichever part is open.
+// The person whose conversation window is open (solo Farlands), and whether that window is the only thing open.
+let ebTalkPartner = null;
+function ebTalkOpen() {
+    if (!ebTalkPartner || !document.getElementById('eb-talk-head') || !ebFarlands.surface() || sharedWorld.active() ||
+        buildingInterior || document.getElementById('interactionModal').style.display !== 'flex') return false;
+    return document.getElementById('helpModal').style.display !== 'flex' &&
+        document.getElementById('mapImporterOverlay').style.display !== 'flex' &&
+        !document.querySelector('dialog[open], .left-panel.eb-open');
+}
 function ebTalkHead(npc) {
+    ebTalkPartner = npc;
     const site = Farlands.nearbySite(npc.x, npc.y);
     const named = npc.name.includes(',');
     const role = named ? '' : site && npc.name.startsWith(site.name + ' ') ? npc.name.slice(site.name.length + 1) : '';
@@ -15434,13 +15449,14 @@ const ebLife = (() => {
             npc.dialogue = Array.isArray(says) ? says[rung ? 1 : 0] : says;
         }
     }
-    function tick(now) {
+    function tick(now, hold = null) {
         if (!roster.length || !ebFarlands.surface() || sharedWorld.active()) return;
         let listChanged = false;
         const hero = gameState.player;
         const stride = pace*Math.min(.5,Math.max(0,(now-lastTick)/1000));
         lastTick = now;
         for (const npc of roster) {
+            if (npc === hold) continue;                      // R17: the person in conversation stays as they were
             const life = npc.life, slot = slotOf(npc);
             if (life.slot !== slot) {
                 life.slot = slot; life.path = null; life.retry = 0;
