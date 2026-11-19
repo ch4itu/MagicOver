@@ -6206,7 +6206,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
  html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-capture-location-closed) #eb-actions-collapse::after{content:'−';font-size:20px}
  html[data-eb-farlands][data-eb-immersive="first"] #eb-world-actions{flex:1 1 100%;margin-top:0}
  html[data-eb-farlands][data-eb-immersive="first"] #eb-actions-more:not([hidden]){display:inline-flex;align-items:center;min-height:44px}
- html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-actions-open) :is(#eb-shared-open,#eb-farlands-atlas-open,#eb-farlands-station-travel,#eb-farlands-local-tasks,#eb-horse-help,#eb-shared-badge,#eb-farlands-horse[data-eb-buy="true"]){display:none!important}
+ html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-actions-open) :is(#eb-shared-open,#eb-farlands-atlas-open,#eb-farlands-station-travel,#eb-farlands-local-tasks,#eb-farlands-people,#eb-farlands-quests,#eb-horse-help,#eb-shared-badge,#eb-farlands-horse[data-eb-buy="true"]){display:none!important}
  html[data-eb-farlands][data-eb-immersive="first"] .location-info :is(.desktop-controls-hint,#eb-farlands-hint){display:none}
 }
 @media (min-width:900px) and (max-height:520px){html[data-eb-farlands][data-eb-immersive="first"] .location-info:not(.eb-actions-open) #eb-world-clock{display:none}}
@@ -6224,7 +6224,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 @media (max-width: 768px), (max-height: 520px) and (pointer: coarse) {
     html[data-eb-farlands] #eb-actions-more:not([hidden]) { display: inline-flex; align-items: center; }
     html[data-eb-farlands] .location-info:not(.eb-actions-open) :is(#eb-shared-open, #eb-farlands-atlas-open,
-        #eb-farlands-station-travel, #eb-farlands-local-tasks, #eb-horse-help,
+        #eb-farlands-station-travel, #eb-farlands-local-tasks, #eb-farlands-people, #eb-farlands-quests, #eb-horse-help,
         #eb-farlands-horse[data-eb-buy="true"]) { display: none !important; }
     html[data-eb-farlands] .location-info:not(.eb-actions-open) #eb-shared-badge { display: none; } /* shown inside Actions */
     #eb-goal-chip { min-height: 44px; }
@@ -15449,8 +15449,8 @@ const ebRpgAccess=(()=>{
         b.textContent=label;b.style.cssText='min-height:44px;text-align:left;max-width:100%';
         b.addEventListener('click',fn);return b;
     }
-    function openNearby(){
-        if(!active()||movementBlocked())return;
+    function openNearby(refresh=false){
+        if(!active()||(!refresh&&movementBlocked()))return;
         const modal=document.getElementById('interactionModal'),content=document.getElementById('modalContent');
         document.getElementById('modalTitle').textContent='👥 People nearby';content.replaceChildren();
         const hint=document.createElement('p');hint.textContent='Live positions. Follow the direction, then speak from nearby.';
@@ -15470,7 +15470,9 @@ const ebRpgAccess=(()=>{
             note.textContent=npc.indoors?'At home · try in daylight':distance<.5?'Here':Math.ceil(distance)+' tiles '+compass(npc.x,npc.y);
             label.append(strong,note);row.append(label);
             if(inReach(npc)){
-                const talk=button('Talk',()=>{if(!active()||!inReach(npc))return;closeModal();useWorldActor('npc',npc);});
+                // R16.1: a resident on patrol may have walked out of reach since the list was drawn: show the list
+                // again with live distances instead of a Talk button that silently does nothing.
+                const talk=button('Talk',()=>{if(!active())return;if(!inReach(npc)){openNearby(true);return;}closeModal();useWorldActor('npc',npc);});
                 talk.style.minWidth='66px';row.append(talk);
             }
             content.append(row);
@@ -15553,7 +15555,7 @@ const ebRpgAccess=(()=>{
         document.getElementById('modalContent').append(box);
         chat={box,npc};display(npc);
     }
-    document.getElementById('eb-farlands-people')?.addEventListener('click',openNearby);
+    document.getElementById('eb-farlands-people')?.addEventListener('click',()=>openNearby());
     return {nearby,openNearby,attach};
 })();
 </script>
