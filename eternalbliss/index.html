@@ -13829,6 +13829,28 @@ const Farlands = (() => {
             glyph:name.includes('hare') ? '🐇' : fauna.glyph,movable:true,dialogue:'You pause to watch a wild '+name.toLowerCase()+
                 '. It has made a home in '+fauna.name+'.'};
     }
+    // R17: a landmark's guard stands 4 east, 2 south of it, unless that post is in the middle of a village. Wild
+    // hostiles never spawn inside any site; one landmark (Pearl Banks) lies 3 tiles from Shellwick's centre, which put
+    // its smuggler in the square among the residents. Such a guard takes the nearest open tile of the landmark's
+    // surroundings at least 14 tiles from the village centre (beyond the roads where its people keep their day, which
+    // reach 13); a landmark with no such tile within 3 of its edge sits inside the village and has no guard. Same id,
+    // so a guard already beaten stays beaten.
+    function guardPost(landmark,x,y) {
+        const own=[x+4,y+2];
+        const town=sites.find(s=>s!==landmark && (s.id.startsWith('settlement-') || s.station || s===start) &&
+            Math.hypot(s.x-own[0],s.y-own[1])<14);
+        if (!town) return own;
+        let best=null,bestD=Infinity;
+        const reach=landmark.radius+3;
+        for (let dy=-reach;dy<=reach;dy++) for (let dx=-reach;dx<=reach;dx++) {
+            const tx=x+dx,ty=y+dy;
+            if (Math.hypot(dx,dy)<2 || Math.hypot(tx-town.x,ty-town.y)<14 ||
+                ['water','mountain','lava','road'].includes(sample(tx,ty))) continue;
+            const d=Math.hypot(tx-own[0],ty-own[1]);
+            if (d<bestD) { best=[tx,ty]; bestD=d; }
+        }
+        return best;
+    }
     function hostile(region,x,y,seed,id,site = null) {
         const wild = regions[region];
         const level = wild.level+(seed>.7 ? 1 : 0);
@@ -14041,7 +14063,10 @@ const Farlands = (() => {
                     if (!['water','mountain','lava'].includes(sample(kx,ky)))
                         actors.items.push({x:kx,y:ky,type:'key',value:1,realmId:'quest-vault-key'});
                 }
-                if (!survey.includes(id)) actors.enemies.push(hostile(region,x+4,y+2,hash(x,y,46),id+'-guard',site));
+                if (!survey.includes(id)) {
+                    const post=guardPost(site,x,y);
+                    if (post) actors.enemies.push(hostile(region,post[0],post[1],hash(x,y,46),id+'-guard',site));
+                }
                 actors.npcs.push(wildlife(region,x-3,y+3,hash(x,y,43),id+'-animal'));
             }
         }
