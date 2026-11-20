@@ -9072,6 +9072,27 @@ const EternalBlissArt = (() => {
             roof(group, 1.31, 1.13, 1.035, .37, slate);
             box(group, .055, .07, .89, brass, 0, 1.39);
             stone(group, .12, 0x9ee4d0, 0, 1.47, 0, .66, 1.30, .66, 0x55c9b0);
+        } else if (kind === 'castle' && style?.hall) {
+            // R17.17: Wayfarer's Rest's Surveyors' Hall drawn as a two-storey hall with a lookout tower at the back
+            // corner instead of a four-turret keep. Same footprint, same door (front centre), lower overall. Its door
+            // faces the square, so the side the camera sees is the back: that gets windows and beams too, and the
+            // tower stands at a front corner, above the roof from either side.
+            box(group, 1.50, .13, 1.40, 0x80786a, 0, .065);
+            box(group, 1.34, .52, 1.08, 0xa8a291, 0, .39);
+            box(group, 1.40, .44, 1.14, 0xdccdae, 0, .87);
+            box(group, 1.44, .06, 1.18, 0x6f5440, 0, .65);
+            for (const z of [.575, -.575]) for (const x of [-.68, -.23, .23, .68]) box(group, .06, .44, .05, 0x6f5440, x, .87, z);
+            box(group, .34, .48, .06, dark, 0, .37, .555);
+            box(group, .44, .07, .08, 0x8b6448, 0, .64, .565);
+            for (const x of [-.46, .46]) { windowPane(group, x, .40, .545); windowPane(group, x, .88, .575); }
+            windowPane(group, 0, .88, .575);
+            for (const x of [-.46, 0, .46]) { windowPane(group, x, .88, -.62); windowPane(group, x, .40, -.59); }
+            roof(group, 1.54, 1.24, 1.09, .34, slate);
+            box(group, .40, .80, .40, 0xa8a291, .50, .98, .34);
+            box(group, .46, .07, .46, 0x6f5440, .50, 1.41, .34);
+            cylinder(group, .02, .33, .26, 4, slate, .50, 1.58, .34);
+            cylinder(group, .015, .02, .28, 6, brass, .50, 1.84, .34);
+            box(group, .26, .12, .025, 0x983f36, .63, 1.92, .34);
         } else if (kind === 'castle') {
             box(group, 1.49, .14, 1.38, 0x7f847d, 0, .07);
             box(group, .88, 1.05, .79, 0xabaa98, 0, .63, -.07);
@@ -9142,7 +9163,7 @@ const EternalBlissArt = (() => {
         } else {
             // Over several tiles: the same eaves margin around the footprint, and height in proportion to the ground size.
             const sx = .98*(across+.22)/width, sz = .96*(deep+.22)/depth;
-            group.scale.set(sx,Math.sqrt(sx*sz),sz);
+            group.scale.set(sx,Math.sqrt(sx*sz)*(style?.hall ? .85 : 1),sz);
         }
         return { group,height,width,depth };
     }
@@ -10387,7 +10408,7 @@ window.addEventListener('load', () => {
                             art.landmark(data.landmark, buildingFootprint(data)) :
                             art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
                                 ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'||data.realmId==='rest-service-2'),
-                                ebFarlands.surface() && !sharedWorld.active() && data.realmId ? {farmstead:/ Farmstead$/.test(data.name), regional:true} : null);
+                                ebFarlands.surface() && !sharedWorld.active() && data.realmId ? {farmstead:/ Farmstead$/.test(data.name), regional:true, hall:data.realmId==='rest-service-3'} : null);
                         else if (kind === 'item') model = art.item(data.type);
                         else if (kind === 'remote') {
                             model = art.humanoid('remote','',variant);
