@@ -11092,6 +11092,10 @@ window.addEventListener('load', () => {
                         sy = label.y - 22;
                     }
                 }
+                if (this.labelTidy && own - sy > 22 && !node.classList.contains('eb-name-selected') && !node.classList.contains('eb-human-tag')) {
+                    node.hidden = true; // R17.18: would sit two rows above its own figure
+                    return [sx, sy];
+                }
                 labels.push({ x: sx, y: sy, halfWidth });
                 // R17: in solo Farlands a name lifted off its own figure to clear another name sits over other people;
                 // it stays readable but lets touches through to the figures below it (touching one of them still
@@ -11105,6 +11109,7 @@ window.addEventListener('load', () => {
                 sy >= 12 && sy <= this.height - 12 && !underHud;
             node.hidden = !visible;
             if (visible) node.style.transform = 'translate(' + sx + 'px,' + sy + 'px) translate(-50%,-100%)';
+            return [sx, sy];
         }
 
         mirrorFeedback(mutations) {
@@ -11736,9 +11741,15 @@ window.addEventListener('load', () => {
             this.hostileEdge(here, contextual);
             const chosen = contextual ? ebSelectedNpc() : null;
             const chosenRecord = chosen && this.actors.get(chosen);
-            // in a gathering, only the three nearest within 3 tiles keep their names
+            // in a gathering, only the three nearest within 3 tiles keep their names. R17.18 (solo third person): a
+            // building's name shows only from 4 to 6.2 tiles away (or while it is the one under the pointer), and while
+            // one does, only the two nearest people keep theirs; a name that would have to climb over two others is
+            // left off (the selected person's never is).
+            this.labelTidy = contextual;
+            const buildingNamed = contextual && [...this.actors.values()].some(r => r.kind === 'building' && r.label &&
+                Math.hypot(r.data.x-here.x, r.data.y-here.z) >= 4 && Math.hypot(r.data.x-here.x, r.data.y-here.z) <= 6.2);
             const named = new Set(contextual ? npcs.filter(n => !n.indoors && !n.fauna && Math.hypot(n.x-here.x, n.y-here.z) <= 3)
-                .sort((a,b) => Math.hypot(a.x-here.x,a.y-here.z)-Math.hypot(b.x-here.x,b.y-here.z)).slice(0,3) : []);
+                .sort((a,b) => Math.hypot(a.x-here.x,a.y-here.z)-Math.hypot(b.x-here.x,b.y-here.z)).slice(0,buildingNamed ? 2 : 3) : []);
             this.selectRing.visible = Boolean(chosenRecord);
             if (chosenRecord) this.selectRing.position.set(chosenRecord.model.group.position.x, tileTop + .02, chosenRecord.model.group.position.z);
             for (const record of this.actors.values()) {
@@ -11778,8 +11789,18 @@ window.addEventListener('load', () => {
                     const away = Math.hypot(data.x - here.x, data.y - here.z);
                     const quiet = contextual && kind === 'npc' && !named.has(data) && data !== chosen && data !== this.hoverData;
                     if (kind === 'npc') label.classList.toggle('eb-name-selected', data === chosen);
-                    if (kind === 'remote' || (away <= 6.2 && !quiet)) {
-                        this.project(label, position.x, model.height * model.group.scale.y + tileTop + .15, position.z, labels);
+                    const near = contextual && kind === 'building' && away < 4 && data !== this.hoverData;
+                    if (kind === 'remote' || (away <= 6.2 && !quiet && !near)) {
+                        const [lx, ly] = this.project(label, position.x, model.height * model.group.scale.y + tileTop + .15, position.z, labels);
+                        // R17.18: a building's name gives way to any person standing under it
+                        if (contextual && kind === 'building' && !label.hidden) {
+                            const half = Math.min(label.textContent.length * 2.8 + 8, 110);
+                            for (const other of this.actors.values()) {
+                                if (other.kind !== 'npc' || other.data.fauna || other.data.indoors) continue;
+                                const g = other.model.group.position, [px, py] = this.screenPoint(g.x, g.y + .7, g.z);
+                                if (Math.abs(px - lx) < half && py <= ly + 4 && py >= ly - 26) { label.hidden = true; break; }
+                            }
+                        }
                     } else label.hidden = true;
                 }
             }
