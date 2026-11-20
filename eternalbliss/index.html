@@ -2072,6 +2072,9 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
   html[data-eb-farlands] .location-info.eb-capture-location-closed { display:flex !important; align-items:center; gap:8px; }
   /* R17.11: People nearby stays one tap away while the panel is minimised */
   html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-people-quick:not([hidden]) { display:inline-flex !important; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 !important; font-size:18px; }
+  /* R17.13: the Show panel button kept the relative offsets (top 6px, right 8px) it has in the open card, which pulled
+     it 8px left onto the hero line and 6px down; here it sits in line, after the panel's 8px gap */
+  html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-actions-collapse { top:auto !important; right:auto !important; margin:0 !important; flex-shrink:0; }
   html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-hero-summary { display:block !important; font-size:12px !important; color:#e9dfc8; white-space:nowrap; }
 }
 .location-info.eb-capture-location-closed { width:max-content!important; max-width:calc(100vw - 20px)!important; padding:5px!important; }
