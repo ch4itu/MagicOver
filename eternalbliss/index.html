@@ -9826,6 +9826,24 @@ window.addEventListener('load', () => {
                 if (west) { rail(-.47,0,.04,1); stake(-.47,north ? 0 : .47); } else { rail(.47,0,.04,1); stake(.47,-.47); stake(.47,north ? 0 : .47); }
                 break;
             }
+            // R17.16: farm pieces, from the same blocks and posts as the rest
+            case 'hay':
+                block(0,.17,0,.66,.34,.44,0xd8b65a); block(.04,.46,.02,.58,.24,.38,0xcfac52);
+                block(0,.17,.225,.68,.05,.02,0xa8873e); block(0,.17,-.225,.68,.05,.02,0xa8873e);
+                break;
+            case 'produce':
+                for (const [dx,dz,h,color] of [[-.20,-.12,.13,0xb5352b],[.20,-.10,.13,0x7fa85a],[0,.18,.13,0xd9a441]]) {
+                    block(dx,h,dz,.34,.26,.30,0x8a6a44);
+                    for (const [ox,oz] of [[-.08,-.06],[.08,-.06],[0,.07]]) round(dx+ox,.30,dz+oz,.07,.07,.07,color);
+                }
+                break;
+            case 'scarecrow':
+                post(0,.62,0,.04,1.24,dark);
+                block(0,1.00,0,.70,.05,.05,dark,Math.PI/2);
+                block(0,.92,0,.30,.36,.16,0x8a7a5a);
+                round(0,1.30,0,.13,.13,.13,0xd8b65a);
+                block(0,1.42,0,.34,.03,.34,0x9a7b40); block(0,1.48,0,.16,.10,.16,0x9a7b40);
+                break;
             case 'crates':
                 block(-.12,.21,-.05,.42,.42,.42,0x8d6a45,.2);
                 block(.22,.16,.22,.32,.32,.32,0x7a5a3a,-.3);
@@ -14069,6 +14087,7 @@ const Farlands = (() => {
     // residents' days are exactly what they were). Footpaths only colour the grass from a service door to the square;
     // their tiles stay grass. A settlement is dressed the first time anything asks about ground near it.
     const villageDressing = {props:new Map(), paths:new Set(), sites:new Set(), buckets:new Set()};
+    const VILLAGE_PURPOSE = {'settlement-rest-0':'farm'}; // R17.16: what a settlement is for; decides its dressing only
     const residentsAt = [[-1,1],[4,-2],[2,5],[-3,2],[3,3],[-2,-3],[1,-4],[-6,1],[6,2],[-4,6],[5,-6],[-7,-4],[9,7],
         [-10,0],[10,3],[0,10],[0,-10],[9,-8],[-9,8],[-10,-7],[10,9],[-11,8],[11,8],[-11,-9],[11,-9],[-6,5]];
     function dressSite(site) {
@@ -14087,6 +14106,26 @@ const Farlands = (() => {
             residentsAt.every(([rx,ry]) => Math.max(Math.abs(rx-dx),Math.abs(ry-dy)) > 1) && !props.has((y+dy)*size+x+dx) &&
             !(solid && posts.has((x+dx)+','+(y+dy)));
         const put = (dx,dy,kind,solid,turn=0) => { if (free(dx,dy,solid)) props.set((y+dy)*size+x+dx,{x:x+dx,y:y+dy,kind,solid,turn,village:site.id}); };
+        // R17.16: Hearthfield is a farming town. A well on its square, in the first of the four flagstone corners (two
+        // tiles out on both axes, off the road cross and the trail) that no resident uses; hay by the Barn, produce by
+        // the Granary and the Market, and a scarecrow in eight crop plots. Same rules as everything else here: nothing
+        // solid on any resident's place or door, the arrival tile, a road, the trail or a building.
+        if (VILLAGE_PURPOSE[site.id] === 'farm') {
+            for (const [dx,dy] of [[-2,-2],[2,-2],[-2,2],[2,2]]) {
+                const sx=x+dx, sy=y+dy;
+                if (posts.has(sx+','+sy) || props.has(sy*size+sx) || villageGround(sx,sy)!=='square') continue;
+                props.set(sy*size+sx,{x:sx,y:sy,kind:'well',solid:true,turn:0,village:site.id}); break;
+            }
+            const [mkx,mky] = service[1];
+            put(mkx-2,mky-1,'produce',true,.2); put(mkx+2,mky-1,'produce',true,-.2);
+            put(-2,12,'hay',true,0); put(2,12,'hay',true,.3); put(-2,13,'hay',true,.1);
+            put(11,2,'produce',true,0); put(13,2,'hay',true,Math.PI/2);
+            for (const [dx,dy] of [[10,14],[-10,14],[10,-14],[-10,-14],[15,9],[-15,9],[15,-9],[-15,-9]]) {
+                const tx=x+dx, ty=y+dy;
+                if (farmlandAt(tx,ty) && !pastureAt(tx,ty) && sample(tx,ty)==='grass' && !posts.has(tx+','+ty) && !props.has(ty*size+tx))
+                    props.set(ty*size+tx,{x:tx,y:ty,kind:'scarecrow',solid:true,turn:hash(tx,ty,7)*6,village:site.id});
+            }
+        }
         const [mx,my] = service[1], [ix,iy] = service[0], [tx,ty] = service[2];
         put(mx-2,my,'stall',true,0); put(mx+2,my,'stall',true,0); put(mx-2,my+1,'crates',true,.4); put(mx+2,my+1,'barrel',true);
         put(ix-2,iy,'bench',true,Math.PI/2); put(ix+2,iy,'barrel',true);
