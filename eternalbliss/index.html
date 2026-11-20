@@ -2066,6 +2066,11 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
 .location-info { pointer-events: auto !important; }
 #eb-actions-collapse { pointer-events: auto !important; touch-action: manipulation; cursor:pointer; position:relative; z-index:2; }
 .location-info.eb-capture-location-closed > :not(#eb-actions-collapse) { display:none !important; }
+/* R17: minimised on a phone held sideways, the hero line (level, HP, MP) stays beside the button */
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  html[data-eb-farlands] .location-info.eb-capture-location-closed { display:flex !important; align-items:center; gap:8px; }
+  html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-hero-summary { display:block !important; font-size:12px !important; color:#e9dfc8; white-space:nowrap; }
+}
 .location-info.eb-capture-location-closed { width:max-content!important; max-width:calc(100vw - 20px)!important; padding:5px!important; }
 </style>
     <script data-source="bliss-map.js">
@@ -17988,15 +17993,29 @@ const sharedWorld = (() => {
     const actions = document.getElementById('eb-actions-collapse');
     const location = actions && actions.closest('.location-info');
     if (actions && location) {
+      const setClosed = function (closed) {
+        location.classList.toggle('eb-capture-location-closed', closed);
+        actions.setAttribute('aria-expanded', String(!closed));
+        actions.textContent = closed ? '+ Show panel' : '− Minimise panel';
+      };
       actions.addEventListener('click', function (event) {
         event.preventDefault();
         event.stopPropagation();
-        const closed = location.classList.toggle('eb-capture-location-closed');
-        actions.setAttribute('aria-expanded', String(!closed));
-        actions.textContent = closed ? '+ Show panel' : '− Minimise panel';
+        const closed = !location.classList.contains('eb-capture-location-closed');
+        setClosed(closed);
+        // R17: the player's own choice holds for the rest of the session, in either orientation
+        try { sessionStorage.setItem('eb-panel-choice', closed ? 'closed' : 'open'); } catch (e) {}
         // Hide every sibling, including dynamically inserted location controls.
         // CSS handles visibility; don't overwrite the game's own hidden flags.
       });
+      // R17: on a phone held sideways the panel starts minimised (the hero's level, HP and MP stay in view beside the
+      // button), so the world is not hidden behind it; turning back to portrait restores it. Once the player opens or
+      // minimises it themselves, that choice is kept for the session.
+      const sideways = window.matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)');
+      const chosen = function () { try { return sessionStorage.getItem('eb-panel-choice'); } catch (e) { return null; } };
+      const follow = function () { const c = chosen(); setClosed(c ? c === 'closed' : sideways.matches); };
+      follow();
+      sideways.addEventListener('change', function () { if (!chosen()) follow(); });
     }
     const map = document.getElementById('eb-map-collapse');
     const minimap = map && map.closest('.minimap');
