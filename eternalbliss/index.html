@@ -9645,6 +9645,26 @@ window.addEventListener('load', () => {
 
     // R15.56: street furniture. Each piece is [x, y, z, sx, sy, sz, turn, colour] for the trunk (tapered post), crown
     // (cone), rock (round), block (box) or lantern (glowing box) batches the ground already draws.
+    // Stage 7: the generated settlements already have farm plots (Farlands.farmlandAt), drawn as fields only in the 2D
+    // view. In 3D the plot is tilled soil carrying two rows of one crop per plot, which changes with the season. The tiles
+    // stay grass: nothing here blocks a step, and the crops stand lower than a resident's knee.
+    const FIELD_SOIL = {Spring:0x7e6243, Summer:0x7a5f40, Autumn:0x84683f, Winter:0xa29a8c};
+    function fieldSoil() { return FIELD_SOIL[worldClimate.season] ?? FIELD_SOIL.Summer; }
+    function fieldCrop(x, z, top, sprouts, stones) {
+        const site = Farlands.generationSite(x,z);
+        const plot = site ? hash(Math.floor((x-site.x)/6), Math.floor((z-site.y)/6), 41) : 0;
+        const kind = plot < .45 ? 'grain' : plot < .75 ? 'greens' : 'beans', when = worldClimate.season;
+        for (const row of [-.22,.22]) for (const col of [-.3,0,.3]) {
+            const px = x + col + (hash(x,z,43) - .5) * .06, pz = z + row;
+            if (when === 'Winter') { if (col === 0) sprouts.push([px,top+.03,pz,.05,.05,.05,0,0x9b8a62]); continue; }
+            if (kind === 'greens') stones.push([px,top+.07,pz,.15,when==='Spring'?.08:.12,.15,col,when==='Autumn'?0x8a9a4a:0x5f9148]);
+            else {
+                const h = kind === 'grain' ? (when==='Spring'?.14:when==='Summer'?.30:.34) : (when==='Spring'?.12:.26);
+                const tint = kind === 'grain' ? (when==='Spring'?0x8db35a:when==='Summer'?0xb7b45a:0xd6ad4f) : (when==='Autumn'?0x8c8a48:0x4f8a45);
+                sprouts.push([px,top+h/2,pz,.05,h,.05,col,tint]);
+            }
+        }
+    }
     function streetProp(prop, batch, season, top) {
         const {logs, leaves, stones, sprouts, lanterns, roomBlocks:blocks} = batch;
         const {x, y:z, kind, turn} = prop;
@@ -10057,6 +10077,7 @@ window.addEventListener('load', () => {
                 const type=this.terrainAt(x,z);if(!soft.has(type))return null;
                 const biome=Farlands.regions[Farlands.regionAt(x,z)],village=Farlands.villageAt(x,z);
                 let tint=(type==='grass'?biome?.color:type==='forest'?biome?.forest:0)||season[type]||colors[type]||season.grass;
+                if(type==='grass'&&!sharedWorld.active()&&Farlands.farmlandAt(x,z))tint=fieldSoil();
                 if(village&&type==='grass')tint=0x7b9d50;
                 if(village&&type==='road'&&Farlands.natural(x,z)!=='water')tint=0x9a8560;
                 const c=new T.Color(tint).multiplyScalar(.97+.075*Math.sin(x*.24+z*.13)+.09*hash(x,z,1));baseTints.set(k,c);return c;
@@ -10085,6 +10106,8 @@ window.addEventListener('load', () => {
                         else if (type === 'grass' && !shore.some(Boolean)) color.set(0x7b9d50).multiplyScalar(light); // a kept green
                         else if (type === 'road' && Farlands.natural(x,z) !== 'water') color.set(0x9a8560).multiplyScalar(light); // trodden earth
                     }
+                    const field = streamed && !this.room && type === 'grass' && !sharedWorld.active() && Farlands.farmlandAt(x,z);
+                    if (field) color.set(fieldSoil()).multiplyScalar(light);
                     if(this.room?.questDungeon&&this.eyeMode&&!sharedWorld.active()&&(type==='floor'||type==='exit'))color.set(type==='exit'?0xa99c78:0x8e8c7e).multiplyScalar(light);
                     const corners = [
                         [x - .5, tileTop, z - .5], [x - .5, tileTop, z + .5],
@@ -10116,6 +10139,7 @@ window.addEventListener('load', () => {
                     if (prop) { streetProp(prop, {logs, leaves, stones, sprouts, lanterns, roomBlocks, glows}, season, tileTop); continue; }
                     // A building's tiles keep only their ground: no tree, rock or lantern grows through its walls.
                     if (!this.room && buildingFootprints.has(z * width + x)) continue;
+                    if (field) { fieldCrop(x, z, tileTop, sprouts, stones); continue; }
 
                     if (type === 'grass' && shore.some(Boolean) && hash(x, z, 7) > .38 &&
                         edges.some(([dx, dz]) => this.terrainAt(x + dx, z + dz) === 'road')) {
