@@ -2840,7 +2840,8 @@ function updateBuildingFootprints() {
 }
 
 function solidStructure(x,y) {
-    return adventureTile(x,y) === 'wall' || buildingFootprints.has(y*gameState.world.width+x);
+    return adventureTile(x,y) === 'wall' || buildingFootprints.has(y*gameState.world.width+x) ||
+        Boolean(worldMap.tileAt && ebFarlands.surface() && !sharedWorld.active() && Farlands.villagePropAt(x,y)?.solid); // Stage 7
 }
 
 // R15.58: the tiles under a drawn Farlands boat hull. art.boat() is an oval hull about 1.3 tiles wide and 2.5 long
@@ -3006,7 +3007,7 @@ function renderWorld() {
 
 function renderAllEntities() {
     const worldGrid = document.getElementById('worldGrid');
-    if (ebFarlands.surface()) for (const {kind,x,y} of Farlands.restProps.values()) { // R15.56: street furniture in the 2D view
+    if (ebFarlands.surface()) for (const {kind,x,y} of [...Farlands.restProps.values(), ...(sharedWorld.active() ? [] : Farlands.villagePropsNear(gameState.player.x,gameState.player.y))]) { // R15.56: street furniture in the 2D view
         if (Math.abs(x-gameState.player.x)>48 || Math.abs(y-gameState.player.y)>48) continue;
         const prop = document.createElement('span');
         prop.className = 'eb-room-prop';
@@ -10078,6 +10079,8 @@ window.addEventListener('load', () => {
                 const biome=Farlands.regions[Farlands.regionAt(x,z)],village=Farlands.villageAt(x,z);
                 let tint=(type==='grass'?biome?.color:type==='forest'?biome?.forest:0)||season[type]||colors[type]||season.grass;
                 if(type==='grass'&&!sharedWorld.active()&&Farlands.farmlandAt(x,z))tint=fieldSoil();
+                else if(type==='grass'&&!sharedWorld.active()&&Farlands.villagePathAt(x,z))tint=0x9a8560;
+                else if(type==='road'&&!village&&!sharedWorld.active()&&Farlands.villageGround(x,z))tint=Farlands.villageGround(x,z)==='square'?0xbcaa8a:0x9a8560;
                 if(village&&type==='grass')tint=0x7b9d50;
                 if(village&&type==='road'&&Farlands.natural(x,z)!=='water')tint=0x9a8560;
                 const c=new T.Color(tint).multiplyScalar(.97+.075*Math.sin(x*.24+z*.13)+.09*hash(x,z,1));baseTints.set(k,c);return c;
@@ -10108,12 +10111,19 @@ window.addEventListener('load', () => {
                     }
                     const field = streamed && !this.room && type === 'grass' && !sharedWorld.active() && Farlands.farmlandAt(x,z);
                     if (field) color.set(fieldSoil()).multiplyScalar(light);
+                    else if (streamed && type === 'grass' && !shore.some(Boolean) && !sharedWorld.active() && Farlands.villagePathAt(x,z)) color.set(0x9a8560).multiplyScalar(light);
+                    else if (streamed && type === 'road' && !this.room && !sharedWorld.active() && !Farlands.villageAt(x,z) && Farlands.villageGround(x,z)) {
+                        // Stage 7: a settlement's square is laid in flagstone like Wayfarer's Rest, its streets are trodden earth
+                        if (Farlands.villageGround(x,z)==='square') color.set((x+z)%2 ? 0xc4b292 : 0xa8977a).multiplyScalar(.96 + .08 * hash(x, z, 1));
+                        else color.set(0x9a8560).multiplyScalar(light);
+                    }
                     if(this.room?.questDungeon&&this.eyeMode&&!sharedWorld.active()&&(type==='floor'||type==='exit'))color.set(type==='exit'?0xa99c78:0x8e8c7e).multiplyScalar(light);
                     const corners = [
                         [x - .5, tileTop, z - .5], [x - .5, tileTop, z + .5],
                         [x + .5, tileTop, z + .5], [x + .5, tileTop, z - .5]
                     ];
-                    if(streamed&&!sharedWorld.active()&&!this.room&&soft.has(type)&&!shore.some(Boolean)&&!(type==='road'&&Farlands.natural(x,z)==='water')){
+                    if(streamed&&!sharedWorld.active()&&!this.room&&soft.has(type)&&!shore.some(Boolean)&&!(type==='road'&&Farlands.natural(x,z)==='water')&&
+                        !(type==='road'&&!Farlands.villageAt(x,z)&&Farlands.villageGround(x,z)==='square')){
                         const shades=corners.map(p=>cornerAt(p[0],p[2]));
                         if(edges.some(([dx,dz])=>soft.has(this.terrainAt(x+dx,z+dz))&&this.terrainAt(x+dx,z+dz)!==type))
                             addGroundFan(corners,color,shades,positions,tints,uvs);
@@ -10135,7 +10145,7 @@ window.addEventListener('load', () => {
                         ], surfColor, shorePositions, shoreTints, shoreUvs);
                     }
                     // R15.56: street furniture of an authored village, built from the same scenery pieces as the trees
-                    const prop = streamed && !this.room && Farlands.propAt(x,z);
+                    const prop = streamed && !this.room && (Farlands.propAt(x,z) || (!sharedWorld.active() && Farlands.villagePropAt(x,z)));
                     if (prop) { streetProp(prop, {logs, leaves, stones, sprouts, lanterns, roomBlocks, glows}, season, tileTop); continue; }
                     // A building's tiles keep only their ground: no tree, rock or lantern grows through its walls.
                     if (!this.room && buildingFootprints.has(z * width + x)) continue;
@@ -13924,6 +13934,67 @@ const Farlands = (() => {
         }
         return best;
     }
+    // Stage 7: street furniture and footpaths for the generated settlements, solo view only (the shared world keeps the
+    // bare terrain it has always had; see solidStructure). Everything is placed by offsets from the buildings this module
+    // already puts there, and a piece is left out unless its tile is plain grass, off every road, trail and farm plot,
+    // two or more tiles from every building and more than one tile from every resident's first post. A solid piece is
+    // also left out where any resident of the settlement stands at any hour (their posts come from sceneCell, so the
+    // residents' days are exactly what they were). Footpaths only colour the grass from a service door to the square;
+    // their tiles stay grass. A settlement is dressed the first time anything asks about ground near it.
+    const villageDressing = {props:new Map(), paths:new Set(), sites:new Set(), buckets:new Set()};
+    const residentsAt = [[-1,1],[4,-2],[2,5],[-3,2],[3,3],[-2,-3],[1,-4],[-6,1],[6,2],[-4,6],[5,-6],[-7,-4],[9,7],
+        [-10,0],[10,3],[0,10],[0,-10],[9,-8],[-9,8],[-10,-7],[10,9],[-11,8],[11,8],[-11,-9],[11,-9],[-6,5]];
+    function dressSite(site) {
+        const {props, paths} = villageDressing;
+        villageDressing.sites.add(site.id);
+        const {x,y} = site, rot = site.index%4, layouts = [[-5,-4],[4,-4],[-5,4],[5,4]];
+        const service = [0,1,2,3].map(i => layouts[(i+rot)%4]);
+        const anchors = [...service,[8,-3],[-12,0],[12,0],[0,11],[0,-11]];
+        const posts = new Set();
+        for (const n of sceneCell(Math.floor(x/cellSize),Math.floor(y/cellSize)).npcs) {
+            posts.add(n.x+','+n.y); if (n.homeDoor) posts.add(n.homeDoor.x+','+n.homeDoor.y);
+            for (const e of n.routine ?? []) { if (!e.home) posts.add(e.x+','+e.y); if (e.beat) posts.add(e.beat.x+','+e.beat.y); }
+        }
+        const free = (dx,dy,solid) => sample(x+dx,y+dy)==='grass' && !trailAt(x+dx,y+dy) && !farmlandAt(x+dx,y+dy) &&
+            anchors.every(([ax,ay]) => Math.max(Math.abs(ax-dx),Math.abs(ay-dy)) >= 2) &&
+            residentsAt.every(([rx,ry]) => Math.max(Math.abs(rx-dx),Math.abs(ry-dy)) > 1) && !props.has((y+dy)*size+x+dx) &&
+            !(solid && posts.has((x+dx)+','+(y+dy)));
+        const put = (dx,dy,kind,solid,turn=0) => { if (free(dx,dy,solid)) props.set((y+dy)*size+x+dx,{x:x+dx,y:y+dy,kind,solid,turn,village:site.id}); };
+        const [mx,my] = service[1], [ix,iy] = service[0], [tx,ty] = service[2];
+        put(mx-2,my,'stall',true,0); put(mx+2,my,'stall',true,0); put(mx-2,my+1,'crates',true,.4); put(mx+2,my+1,'barrel',true);
+        put(ix-2,iy,'bench',true,Math.PI/2); put(ix+2,iy,'barrel',true);
+        put(tx-2,ty+1,'flowers',false); put(tx+2,ty+1,'flowers',false); put(tx-2,ty,'lamp',true);
+        for (const [dx,dy,turn] of [[-2,-9,0],[-3,-9,1],[2,-9,2],[3,-9,3]]) put(dx,dy,'garden',false,turn);
+        // footpaths: from each service door (the tile below it) along that row towards the road cross, stopping at the
+        // first tile that is not plain grass
+        for (const [bx,by] of service) for (let dx=bx; Math.abs(dx)>1; dx-=Math.sign(dx)) {
+            const tx=x+dx, ty=y+by+1;
+            if (sample(tx,ty)!=='grass' || trailAt(tx,ty) || props.has(ty*size+tx) ||
+                anchors.some(([ax,ay]) => ax===dx && ay===by+1)) break;
+            paths.add(ty*size+tx);
+        }
+    }
+    // dress every settlement whose centre is in this bucket or the eight around it (its furniture is within 13 tiles)
+    function dressNear(x,y) {
+        const key = bucketKey(x,y,cellSize);
+        if (villageDressing.buckets.has(key)) return villageDressing;
+        villageDressing.buckets.add(key);
+        for (let by=-1;by<=1;by++) for (let bx=-1;bx<=1;bx++)
+            for (const site of siteCells.get(bucketKey(x+bx*cellSize,y+by*cellSize,cellSize)) ?? [])
+                if (site.settlement && !villageDressing.sites.has(site.id)) dressSite(site);
+        return villageDressing;
+    }
+    const villagePropAt = (x,y) => dressNear(x,y).props.get(y*size+x);
+    const villagePathAt = (x,y) => dressNear(x,y).paths.has(y*size+x);
+    const villagePropsNear = (x,y) => [...dressNear(x,y).props.values()];
+    // the ground of a generated settlement's centre: 'square' for its seven-by-seven plaza, 'street' for the road cross
+    // within ten tiles. Colour only; the tiles stay road.
+    function villageGround(x,y) {
+        const site = nearbySite(x,y);
+        if (!site?.settlement || baseSample(x,y)!=='road' || trailAt(x,y)) return null;
+        const dx=Math.abs(x-site.x), dy=Math.abs(y-site.y);
+        return dx<=3 && dy<=3 ? 'square' : dx<=10 && dy<=10 ? 'street' : null;
+    }
     // The seven people of Wayfarer's Rest are the same seven as before, with the same saved identities. Mira stays by
     // the well, where a new traveller and a returning one will look for her. The other six have a day: [from hour,
     // dx, dy, what they say there] or [from hour] for home. Two lines mean before and after the Harvest Bell is back.
@@ -14426,7 +14497,7 @@ const Farlands = (() => {
         }
     }
 
-    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
+    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
         sceneCell,remember,hash};
 })();
 
