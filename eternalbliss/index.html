@@ -2058,6 +2058,7 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
 
 /* R15.14: complete location-modal collapse, independent of old selectors. */
 .location-info.eb-capture-location-closed > :not(#eb-actions-collapse) {display:none!important;}
+#eb-people-quick {display:none!important;}
 .location-info.eb-capture-location-closed {height:auto!important;min-height:0!important;max-height:none!important;width:auto!important;padding:5px!important;overflow:visible!important;}
 .location-info.eb-capture-location-closed #eb-actions-collapse {display:block!important;position:relative!important;visibility:visible!important;pointer-events:auto!important;}
 
@@ -2069,6 +2070,8 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
 /* R17: minimised on a phone held sideways, the hero line (level, HP, MP) stays beside the button */
 @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
   html[data-eb-farlands] .location-info.eb-capture-location-closed { display:flex !important; align-items:center; gap:8px; }
+  /* R17.11: People nearby stays one tap away while the panel is minimised */
+  html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-people-quick:not([hidden]) { display:inline-flex !important; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 !important; font-size:18px; }
   html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-hero-summary { display:block !important; font-size:12px !important; color:#e9dfc8; white-space:nowrap; }
 }
 .location-info.eb-capture-location-closed { width:max-content!important; max-width:calc(100vw - 20px)!important; padding:5px!important; }
@@ -6818,6 +6821,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
                 <div id="eb-world-clock" aria-label="Season and world time"></div>
                 <button type="button" class="eb-panel-button" id="eb-goal-chip" hidden></button>
                 <button type="button" id="eb-actions-collapse" class="eb-panel-button eb-capture-collapse" aria-expanded="true" aria-controls="eb-world-actions" title="Minimise or restore the entire location panel">− Minimise panel</button>
+                <button type="button" id="eb-people-quick" class="eb-panel-button" aria-label="People nearby" title="People nearby" hidden>👥</button>
                 <div class="eb-world-actions" id="eb-world-actions">
                     <span id="eb-shared-badge" aria-live="polite">Solo adventure</span><button type="button" class="eb-panel-button" id="eb-actions-more" aria-expanded="false" aria-controls="eb-world-actions">☰ Actions</button>
                     <button type="button" class="eb-panel-button" id="eb-shared-open" hidden>Play Together</button>
@@ -14969,6 +14973,7 @@ const ebFarlands = (() => {
         taskButton.hidden=!station?.station;
         if(station?.station) taskButton.textContent='📜 '+station.name+' errand';
         get('eb-farlands-people').hidden=!surface() || shared || !!buildingInterior || gameState.inBattle;
+        get('eb-people-quick').hidden=get('eb-farlands-people').hidden;
         get('eb-farlands-quests').hidden=!surface() || shared || !!buildingInterior || gameState.inBattle;
 
         if (!shared) get('eb-shared-badge').textContent=realm ? 'Farlands · Solo' : 'Solo adventure';
@@ -16395,6 +16400,7 @@ const ebRpgAccess=(()=>{
         chat={box,npc};display(npc);
     }
     document.getElementById('eb-farlands-people')?.addEventListener('click',()=>openNearby());
+    document.getElementById('eb-people-quick')?.addEventListener('click',()=>openNearby());
     return {nearby,openNearby,attach};
 })();
 </script>
