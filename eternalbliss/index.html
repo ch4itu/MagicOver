@@ -10813,10 +10813,37 @@ window.addEventListener('load', () => {
             const bundle = new T.Mesh(kit.bundle, kit.cloth); bundle.position.set(.02, -.25, .04);
             const bucket = new T.Mesh(kit.bucket, kit.pail); bucket.position.set(.02, -.27, 0);
             const tray = new T.Mesh(kit.tray, kit.plate); tray.position.set(0, .4, .2);
+            for (const prop of [hoe, bundle, bucket, tray]) prop.scale.setScalar(1.4); // readable at the normal zoom
             hand.add(hoe, bundle, bucket); model.body.add(tray);
             model.ebProps = { hoe, bundle, bucket, tray };
             for (const prop of Object.values(model.ebProps)) prop.visible = false;
             return model.ebProps;
+        }
+
+        // R17: what a generated resident wears for their trade, so farmers, cooks, traders, travellers, crafters and
+        // pilgrims are told apart at the normal zoom by silhouette and colour (guards and the waykeeper already wear
+        // their own). Made once per figure from shared shapes; drawn with the figure, nothing else changes.
+        dressRole(model, role) {
+            model.ebDressed = true;
+            const body = model.body;
+            if (!body) return;
+            const kit = this.ebDressKit ??= (() => {
+                const mat = c => new T.MeshLambertMaterial({ color: c });
+                return { brim: new T.CylinderGeometry(.24, .24, .025, 12), crown: new T.CylinderGeometry(.11, .13, .1, 10),
+                    cap: new T.CylinderGeometry(.13, .15, .12, 10), apron: new T.BoxGeometry(.24, .3, .02), pack: new T.BoxGeometry(.22, .26, .13),
+                    staff: new T.BoxGeometry(.03, .95, .03), straw: mat(0xd9bf6e), white: mat(0xf1ece0), leather: mat(0x5b3f2a),
+                    green: mat(0x4f7a4a), canvas: mat(0x9c8256), wood: mat(0x7a5838) };
+            })();
+            const add = (geo, mat, x, y, z, parent = body) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
+            const look = { Farmer:'hat', Shepherd:'hat', Gardener:'hat', Woodcutter:'hat', Cook:'cook', Baker:'cook',
+                Merchant:'trader', Provisioner:'trader', Peddler:'pack', Courier:'pack', Weaver:'trader',
+                Mason:'craft', Craftsperson:'craft', Pilgrim:'staff', Herbalist:'hat' }[role];
+            if (look === 'hat') { add(kit.brim, kit.straw, 0, .86, -.01); add(kit.crown, kit.straw, 0, .92, -.01); }
+            if (look === 'cook') { add(kit.cap, kit.white, 0, .9, -.01); add(kit.apron, kit.white, 0, .44, .13); }
+            if (look === 'trader') add(kit.apron, kit.green, 0, .44, .13);
+            if (look === 'craft') add(kit.apron, kit.leather, 0, .44, .13);
+            if (look === 'pack') add(kit.pack, kit.canvas, 0, .5, -.17);
+            if (look === 'staff') { const hand = model.arms?.[0]; if (hand) add(kit.staff, kit.wood, -.02, -.12, .05, hand); }
         }
 
         poseActivity(model, act, time, dt, data) {
@@ -10839,16 +10866,17 @@ window.addEventListener('load', () => {
                 }
                 const [a0, a1 = a0] = arms, set = (x0,x1) => { a0.rotation.x = x0; a1.rotation.x = x1; };
                 switch (act.kind) {
-                    case 'work':   set(-.9+wave(3.2,.45), -.9+wave(3.2,.45)); lean = .1; break;    // hoe, hammer, weed
-                    case 'tend':   set(-.6+wave(1.6,.2), -.5+wave(1.6,.2,.6)); lean = .18; break; // bent over the animals
+                    // R17: the whole body works, not only the arms: a stroke bends the back, herding is done stooped
+                    case 'work':   set(-.9+wave(3.2,.55), -.9+wave(3.2,.55)); lean = .2+wave(3.2,.12,-.6); break;
+                    case 'tend':   set(-.75+wave(1.6,.2), -.65+wave(1.6,.2,.6)); lean = .38; break;
                     case 'trade':  set(-1.15+wave(1.4,.08), -.2); break;                           // goods held out
                     case 'browse': set(-.25, -.25); break;
                     case 'serve':  set(-1.05, -1.05); break;                                       // a tray in both hands
                     case 'rest':   set(.05, .05); lean = -.05; break;
-                    case 'pray':   set(-1.45, -1.45); lean = .16; break;
+                    case 'pray':   set(-1.45, -1.45); lean = .3; break;
                     case 'watch':  set(-.15, -.15); break;
                     case 'alert':  set(-.55, -.55); lean = -.04; break;
-                    case 'speak':  set(-.55+wave(4,.35), -.1); break;
+                    case 'speak':  set(-.55+wave(4,.35), -.25+wave(4,.25,1.6)); lean = .05; break;
                     case 'wave':   set(-2.7+wave(9,.25), 0); break;
                     case 'nod':    lean = reduced ? 0 : .12*Math.max(0,Math.sin(time*5)); break;
                 }
@@ -10879,8 +10907,10 @@ window.addEventListener('load', () => {
                 const lifted = sy !== own && ebFarlands.surface() && !sharedWorld.active();
                 if (node.style.pointerEvents !== (lifted ? 'none' : '')) node.style.pointerEvents = lifted ? 'none' : '';
             }
+            // R17: a name never sits underneath the panel, the map or the on-screen controls (solo Farlands)
+            const underHud = labels && this.hudRects?.some(r => sx + 40 > r[0] && sx - 40 < r[2] && sy > r[1] && sy - 20 < r[3]);
             const visible = depth > -1 && depth < 1 && sx >= 12 && sx <= this.width - 12 &&
-                sy >= 12 && sy <= this.height - 12;
+                sy >= 12 && sy <= this.height - 12 && !underHud;
             node.hidden = !visible;
             if (visible) node.style.transform = 'translate(' + sx + 'px,' + sy + 'px) translate(-50%,-100%)';
         }
@@ -11504,6 +11534,13 @@ window.addEventListener('load', () => {
             // R17: in solo Farlands (third person) a resident's name shows when they are among the three nearest within
             // 3 tiles, selected or under the mouse; everyone else stays in the scene, touchable, without a name over them.
             const contextual = !this.eyeMode && ebFarlands.surface() && !sharedWorld.active() && !buildingInterior;
+            if (contextual && (!this.hudRead || performance.now() - this.hudRead > 500)) {
+                this.hudRead = performance.now();
+                const c = this.canvas.getBoundingClientRect();
+                this.hudRects = [...document.querySelectorAll('.location-info, .minimap, #eb-joystick, #mobile-controls, .eb-tools, #eb-capture-toggle, #eb-menu-open, #eb-hero-open')]
+                    .filter(e => e.offsetParent).map(e => { const r = e.getBoundingClientRect(); return [r.left-c.left, r.top-c.top, r.right-c.left, r.bottom-c.top]; })
+                    .filter(r => r[2] > r[0] && r[3] > r[1]);
+            } else if (!contextual) this.hudRects = null;
             const chosen = contextual ? ebSelectedNpc() : null;
             const chosenRecord = chosen && this.actors.get(chosen);
             // in a gathering, only the three nearest within 3 tiles keep their names
@@ -11535,6 +11572,8 @@ window.addEventListener('load', () => {
                 }
                 // R17: what nearby residents are doing, shown by posture and facing only (solo Farlands, third person,
                 // within 14 tiles of the hero; the rest of the world is not animated).
+                if(kind==='npc' && !model.ebDressed && ebFarlands.surface() && !sharedWorld.active() && data.ebRole)
+                    this.dressRole(model,data.ebRole);
                 if(kind==='npc' && contextual && data.ebRole && Math.hypot(data.x-here.x,data.y-here.z)<=14)
                     this.poseActivity(model,ebLife.activity(data,performance.now()),time,dt,data);
                 // R15.59: Mira and Nessa at work, at their real scheduled places (pose and facing only).
