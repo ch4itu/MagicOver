@@ -2605,6 +2605,7 @@ function updateMovingEntities() {
         if (!npc.patrol || !npc.patrol.enabled || (talking && npc === ebTalkPartner)) return;
 
         npc.patrol.angle += npc.patrol.speed;
+        if (npc.patrol.mode === 'graze' && Math.sin(npc.patrol.angle * 5) > -.25) return; // head down, grazing
         const { originX, originY, radius, angle, speed } = npc.patrol;
         const dx = originX + Math.cos(angle) * radius - npc.x;
         const dy = originY + Math.sin(angle) * radius - npc.y;
@@ -2613,7 +2614,7 @@ function updateMovingEntities() {
         const stride = Math.min(distance, Math.max(.015, Math.min(.075, radius * speed))) / distance;
         const newX = npc.x + dx * stride;
         const newY = npc.y + dy * stride;
-        if (canEntityMoveTo(newX, newY)) {
+        if (canEntityMoveTo(newX, newY) && !(npc.patrol.mode === 'graze' && adventureTile(Math.floor(newX), Math.floor(newY)) === 'road')) {
             npc.walkingUntil = now + 205;
             npc.x = newX;
             npc.y = newY;
@@ -10093,7 +10094,7 @@ window.addEventListener('load', () => {
                 const type=this.terrainAt(x,z);if(!soft.has(type))return null;
                 const biome=Farlands.regions[Farlands.regionAt(x,z)],village=Farlands.villageAt(x,z);
                 let tint=(type==='grass'?biome?.color:type==='forest'?biome?.forest:0)||season[type]||colors[type]||season.grass;
-                if(type==='grass'&&!sharedWorld.active()&&Farlands.farmlandAt(x,z))tint=fieldSoil();
+                if(type==='grass'&&!sharedWorld.active()&&Farlands.farmlandAt(x,z)&&!Farlands.pastureAt(x,z))tint=fieldSoil();
                 else if(type==='grass'&&!sharedWorld.active()&&Farlands.villagePathAt(x,z))tint=0x9a8560;
                 else if(type==='road'&&!village&&!sharedWorld.active()&&Farlands.villageGround(x,z))tint=Farlands.villageGround(x,z)==='square'?0xbcaa8a:0x9a8560;
                 if(village&&type==='grass')tint=0x7b9d50;
@@ -10124,7 +10125,7 @@ window.addEventListener('load', () => {
                         else if (type === 'grass' && !shore.some(Boolean)) color.set(0x7b9d50).multiplyScalar(light); // a kept green
                         else if (type === 'road' && Farlands.natural(x,z) !== 'water') color.set(0x9a8560).multiplyScalar(light); // trodden earth
                     }
-                    const field = streamed && !this.room && type === 'grass' && !sharedWorld.active() && Farlands.farmlandAt(x,z);
+                    const field = streamed && !this.room && type === 'grass' && !sharedWorld.active() && Farlands.farmlandAt(x,z) && !Farlands.pastureAt(x,z);
                     if (field) color.set(fieldSoil()).multiplyScalar(light);
                     else if (streamed && type === 'grass' && !shore.some(Boolean) && !sharedWorld.active() && Farlands.villagePathAt(x,z)) color.set(0x9a8560).multiplyScalar(light);
                     else if (streamed && type === 'road' && !this.room && !sharedWorld.active() && !Farlands.villageAt(x,z) && Farlands.villageGround(x,z)) {
@@ -13878,6 +13879,13 @@ const Farlands = (() => {
         return Math.abs(dx)>=8 && Math.abs(dx)<=17 && Math.abs(dy)>=6 && Math.abs(dy)<=16 &&
             Math.abs(dx)%6!==0 && Math.abs(dy)%6!==0;
     }
+    // Stage 7: the four inner plots nearest a settlement are its pasture, where its livestock already stand; they stay
+    // grass in the 3D view rather than crops.
+    function pastureAt(x,y) {
+        if (!farmlandAt(x,y)) return false;
+        const site = nearbySite(x,y);
+        return Math.abs(x-site.x)<=11 && Math.abs(y-site.y)<=11;
+    }
     function baseSample(x,y) {
         if (trailAt(x,y)) return 'road';
         if (farmlandAt(x,y)) return 'grass';
@@ -14513,7 +14521,7 @@ const Farlands = (() => {
         }
     }
 
-    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
+    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
         sceneCell,remember,hash};
 })();
 
@@ -14573,6 +14581,13 @@ const ebFarlands = (() => {
     }
 
     function addPatrol(actor,hostile) {
+        // Stage 7: a settlement's livestock graze: the same patrol, a smaller circle, slower, and standing still for more
+        // than half of it (see updateMovingEntities). canEntityMoveTo still keeps them off water, buildings and props.
+        if (actor.fauna && /-livestock-\d+$/.test(actor.realmId ?? '') && !actor.patrol && !sharedWorld.active()) {
+            actor.patrol = { enabled:true,originX:actor.x,originY:actor.y,radius:1.4,
+                angle:Farlands.hash(actor.x,actor.y,96)*Math.PI*2,speed:.012,mode:'graze' };
+            return;
+        }
         if (!actor.movable || actor.patrol) return;
         const radius = hostile ? 2.5 : 1.8;
         actor.patrol = { enabled:true,originX:actor.x,originY:actor.y,radius,
