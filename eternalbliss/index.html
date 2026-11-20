@@ -9979,7 +9979,12 @@ window.addEventListener('load', () => {
             const aspect = this.width / this.height;
             this.eyeCamera.aspect = aspect;
             this.eyeCamera.updateProjectionMatrix();
-            const halfHeight = (aspect < .7 ? 7.1 : 7.5) / this.zoom;
+            // R17: on a short landscape screen (a phone on its side, under 600 px tall) the same 15 tiles of height made a
+            // person 17 px tall against 40 px in portrait. There the view keeps about 44 px per tile instead (never fewer
+            // than 8.4 tiles of height, which still shows more of the world than portrait: about 19 x 8.7 tiles on an
+            // 844 x 390 screen against 6.6 x 14.2 in portrait). Larger screens and portrait are unchanged.
+            const baseHalf = aspect > 1 && this.height < 600 ? Math.max(4.2, this.height / 88) : aspect < .7 ? 7.1 : 7.5;
+            const halfHeight = baseHalf / this.zoom;
             this.camera.left = -halfHeight * aspect;
             this.camera.right = halfHeight * aspect;
             this.camera.top = halfHeight;
