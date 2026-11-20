@@ -11572,9 +11572,9 @@ window.addEventListener('load', () => {
                 }
                 // R17: what nearby residents are doing, shown by posture and facing only (solo Farlands, third person,
                 // within 14 tiles of the hero; the rest of the world is not animated).
-                if(kind==='npc' && !model.ebDressed && ebFarlands.surface() && !sharedWorld.active() && data.ebRole)
-                    this.dressRole(model,data.ebRole);
-                if(kind==='npc' && contextual && data.ebRole && Math.hypot(data.x-here.x,data.y-here.z)<=14)
+                if(kind==='npc' && !model.ebDressed && ebFarlands.surface() && !sharedWorld.active() && ebLife.look(data))
+                    this.dressRole(model,ebLife.look(data));
+                if(kind==='npc' && contextual && ebLife.drawn(data) && Math.hypot(data.x-here.x,data.y-here.z)<=14)
                     this.poseActivity(model,ebLife.activity(data,performance.now()),time,dt,data);
                 // R15.59: Mira and Nessa at work, at their real scheduled places (pose and facing only).
                 if(kind==='npc' && model.arms?.length && model.body) ebLivingRest.pose(data,model,time,dt,this.reduced,now);
@@ -15772,9 +15772,33 @@ const ebLife = (() => {
     const GUARDS = new Set(['Trail Warden','Caravan Guard']);
     const seed = npc => { let h = 0; for (const c of npc.name) h = (h*31 + c.charCodeAt(0))|0; return Math.abs(h); };
     const standing = (npc,now) => !npc.indoors && (npc.walkingUntil ?? 0) < now;
+    // R17: Wayfarer's Rest's own people, by the places their day already takes them (hour of the slot -> what they do
+    // there). Their schedules, words, quests and where they can be spoken to are untouched; only what is drawn changes.
+    // Mira and Nessa keep the work they were given in R15.59 (ebLivingRest.pose); here they only get their dress.
+    const NAMED = {
+        'Ivo, the Millwright':{6:'work',11:'trade',17:'rest'},
+        'Tamsin, the Herbalist':{18:'tend'},
+        'Bram, the Storyteller':{8:'story',13:'story',18:'story'},
+        'Hale, the Wheelwright':{6:'work',12:'work',19:'rest'},
+        'Wren, a Pilgrim':{6:'pray',10:'rest',16:'pray'}
+    };
+    const NAMED_LOOK = {'Ivo, the Millwright':'Mason','Hale, the Wheelwright':'Mason','Nessa, the Orchard Keeper':'Merchant',
+        'Tamsin, the Herbalist':'Herbalist','Wren, a Pilgrim':'Pilgrim'};
+    function named(npc, now) {
+        const hero = gameState.player;
+        const slot = npc.life?.slot, plan = NAMED[npc.name];
+        if (!plan || !slot || slot.home || npc.indoors || !standing(npc,now)) return null;
+        const kind = plan[Math.floor(slot.from)];
+        if (!kind) return null;
+        if (kind === 'trade') return {kind,face:Math.hypot(hero.x-npc.x,hero.y-npc.y) <= 3 ? [hero.x,hero.y] : null};
+        if (kind === 'story') return {kind:'speak',face:null};
+        return {kind,face:null};
+    }
+    const storyteller = now => roster.find(o => o.name === 'Bram, the Storyteller' && named(o,now)?.kind === 'speak');
     function activity(npc, now) {
+        if (!npc.ebRole) return NAMED[npc.name] ? named(npc, now) : null;
         const life = npc.life, slot = life?.slot;
-        if (!slot || slot.home || npc.indoors || !npc.ebRole) return null;
+        if (!slot || slot.home || npc.indoors) return null;
         const hero = gameState.player;
         // guards turn to face a hostile within nine tiles, wherever they are
         if (GUARDS.has(npc.ebRole)) {
@@ -15817,6 +15841,9 @@ const ebLife = (() => {
         if (where === 'work' || where === 'field' || where === 'garden') return {kind:'work',face:null};
         if (where === 'pasture' || where === 'barn') return {kind:'tend',face:null};
         if ((where === 'roadA' || where === 'roadB') && GUARDS.has(role)) return {kind:'watch',face:null};
+        // Bram telling a story close by: those standing within three tiles turn to listen
+        const teller = storyteller(now);
+        if (teller && Math.hypot(teller.x-npc.x,teller.y-npc.y) <= 3) return {kind:'listen',face:[teller.x,teller.y]};
         // the square, the roadside, the wilds: talk with whoever stands close, taking turns to speak
         const mate = near(2.6)[0];
         if (mate) {
@@ -15825,7 +15852,8 @@ const ebLife = (() => {
         }
         return null;
     }
-    return { enroll, tick, roster:() => roster, hour, activity };
+    return { enroll, tick, roster:() => roster, hour, activity, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
+        drawn:npc => Boolean(npc.ebRole || NAMED[npc.name]) };
 })();
 </script>
 <script data-source="village-work.js">
