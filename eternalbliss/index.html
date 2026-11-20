@@ -3060,12 +3060,12 @@ function renderAllEntities() {
         
         const nameOverlay = document.createElement('div');
         nameOverlay.className = 'character-name-overlay';
-        nameOverlay.textContent = npc.name.split(' ')[0];
+        nameOverlay.textContent = ebDisplayName(npc).split(/[ ,]/)[0];
         npcEl.appendChild(nameOverlay);
         
         npcEl.onclick = () => ebTapPerson(npc);
         classicSprites.npc.push(npcEl);
-        npcEl.title = npc.name;
+        npcEl.title = ebDisplayName(npc);
         worldGrid.appendChild(npcEl);
     });
     
@@ -3662,7 +3662,7 @@ function useWorldActor(kind, data) {
         if (kind === 'building') interactWithBuilding(data);
         else talkToNPC(data);
     } else if (!(kind === 'npc' && approachToTalk(data))) {
-        showFloatingText('Too far from ' + data.name + '!', gameState.player.x * 32 + 16,
+        showFloatingText('Too far from ' + (kind === 'npc' ? ebDisplayName(data) : data.name) + '!', gameState.player.x * 32 + 16,
             gameState.player.y * 32 - 20, '#ef4444');
     }
 }
@@ -3706,7 +3706,7 @@ function ebChoosePerson(people) {
     content.replaceChildren();
     for (const npc of people) {
         const b = document.createElement('button');
-        b.type = 'button'; b.className = 'btn'; b.textContent = npc.name;
+        b.type = 'button'; b.className = 'btn'; b.textContent = ebDisplayName(npc);
         b.style.cssText = 'display:block;width:100%;min-height:44px;margin:0 0 8px;text-align:left';
         b.addEventListener('click', () => { closeModal(); useWorldActor('npc', npc); });
         content.append(b);
@@ -3723,7 +3723,7 @@ function arriveToTalk({npc,tries}) {
     if (!npcs.includes(npc) || movementBlocked()) return;
     if (Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y) <= 1.5) { useWorldActor('npc',npc); return; }
     if (tries < 2 && approachToTalk(npc,tries+1)) return;
-    showFloatingText(npc.name.split(',')[0] + ' has moved on', gameState.player.x*32+16, gameState.player.y*32-20, '#e9c987');
+    showFloatingText(ebDisplayName(npc).split(',')[0] + ' has moved on', gameState.player.x*32+16, gameState.player.y*32-20, '#e9c987');
 }
 
 function interact() {
@@ -3787,7 +3787,7 @@ function escapeMapText(value) {
 }
 
 function talkToNPC(npc) {
-    document.getElementById('modalTitle').textContent = npc.name;
+    document.getElementById('modalTitle').textContent = ebDisplayName(npc);
     const rewardedBefore = ebFarlands.storyFlag('quest-vault-reward');
     const storyLine = npc.name==='Mira, the Cartographer' && ebFarlands.surface() && !sharedWorld.active()
         ? ebStory.mira() : '';
@@ -3840,6 +3840,51 @@ function ebTalkOpen() {
     return document.getElementById('helpModal').style.display !== 'flex' &&
         document.getElementById('mapImporterOverlay').style.display !== 'flex' &&
         !document.querySelector('dialog[open], .left-panel.eb-open');
+}
+// R17.12: personal names, for display only. A generated resident is still "<Site> <Role>" in npc.name (the quests,
+// errands, role parsing and saves all use that), and is shown as "<Given>, the <Role>". The given name comes from the
+// site and the role: index (site hash + 7 x role number) mod 97, so no two roles of one site share a name. Travellers
+// ("<Region> <Role>", the Traveling Surveyor) take a name from a second list by their own id or tile, shown as
+// "<Given>, a <Role>". Wayfarer's Rest's authored people, animals and every name outside solo Farlands stay as they are.
+const EB_GIVEN = 'Agnes Albin Alys Anselm Arlo Aster Audra Bartram Beatrix Benna Berit Bettany Cael Calla Cedric Clem Corin Dara Delphine Doran Dunstan Edda Edric Elin Elowen Emrys Esme Ewan Fenna Ferris Finch Flora Gareth Gemma Gideon Gilda Godric Greta Gwen Hattie Hester Hugo Ilse Isolde Jory Juniper Kester Kit Leda Linnet Lorcan Mabel Maud Merrin Milo Morwen Nell Nico Odile Olwen Orrin Osric Perrin Petra Piers Quill Ralf Rhona Roswitha Rowan Rufus Sabine Selwyn Senna Sorrel Tansy Tobin Ulric Una Vesna Wendel Willa Yara Yorick Zelda Aldous Brannoc Cressida Dilys Elspeth Fintan Gwyneth Hollis Iona Jessamy Lark Marek'.split(' ');
+const EB_TRAVELLER_GIVEN = 'Ansel Basil Cato Dorian Elric Faye Garrow Hesper Ines Jarrah Kenna Lior Mattis Neve Oren Pell Rhys Saskia Teodor Ulla Vale Wystan Ysolde Zeno Bryn Caspian Darrow Eira Galen Imre Sefa'.split(' ');
+const EB_ROLES = ['Waykeeper','Provisioner','Trail Warden','Herbalist','Storyteller','Craftsperson','Pilgrim','Farmer','Shepherd','Baker',
+    'Gardener','Merchant','Village Elder','Cook','Courier','Weaver','Mason','Caravan Guard','Peddler','Woodcutter','Caretaker','Surveyor'];
+const ebNameHash = text => { let h = 2166136261; for (const c of text) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+const ebShownNames = new Map(), ebShownTravellers = new WeakMap();
+let ebSitesByName = null;
+function ebPersonalName(name) {
+    if (ebShownNames.has(name)) return ebShownNames.get(name);
+    let shown = null;
+    ebSitesByName ??= new Map(Farlands.sites.map(site => [site.name, site]));
+    for (let i = 0; i < EB_ROLES.length && !shown; i++) {
+        const role = EB_ROLES[i];
+        if (!name.endsWith(' '+role)) continue;
+        const site = ebSitesByName.get(name.slice(0, -role.length-1));
+        if (site) shown = EB_GIVEN[(ebNameHash(site.id) % EB_GIVEN.length + 7*i) % EB_GIVEN.length]+', the '+role;
+    }
+    ebShownNames.set(name, shown);
+    return shown;
+}
+function ebTravellerName(npc) {
+    if (ebShownTravellers.has(npc)) return ebShownTravellers.get(npc);
+    let role = null;
+    if (npc.name === 'Traveling Surveyor') role = 'Surveyor';
+    else for (const region of Object.values(Farlands.regions)) if (npc.name.startsWith(region.name+' ') && EB_ROLES.includes(npc.name.slice(region.name.length+1))) role = npc.name.slice(region.name.length+1);
+    const shown = role ? EB_TRAVELLER_GIVEN[ebNameHash(npc.realmId ?? npc.x+','+npc.y) % EB_TRAVELLER_GIVEN.length]+', a '+role : null;
+    ebShownTravellers.set(npc, shown);
+    return shown;
+}
+const ebNamesShown = () => ebFarlands.surface() && !sharedWorld.active();
+// the name a player sees for a person (an npc object) or for a quest giver's internal name (a string)
+function ebDisplayName(npc) {
+    if (!npc || typeof npc === 'string') return ebDisplayNameOf(npc);
+    if (npc.fauna || !npc.name || npc.name.includes(',') || !ebNamesShown()) return npc?.name ?? '';
+    return ebPersonalName(npc.name) ?? ebTravellerName(npc) ?? npc.name;
+}
+function ebDisplayNameOf(name) {
+    if (!name || name.includes(',') || !ebNamesShown()) return name ?? '';
+    return ebPersonalName(name) ?? name;
 }
 function ebTalkHead(npc) {
     ebTalkPartner = npc;
@@ -3911,7 +3956,7 @@ function ebOrganizeTalk(npc) {
     if (present.length < 2) return;                     // one part: shown as it is, no tabs
     const ready = parts.find(el => el.dataset.ebReady)?.dataset.ebPane;
     const bar = document.createElement('div');
-    bar.id = 'eb-talk-tabs'; bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', 'Talk with ' + npc.name);
+    bar.id = 'eb-talk-tabs'; bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', 'Talk with ' + ebDisplayName(npc));
     const show = id => {
         for (const el of parts) el.hidden = el.dataset.ebPane !== id;
         for (const b of bar.children) b.setAttribute('aria-selected', String(b.dataset.ebPane === id));
@@ -10285,7 +10330,7 @@ window.addEventListener('load', () => {
             if (record.kind === 'enemy') return data.name + ' · ' + data.hp + '/' + data.maxHp + ' HP';
             if (record.kind === 'item') return data.type.replaceAll('_', ' ') + ' × ' + data.value;
             if (record.kind === 'remote') return 'PLAYER · ' + data.name;
-            return data.name;
+            return record.kind === 'npc' ? ebDisplayName(data) : data.name;
         }
 
         visibleRadius() {
@@ -15012,7 +15057,7 @@ const ebFarlands = (() => {
             if(!site.station||!journey.spent.has('errand-taken-'+site.id)||journey.spent.has('errand-'+site.id))continue;
             const task=errandFor(site), state=errandState(task), next=state==='reached'?site:task.target;
             if(journey.pin!==next.id)continue;
-            return {label:state==='reached'?'Report to '+task.giver.split(',')[0]+' at '+site.name:'Errand: reach '+task.target.name,site:next};
+            return {label:state==='reached'?'Report to '+ebDisplayNameOf(task.giver).split(',')[0]+' at '+site.name:'Errand: reach '+task.target.name,site:next};
         }
         return null;
     }
@@ -15024,7 +15069,7 @@ const ebFarlands = (() => {
             journey.spent.add(task.reached);
             if(journey.pin===here.id)journey.pin=site.id;
             saveNow();
-            showFloatingText(here.name+' reached · return to '+site.name+' and report to '+task.giver.split(',')[0],
+            showFloatingText(here.name+' reached · return to '+site.name+' and report to '+ebDisplayNameOf(task.giver).split(',')[0],
                 gameState.player.x*32+16,gameState.player.y*32-38,'#f1cf83');
         }
     }
@@ -15062,7 +15107,7 @@ const ebFarlands = (() => {
         if(!journey||!surface()||sharedWorld.active())return [];
         return Farlands.sites.filter(site=>site.station&&journey.spent.has('errand-taken-'+site.id)&&!journey.spent.has('errand-'+site.id)).map(site=>{
             const task=errandFor(site),reached=errandState(task)==='reached';
-            return {site:reached?site:task.target,label:reached?'Report to '+task.giver.split(',')[0]+' at '+site.name:'Errand for '+task.giver.split(',')[0]+': reach '+task.target.name};
+            return {site:reached?site:task.target,label:reached?'Report to '+ebDisplayNameOf(task.giver).split(',')[0]+' at '+site.name:'Errand for '+ebDisplayNameOf(task.giver).split(',')[0]+': reach '+task.target.name};
         });
     }
     // Talking to the giver: offers the errand, reports a reached one, or says what is still owed.
@@ -15086,7 +15131,7 @@ const ebFarlands = (() => {
         if(!site?.station)return;
         activeErrand=errandFor(site);
         const task=activeErrand,state=errandState(task);
-        get('eb-task-heading').textContent=site.name+' · Errand from '+task.giver;
+        get('eb-task-heading').textContent=site.name+' · Errand from '+ebDisplayNameOf(task.giver);
         get('eb-task-description').textContent='"Could you '+task.ask+'? Come back here and tell me when you have." Reward: '+ERRAND_GOLD+' gold and '+ERRAND_XP+' XP.';
         get('eb-task-progress').textContent=state==='done'?'Done ✓ · reward received':state==='reached'?task.target.name+' reached · report here to finish':
             state==='taken'?'Accepted · '+task.target.name+' not reached yet':'Not accepted yet';
@@ -15419,7 +15464,7 @@ const ebFarlands = (() => {
             const task=activeErrand;
             if(!finishErrand(task))return;
             get('eb-local-tasks').close();
-            document.getElementById('modalTitle').textContent=task.giver;
+            document.getElementById('modalTitle').textContent=ebDisplayNameOf(task.giver);
             document.getElementById('modalContent').innerHTML=errandThanks(task);
             releaseMovement();
             document.getElementById('interactionModal').style.display='flex';
@@ -16163,7 +16208,7 @@ const ebLivingRest=(()=>{
             p.style.cssText='margin:0;line-height:1.55';p.textContent=answer;box.append(p);
             add('Ask something else',()=>render());
         }else{
-            const p=document.createElement('p');p.style.cssText='margin:0;font-weight:600';p.textContent='Ask '+npc.name.split(',')[0]+' about…';box.append(p);
+            const p=document.createElement('p');p.style.cssText='margin:0;font-weight:600';p.textContent='Ask '+ebDisplayName(npc).split(',')[0]+' about…';box.append(p);
             for(const topic of topics[id]){
                 if(topic.when&&!topic.when(npc))continue;
                 add(topic.label,()=>{
@@ -16303,7 +16348,7 @@ const ebRpgAccess=(()=>{
             const row=document.createElement('div');
             row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid rgba(210,190,150,.18);padding:7px 0';
             const label=document.createElement('div');label.style.cssText='min-width:0;flex:1';
-            const strong=document.createElement('strong');strong.textContent=npc.name;
+            const strong=document.createElement('strong');strong.textContent=ebDisplayName(npc);
             const note=document.createElement('div');note.style.cssText='opacity:.8;font-size:12px';
             note.textContent=npc.indoors?'At home · try in daylight':distance<.5?'Here':Math.ceil(distance)+' tiles '+compass(npc.x,npc.y);
             label.append(strong,note);row.append(label);
@@ -16314,7 +16359,7 @@ const ebRpgAccess=(()=>{
                 talk.style.minWidth='66px';row.append(talk);
             }else if(!npc.indoors&&npcs.includes(npc)&&distance<=18){
                 // R17: walk over and talk, with the same approach as touching them in the world
-                const go=button('Go & talk',()=>{if(!active())return;closeModal();if(!approachToTalk(npc))showFloatingText('No way through to '+npc.name.split(',')[0],gameState.player.x*32+16,gameState.player.y*32-20,'#ef4444');});
+                const go=button('Go & talk',()=>{if(!active())return;closeModal();if(!approachToTalk(npc))showFloatingText('No way through to '+ebDisplayName(npc).split(',')[0],gameState.player.x*32+16,gameState.player.y*32-20,'#ef4444');});
                 go.style.minWidth='66px';row.append(go);
             }
             content.append(row);
@@ -16422,6 +16467,7 @@ const ebRpgQuests=(()=>{
         return site.name+(kind==='a'?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
     };
     const receiver=(site)=>giverName(site,'a');
+    const shown=(site,kind)=>ebDisplayNameOf(giverName(site,kind)); // R17.12: the name the player sees
     const neighbor=(site,mode)=>{
         const entries=Farlands.sites.filter(s=>s.id!==site.id&&s.region===site.region&&
             (mode==='station'?s.station:true));
@@ -16434,9 +16480,9 @@ const ebRpgQuests=(()=>{
         if(!target)return null;
         const heading=kind==='a'?'Meet the local team':kind==='b'?'Check the road to '+target.name:'Carry news to '+target.name;
         const description=kind==='a'?
-            'Speak with '+giverName(site,'c')+' and '+giverName(site,'b')+', then tell '+giverName(site,'a')+' what they said.':
-            kind==='b'?'Reach '+target.name+' after accepting, then return and tell '+giverName(site,'b')+' what you saw.':
-            'Take road news to '+receiver(target)+'. Speak directly with the recipient and relay it, then report to '+giverName(site,'c')+'.';
+            'Speak with '+shown(site,'c')+' and '+shown(site,'b')+', then tell '+shown(site,'a')+' what they said.':
+            kind==='b'?'Reach '+target.name+' after accepting, then return and tell '+shown(site,'b')+' what you saw.':
+            'Take road news to '+ebDisplayNameOf(receiver(target))+'. Speak directly with the recipient and relay it, then report to '+shown(site,'c')+'.';
         return {site,target,kind,title:heading,description,giver:giverName(site,kind),reward:kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15]};
     }
     const state=q=>flag(q.site,q.kind,'done')?'done':
@@ -16444,11 +16490,11 @@ const ebRpgQuests=(()=>{
     const ready=q=>flag(q.site,q.kind,'step1')&&(q.kind!=='a'||flag(q.site,q.kind,'step2'));
     function next(q){
         if(q.kind==='a'){
-            if(!flag(q.site,'a','step1'))return {site:q.site,label:'Speak to '+giverName(q.site,'c')};
-            if(!flag(q.site,'a','step2'))return {site:q.site,label:'Speak to '+giverName(q.site,'b')};
+            if(!flag(q.site,'a','step1'))return {site:q.site,label:'Speak to '+shown(q.site,'c')};
+            if(!flag(q.site,'a','step2'))return {site:q.site,label:'Speak to '+shown(q.site,'b')};
         }else if(!flag(q.site,q.kind,'step1'))
-            return {site:q.target,label:q.kind==='c'?'Relay news to '+receiver(q.target):'Visit '+q.target.name};
-        return {site:q.site,label:'Report to '+q.giver};
+            return {site:q.target,label:q.kind==='c'?'Relay news to '+ebDisplayNameOf(receiver(q.target)):'Visit '+q.target.name};
+        return {site:q.site,label:'Report to '+ebDisplayNameOf(q.giver)};
     }
     const activePlans=()=>sites().flatMap(site=>['a','b','c'].map(k=>plan(site,k)).filter(Boolean))
         .filter(q=>flag(q.site,q.kind,'taken')&&!flag(q.site,q.kind,'done'));
@@ -16468,7 +16514,7 @@ const ebRpgQuests=(()=>{
         for(const q of activePlans()){
             if(q.kind==='b'&&within(q.target,gameState.player.x,gameState.player.y)&&!flag(q.site,'b','step1')){
                 if(mark(q.site,'b','step1')){
-                    showFloatingText('Road checked · return to '+q.giver,gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
+                    showFloatingText('Road checked · return to '+ebDisplayNameOf(q.giver),gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
                     ebFarlands.refreshStoryHint();
                 }
             }
@@ -16479,8 +16525,8 @@ const ebRpgQuests=(()=>{
         const here=stationAt(npc.x,npc.y),notes=[];
         for(const q of activePlans()){
             if(q.kind!=='a'||q.site.id!==here?.id)continue;
-            if(npc.name===giverName(q.site,'c')&&mark(q.site,'a','step1'))notes.push('You have spoken with '+npc.name+'.');
-            if(npc.name===giverName(q.site,'b')&&mark(q.site,'a','step2'))notes.push('You have spoken with '+npc.name+'.');
+            if(npc.name===giverName(q.site,'c')&&mark(q.site,'a','step1'))notes.push('You have spoken with '+ebDisplayName(npc)+'.');
+            if(npc.name===giverName(q.site,'b')&&mark(q.site,'a','step2'))notes.push('You have spoken with '+ebDisplayName(npc)+'.');
         }
         if(notes.length)ebFarlands.refreshStoryHint();
         return notes.join(' ');
@@ -16528,11 +16574,11 @@ const ebRpgQuests=(()=>{
         for(const q of activePlans()){
             if(q.kind!=='c'||q.target.id!==here?.id||flag(q.site,'c','step1')||npc.name!==receiver(q.target))continue;
             const box=document.createElement('section');box.dataset.ebPane='quests';box.dataset.ebReady='1';box.style.cssText='margin-top:12px;text-align:left;padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px';
-            const p=document.createElement('p');p.textContent='News from '+q.site.name+' for '+npc.name+'.';
+            const p=document.createElement('p');p.textContent='News from '+q.site.name+' for '+ebDisplayName(npc)+'.';
             box.append(p,button('Relay the road news',()=>{
                 if(!active()||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return;
                 if(mark(q.site,'c','step1')){
-                    p.textContent='Message received. Return to '+q.giver+' at '+q.site.name+'.';
+                    p.textContent='Message received. Return to '+ebDisplayNameOf(q.giver)+' at '+q.site.name+'.';
                     box.querySelector('button')?.remove();ebFarlands.pin(q.site.id);
                     ebFarlands.refreshStoryHint();
                 }
