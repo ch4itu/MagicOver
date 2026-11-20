@@ -8965,7 +8965,11 @@ const EternalBlissArt = (() => {
         const baked=bakeArchitecture(g),model={group:baked,width:w+.06,depth:d+.34,height:3.30};authoredChapels.set(key,model);return {...model,group:baked.clone(true)};
     }
 
-    function building(kind, variant, footprint = null, region, authoredRest = false) {
+    // Stage 7: `style` (solo Farlands only) is {farmstead, regional}. A settlement's Farmstead keeps its 'castle' type,
+    // tile and door, and is drawn as a farmhouse with a silo instead of a keep; `regional` gives houses their region's walls
+    // (Hearthmere keeps the stone it had) and Lanternreach houses a pair of door lanterns.
+    const REGION_WALLS = {alder:0x9b7b5a, rime:0xd3d8d2, iron:0xa7a698, amber:0xe7dfcb, salt:0xd4ae78, reed:0xc2ae80, ember:0x9d8a76, lantern:0xd9cdb5};
+    function building(kind, variant, footprint = null, region, authoredRest = false, style = null) {
         if(authoredRest && kind==='inn')return authoredInn(footprint);
         if(authoredRest && kind==='shop')return authoredExchange(footprint);
         if(authoredRest && kind==='temple')return authoredChapel(footprint);
@@ -8977,7 +8981,18 @@ const EternalBlissArt = (() => {
         const limestone = region==='salt' ? 0xd4ae78 : region==='iron' || region==='rime' ? 0xb9b9aa : 0xc8b18a;
         const dark = 0x51463c;
 
-        if (kind === 'temple') {
+        if (kind === 'castle' && style?.farmstead) {
+            box(group, 1.42, .13, 1.22, 0x80786a, 0, .065);
+            box(group, .98, .74, .82, 0xa2563d, -.14, .50, .02);
+            box(group, .32, .58, .065, 0x543a30, -.14, .42, .44);
+            box(group, .04, .58, .07, 0xe8dcc2, -.32, .42, .45); box(group, .04, .58, .07, 0xe8dcc2, .04, .42, .45);
+            box(group, .40, .05, .07, 0xe8dcc2, -.14, .73, .45);
+            windowPane(group, -.48, .57, .44);
+            roof(group, 1.16, 1.0, .87, .38, slate);
+            cylinder(group, .21, .21, 1.10, 10, 0xb9b4a6, .50, .68, -.18);
+            cylinder(group, .02, .23, .22, 10, slate, .50, 1.34, -.18);
+            box(group, .22, .16, .17, 0xd8b65a, .44, .21, .36); box(group, .22, .16, .17, 0xcfac52, .58, .21, .17);
+        } else if (kind === 'temple') {
             box(group, 1.30, .13, 1.20, 0x87867a, 0, .065);
             box(group, 1.19, .10, 1.09, limestone, 0, .18);
             box(group, .82, .08, .22, 0xa9a08a, 0, .09, .59);
@@ -9023,7 +9038,7 @@ const EternalBlissArt = (() => {
             const roofColor = roofColors[region] ?? (kind === 'shop' ? 0x28615e :
                 [0x814f3d, 0x8f5037, 0x454e56][variant % 3]);
             box(group, width + .15, .13, .98, 0x80786a, 0, .065);
-            box(group, width, .79, .81, region ? limestone : 0xd5bb91, 0, .525);
+            box(group, width, .79, .81, region ? (style?.regional && REGION_WALLS[region]) || limestone : 0xd5bb91, 0, .525);
             box(group, width + .05, .07, .86, 0x725543, 0, .90);
             box(group, .29, .68, .065, 0x543a30, 0, .47, .425);
             box(group, .36, .065, .078, 0x8b6448, 0, .82, .433);
@@ -9049,7 +9064,7 @@ const EternalBlissArt = (() => {
             }
             box(group,width+.06,.065,.095,0x674735,0,.78,.453);
             box(group,.42,.055,.22,0x96806a,0,.095,.56);
-            if(kind==='inn'||kind==='shop') {
+            if(kind==='inn'||kind==='shop'||(style?.regional&&region==='lantern')) {
                 for(const x of [-width*.44,width*.44]) {
                     box(group,.10,.18,.10,0x70583d,x,.68,.51);
                     box(group,.065,.11,.068,0xf4c777,x,.65,.515,0xe6a14d);
@@ -10291,7 +10306,8 @@ window.addEventListener('load', () => {
                         if (kind === 'building') model = data.realmId && data.landmark ?
                             art.landmark(data.landmark, buildingFootprint(data)) :
                             art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
-                                ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'||data.realmId==='rest-service-2'));
+                                ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'||data.realmId==='rest-service-2'),
+                                ebFarlands.surface() && !sharedWorld.active() && data.realmId ? {farmstead:/ Farmstead$/.test(data.name), regional:true} : null);
                         else if (kind === 'item') model = art.item(data.type);
                         else if (kind === 'remote') {
                             model = art.humanoid('remote','',variant);
