@@ -1,0 +1,6 @@
+desktop samples 33 max limb 0.27292436706501016
+PASS desktop 33
+phone-touch samples 30 max limb 0.27292436706501016
+PASS phone-touch 30
+phone-reduced samples 19 max limb 0
+PASS phone-reduced 19

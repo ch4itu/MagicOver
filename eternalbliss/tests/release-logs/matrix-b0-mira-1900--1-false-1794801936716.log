@@ -1,0 +1,2 @@
+{"time":"19:00","side":-1,"nearby":false,"before":{"gold":10,"xp":0,"legal":true},"result":{"dialog":"\n        💬\n        \"Welcome to the Farlands. The Atlas shows the caravan and ferry routes.\"\n        🔔 The Harvest Bell restored! Mira records the recovered relic. You earned 65 gold and 85 XP. The valley remembers your courage.\n        \n        \n            Press ESC or click Close to continue your journey\n        \n    ","title":"Mira, the Cartographer","gold":75,"xp":85,"reward":true}}
+PASS Mira: 19:00:-1:false actual Space, once-only reward and reload

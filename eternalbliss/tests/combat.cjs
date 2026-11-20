@@ -15,6 +15,7 @@ async function state(p){return p.evaluate(()=>{const v=__view,c=v.combat;const e
 module.exports={fixture,state,profiles};
 if(require.main===module)(async()=>{const b=await t.launch();try{
  for(const [name,profile]of profiles)for(const mounted of [false,true]){
+  if(process.env.EB_COMBAT_CASE&&process.env.EB_COMBAT_CASE!==name+':'+mounted)continue;
   const p=await t.page(b,profile);await fixture(p,mounted,true);
   let s=await state(p);console.log(name,mounted,'guard',s);t.assert(s.eye&&s.combatEye&&s.hand);t.assert(Math.abs(s.enemy[0])<.95&&Math.abs(s.enemy[1])<.95&&s.enemy[2]<1,'foe in eye frustum');t.assert(s.hud.bottom<=profile.viewport.height,'HUD inside viewport');
   await t.shot(p,`combat-${name}-${mounted}-guard`);
@@ -22,8 +23,8 @@ if(require.main===module)(async()=>{const b=await t.launch();try{
   for(const action of ['attack','magic','heal']){
    await p.locator(`[data-eb-combat="${action}"]`).click();await p.waitForTimeout(230);
    s=await state(p);t.assert(s.eye&&s.hand,action+' retains eye camera/feedback');
-   await t.shot(p,`combat-${name}-${mounted}-${action}`);
-   await p.waitForTimeout(2750);s=await state(p);results.push({action,hp:s.hp,mp:s.mp,foe:s.foe,potions:s.potions});t.assert(s.eye,'enemy reply retains eye');
+   // Capture after replies separately: paused-pose evidence is not action/timer evidence.
+   await p.waitForFunction(()=>!ebCombatHUD.waiting());s=await state(p);results.push({action,hp:s.hp,mp:s.mp,foe:s.foe,potions:s.potions});t.assert(s.eye,'enemy reply retains eye');
   }
   t.assert.deepEqual(results,[{action:'attack',hp:73,mp:50,foe:487,potions:2},{action:'magic',hp:66,mp:38,foe:470,potions:2},{action:'heal',hp:93,mp:38,foe:470,potions:1}]);
   // Ending restores the same eye preference; overhead combat is checked separately.
@@ -31,6 +32,7 @@ if(require.main===module)(async()=>{const b=await t.launch();try{
   t.assert.deepEqual(p.errors,[]);t.record(`FP combat ${name} mounted=${mounted}`,{result:'PASS',results});await p.close();
  }
  // Presentation-only paths must retain exact rules with the same fixed RNG.
- const p=await t.page(b);await fixture(p,false,false);t.assert(!(await state(p)).eye);await p.locator('[data-eb-combat="attack"]').click();await p.waitForTimeout(2900);t.assert.deepEqual(await p.evaluate(()=>[gameState.player.hp,gameState.currentEnemy.hp]),[73,487]);await t.shot(p,'combat-overhead');t.assert.deepEqual(p.errors,[]);t.record('Overhead combat unchanged fixed-RNG attack/reply','PASS');await p.close();
- console.log('PASS combat',t.sha);
+ if(!process.env.EB_COMBAT_CASE||process.env.EB_COMBAT_CASE==='overhead'){const p=await t.page(b);await fixture(p,false,false);t.assert(!(await state(p)).eye);await p.locator('[data-eb-combat="attack"]').click();await p.waitForFunction(()=>!ebCombatHUD.waiting());t.assert.deepEqual(await p.evaluate(()=>[gameState.player.hp,gameState.currentEnemy.hp]),[73,487]);await t.shot(p,'combat-overhead');t.assert.deepEqual(p.errors,[]);t.record('Overhead combat unchanged fixed-RNG attack/reply','PASS');await p.close();
+ }
+ console.log('PASS combat',process.env.EB_COMBAT_CASE||'all',t.sha);
 }finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});

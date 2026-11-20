@@ -1,0 +1,7 @@
+KEEP profile before hybrid
+PASS HUD before hybrid
+CHECK before boundary-hybrid-768x520 768 520 PASS
+CHECK before boundary-hybrid-768x521 768 521 PASS
+CHECK before boundary-hybrid-769x520 769 520 CONFIRMED BLOCKER
+CHECK before boundary-hybrid-769x521 769 521 CONFIRMED BLOCKER
+COMPLETE before b0c9cd4243fe595ebcc002d66a939390e8ffd88ba8445452bdb7e6b1c70c26dd 5 profiles; [ 'hybrid', 'boundary-hybrid-769x520', 'boundary-hybrid-769x521' ]

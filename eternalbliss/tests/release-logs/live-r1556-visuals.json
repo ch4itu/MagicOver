@@ -1,0 +1,61 @@
+{
+  "sha": "5da57048f8ce0d5c4e00c428edf34f85f3c69ad0bebc6f05a0f4c1de3d6d8ee4",
+  "views": [
+    {
+      "view": "village-day",
+      "camera": {
+        "hero": [
+          5064,
+          4864
+        ],
+        "eye": false,
+        "camera": [
+          5080,
+          20,
+          4880
+        ],
+        "clock": "12:00"
+      }
+    },
+    {
+      "view": "village-night",
+      "camera": {
+        "hero": [
+          5064,
+          4864
+        ],
+        "eye": false,
+        "camera": [
+          5080,
+          20,
+          4880
+        ],
+        "clock": "22:00"
+      }
+    },
+    {
+      "view": "inn-eye",
+      "camera": {
+        "hero": [
+          5059,
+          4864
+        ],
+        "eye": true,
+        "camera": [
+          5059,
+          1.135,
+          4864
+        ],
+        "clock": "12:00"
+      }
+    },
+    {
+      "view": "phone-combat",
+      "camera": {
+        "eyeMode": true,
+        "eyeActive": false,
+        "combatEye": false
+      }
+    }
+  ]
+}

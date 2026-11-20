@@ -1,0 +1,20 @@
+KEEP profile before desktop
+KEEP HUD before desktop
+CHECK before boundary-mouse-768x520 768 520 PASS
+CHECK before boundary-mouse-768x521 768 521 PASS
+KEEP profile before boundary-mouse-769x520
+KEEP profile before boundary-mouse-769x521
+KEEP profile before tablet-portrait
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert(await p.locator('#eb-actions-more').isVisible())
+
+    at hud (/workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:28:294)
+    at async /workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:31:745 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}

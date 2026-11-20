@@ -1,0 +1,7 @@
+CHECK before desktop 1280 800 PASS
+PASS HUD before desktop
+CHECK before boundary-mouse-768x520 768 520 PASS
+CHECK before boundary-mouse-768x521 768 521 PASS
+CHECK before boundary-mouse-769x520 769 520 PASS
+CHECK before boundary-mouse-769x521 769 521 PASS
+CHECK before tablet-portrait 820 1180 CONFIRMED BLOCKER

@@ -1,7 +1,7 @@
 const t=require('./browser.cjs'),{fixture}=require('./combat.cjs');
 (async()=>{const b=await t.launch();try{
  const profiles=process.env.EB_WEAPON_BASELINE?[['phone',390,844]]:[['phone',390,844],['landscape',844,390],['desktop',1280,800]];
- for(const [name,width,height]of profiles){const p=await t.page(b,{viewport:{width,height},hasTouch:name!=='desktop',isMobile:name!=='desktop'});await fixture(p,false,true);
+ for(const [name,width,height]of profiles){if(process.env.EB_WEAPON_CASE&&process.env.EB_WEAPON_CASE!==name)continue;const p=await t.page(b,{viewport:{width,height},hasTouch:name!=='desktop',isMobile:name!=='desktop'});await fixture(p,false,true);
  await p.evaluate(()=>{__view.setActive(false);__view.active=true;window.__oldVisual=ebCombatHUD.visual;});
  for(const [action,age]of [['guard',0],['attack',.34],['magic',.43],['heal',.4],['enemy',.49]]){
  const q=await p.evaluate(({action,age})=>{ebCombatHUD.visual=()=>action==='guard'?null:{action,age};const v=__view;v.draw(performance.now());cancelAnimationFrame(v.frame);v.renderer.getContext().finish();v.eyeCamera.updateMatrixWorld(true);const sword=v.eyeSwordArm.children.find(n=>n.isGroup),blade=sword.children[2];const at=new THREE.Vector3();blade.getWorldPosition(at);at.project(v.eyeCamera);return {point:at.toArray(),scale:v.eyeHands.scale.x};},{action,age});

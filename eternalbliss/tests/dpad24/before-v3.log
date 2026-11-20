@@ -1,0 +1,25 @@
+KEEP profile before desktop
+KEEP HUD before desktop
+KEEP profile before boundary-mouse-768x520
+KEEP profile before boundary-mouse-768x521
+KEEP profile before boundary-mouse-769x520
+KEEP profile before boundary-mouse-769x521
+KEEP profile before tablet-portrait
+PASS HUD before tablet-portrait
+CHECK before tablet-landscape 1180 820 CONFIRMED BLOCKER
+PASS HUD before tablet-landscape
+CHECK before phone-portrait 390 844 PASS
+PASS HUD before phone-portrait
+CHECK before phone-landscape 844 390 PASS
+PASS HUD before phone-landscape
+CHECK before boundary-touch-768x520 768 520 PASS
+CHECK before boundary-touch-768x521 768 521 PASS
+CHECK before boundary-touch-769x520 769 520 PASS
+CHECK before boundary-touch-769x521 769 521 CONFIRMED BLOCKER
+TAP before 3d touch excluded, mouse works
+page.evaluate: Error: No unobstructed legal tap/mouse control target 2d
+    at eval (eval at evaluate (:290:30), <anonymous>:1:781)
+    at UtilityScript.evaluate (<anonymous>:292:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+    at tapProbe (/workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:30:444)
+    at async /workspace/MagicOver/eternalbliss/tests/tablet-dpad.cjs:33:102

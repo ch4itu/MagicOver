@@ -8,13 +8,11 @@ Session began about 23:07 India time on 15 November. Requested end: 08:00 India 
 
 No Alerith reference assets/link were found in the workspace. Do not claim reference fidelity. Improve the existing single-file art with original authored geometry, coherent materials and readable human-scale spaces.
 
-## Working queue
+## Current checkpoint
 
-1. Portrait first-person combat weapon visibility and impact feedback. New blade-projection check reproduced the old weapon outside the phone frustum. Candidate validation in progress; no pass yet.
-2. Rework the existing Wayfarer's Rest inn as a crafted architectural asset, with unchanged footprint/entrance, shared geometry and bounded render cost. One building, no cloned settlements.
-3. Improve Farlands surface transitions and vegetation/atmosphere without changing authoritative terrain or collision.
-4. Add a meaningful activity/interaction to the existing settlement residents, preserving identities and using actual current NPC positions. Keep story rewards idempotent and local.
-5. Continue to dungeon/exploration and remaining regressions as execution permits. No speculative release claims; stop expanding a milestone once its focused checks pass.
+Milestones 1–15 below are complete. Latest implementation is `bd9677e` on `feat/eternalbliss-hearthlight-chapel`, draft PR #23. Final tested HTML is `f9faf30e118695aa3d93e1f058b0806978b250d58c6287a816fcc1575a61df08`. The final report/documentation commit changes no application code. See [consolidated report](OVERNIGHT-REPORT.md) for PRs, screenshots, retained failures and remaining release gates.
+
+Do not replay completed work on resume. Inspect the actual branch/SHA and ledger first; continue only new or affected checks. Physical Android, live two-client behavior and the final release-candidate matrix remain gates. Further safe visual work can target the existing Surveyors' Hall/cottage or a reproduced foreground occlusion issue, one authored asset at a time. No merge/deployment or chain write is authorized.
 
 ## Evidence discipline
 
@@ -77,3 +75,7 @@ M12 is draft PR #20, commit `ac4911e`. M13 branch `test/eternalbliss-enclosed-ar
 ## Milestone 14 — readable archive ledger completed
 
 M13 is draft PR #21, commit `bf22d8f`. M14 branch `feat/eternalbliss-archive-ledger`, final HTML `0781ec4c7d2b037fa50fadb566a15754dad594cb3f641072a7b386a317bcd509`: existing rack at (6,4) has an optional authored harvest passage and canonical quest clues, read through Space/FP Use and copied to the saved Explorer's Journal. No main quest objective/flag/reward/unlock/inventory/schema change. Desktop/phone actual use/tap, reread, unchanged state, single copy, reload, range and read-only scope guards passed on `378f9dc4`. Final type-only refinement uses 15px/1.55 left-aligned paragraphs; settled opacity/frame captures and viewport-fit checks passed without repeating functional checks. Initial animated captures retained separately. Final smoke recorded separately. Proceed immediately to the existing north-facing Hearthlight Chapel as another bounded architectural asset, preserving its 3×2 footprint and services.
+
+## Milestone 15 — Hearthlight Chapel completed
+
+M14 is draft PR #22, commit `2c14067`. M15 branch `feat/eternalbliss-hearthlight-chapel`, HTML `f9faf30e118695aa3d93e1f058b0806978b250d58c6287a816fcc1575a61df08`: only the existing north-facing chapel gets cut limestone, buttresses, round glass light, arched door, slate roof and lantern cote. Same 3×2 plot/door direction/services. Node checks passed 22 shared material batches / 5,862 vertices, finite/bounded/cache-isolated geometry and exact unchanged output for inn/Exchange/generic buildings. Fixed noon/22:00 FP/overhead captures reviewed; actual Use, blessing offer, Enter/Exit, six blocked tiles and walkable north approach passed, as did final-candidate startup/3D/FP/2D smoke. Preserve these results. Consolidate the stack/evidence and record the remaining release gates before this active execution ends; no overnight scheduler is available.

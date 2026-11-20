@@ -1,0 +1,668 @@
+{
+  "candidate": "b0c9cd4243fe595ebcc002d66a939390e8ffd88ba8445452bdb7e6b1c70c26dd",
+  "jobs": {
+    "source-audit": {
+      "status": "PASS",
+      "fingerprint": "fe46ecc0979ac7b6699a3d092b1315eef39317fcc4a4fe066b71b46d57e94989",
+      "script": "c3f5c767ab3548637dd1ff0f5e784ae4297b31e828bdbb67f7e838e787eb6dd3",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/source-audit-1794799408980.log",
+      "time": "2026-11-16T03:23:28.980Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:23:29.228Z"
+    },
+    "timing-investigation": {
+      "status": "FAIL",
+      "fingerprint": "610efe4b056afe36e3b33f1b4c62efe834c13843712a510f0b9bc5b78c4f0cf1",
+      "script": "cf26cae4df54807439ca777ce76508ab87892b9512757abae23b68d8db109ad6",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/timing-investigation-1794799409238.log",
+      "time": "2026-11-16T03:23:29.239Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:24:48.213Z"
+    },
+    "normal-path": {
+      "status": "PASS",
+      "fingerprint": "3598998e9cd22f945feee973615decd686cb16a393138120fd686a34e633f794",
+      "script": "4ce384414d9e341ed81ee626a712fefd92fbe655730a8ca97903132bcb8daa33",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/normal-path-1794799488217.log",
+      "time": "2026-11-16T03:24:48.217Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:24:48.312Z"
+    },
+    "asset-contract": {
+      "status": "PASS",
+      "fingerprint": "04b4cd34cb4df00b6ea593f0f3ff799ebf487c863f344f1843c4ec46ba639d64",
+      "script": "3dfbfc23f4aaaa7f208797aeee455c72b994a6eaf8cd92b8bf6916b0b7286eab",
+      "env": {
+        "EB_BASELINE": "/workspace/.magic-over-setup/rc24/original/candidate.html"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/asset-contract-1794799488316.log",
+      "time": "2026-11-16T03:24:48.316Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:24:48.620Z"
+    },
+    "path-contract": {
+      "status": "REUSED",
+      "fingerprint": "c20c17f8666d006d7ed03709d667bd9e3f21439bde73b6dbdada0e77f117eb5f",
+      "script": "40a0d80932148a36d6f186de5e238b2e00ccf32ec667fc73a06a9ab39731c5c6",
+      "env": {},
+      "evidence": "/workspace/.magic-over-setup/rc24/focused/ledger.jsonl",
+      "test": "accepted local movement path contract",
+      "time": "2026-11-16T03:24:48.624Z"
+    },
+    "gait-contract": {
+      "status": "REUSED",
+      "fingerprint": "6d2f63a9dcb676330b6721f4d4e49ff8b12aef092059506d27ae826de8f9519a",
+      "script": "884f90e698356075f3e2cea4cac98953332b44a9d44208f26c69342f7836dd03",
+      "env": {
+        "EB_GAIT_PARENT": "/workspace/.magic-over-setup/rc24/original/candidate.html"
+      },
+      "evidence": "/workspace/.magic-over-setup/rc24/focused/ledger.jsonl",
+      "test": "distance gait metamorphic contract",
+      "time": "2026-11-16T03:24:48.629Z"
+    },
+    "long-frame": {
+      "status": "REUSED",
+      "fingerprint": "03d93c908822f5480d192b4972516be57a7e30af7c2682e16adc2fbddb2c227a",
+      "script": "0af974d3e12fb3f2713d52ebd4302f9d201e3567592b05a8b742182441f9dd33",
+      "env": {},
+      "evidence": "/workspace/.magic-over-setup/rc24/focused/ledger.jsonl",
+      "test": "controlled long-frame accepted input",
+      "time": "2026-11-16T03:24:48.634Z"
+    },
+    "startup-smoke": {
+      "status": "REUSED",
+      "fingerprint": "8014f6f0d5e07f9775fc65cf064cb141e9532d6f569ba53c17b99dcf6e1cc002",
+      "script": "b72bb9642081d3cd336045507e3320573151ff066b65a4ea6489994af104e5dd",
+      "env": {},
+      "evidence": "/workspace/.magic-over-setup/rc24/focused/ledger.jsonl",
+      "test": "3D/FP/2D startup smoke",
+      "time": "2026-11-16T03:24:48.638Z"
+    },
+    "controls-desktop": {
+      "status": "PASS",
+      "fingerprint": "00a9a16e5f2d6771403a3f59fc0817d6eebd4d68afbe5a62967cf699368d2742",
+      "script": "37ca533bd7a29bc57c574070f5e4d6fef9459411a1dfab476b6d6663679d8fdc",
+      "env": {
+        "EB_CONTROL_CASE": "desktop"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/controls-desktop-1794799488642.log",
+      "time": "2026-11-16T03:24:48.642Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:25:26.981Z"
+    },
+    "controls-short-desktop": {
+      "status": "PASS",
+      "fingerprint": "db53f37b73c26f2815f019da2b256aebd64117fa3cc788a2723a2650f80c7218",
+      "script": "37ca533bd7a29bc57c574070f5e4d6fef9459411a1dfab476b6d6663679d8fdc",
+      "env": {
+        "EB_CONTROL_CASE": "short-desktop"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/controls-short-desktop-1794799526986.log",
+      "time": "2026-11-16T03:25:26.986Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:26:01.731Z"
+    },
+    "controls-touch-desktop": {
+      "status": "PASS",
+      "fingerprint": "3878b540b4036738184fb9e3ca56e5db4fc1d994095ab49ceee374a997b6a8e2",
+      "script": "37ca533bd7a29bc57c574070f5e4d6fef9459411a1dfab476b6d6663679d8fdc",
+      "env": {
+        "EB_CONTROL_CASE": "touch-desktop"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/controls-touch-desktop-1794799561735.log",
+      "time": "2026-11-16T03:26:01.735Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:26:34.686Z"
+    },
+    "controls-phone": {
+      "status": "PASS",
+      "fingerprint": "2e45b532a0a38bd8c8f97fdb9b9f8b886e1d533365d5ddb9715e849f4a8c7455",
+      "script": "37ca533bd7a29bc57c574070f5e4d6fef9459411a1dfab476b6d6663679d8fdc",
+      "env": {
+        "EB_CONTROL_CASE": "phone"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/controls-phone-1794799594690.log",
+      "time": "2026-11-16T03:26:34.690Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:27:03.218Z"
+    },
+    "controls-landscape": {
+      "status": "PASS",
+      "fingerprint": "ba60ad933763a1e4f9e577b147852a5d10481325c54acedf8f405a8475909f9c",
+      "script": "37ca533bd7a29bc57c574070f5e4d6fef9459411a1dfab476b6d6663679d8fdc",
+      "env": {
+        "EB_CONTROL_CASE": "landscape"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/controls-landscape-1794799623222.log",
+      "time": "2026-11-16T03:27:03.222Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:27:38.817Z"
+    },
+    "combat-desktop-false": {
+      "status": "PASS",
+      "fingerprint": "ca01199b83b0d8fbc3a71a06fecfd41c27d254d637aaa1c319c949a420dbfc5e",
+      "script": "7bd07f2bd6c81b61dc4d3f3a31cabe2143028796af914b4596b3778e6ac5048a",
+      "env": {
+        "EB_COMBAT_CASE": "desktop:false"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/combat-desktop-false-1794799658821.log",
+      "time": "2026-11-16T03:27:38.821Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:28:49.238Z"
+    },
+    "combat-desktop-true": {
+      "status": "PASS",
+      "fingerprint": "80fb12de487471f14664d901ddc421427117fbdb9b42d3ec6f1b12a7e627889a",
+      "script": "7bd07f2bd6c81b61dc4d3f3a31cabe2143028796af914b4596b3778e6ac5048a",
+      "env": {
+        "EB_COMBAT_CASE": "desktop:true"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/combat-desktop-true-1794799729243.log",
+      "time": "2026-11-16T03:28:49.243Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:30:02.389Z"
+    },
+    "combat-phone-false": {
+      "status": "PASS",
+      "fingerprint": "a689eafb3bdff0646ddb0b77f14c1e1806c58c438528e4d353640b2997b0dd49",
+      "script": "7bd07f2bd6c81b61dc4d3f3a31cabe2143028796af914b4596b3778e6ac5048a",
+      "env": {
+        "EB_COMBAT_CASE": "phone:false"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/combat-phone-false-1794799802398.log",
+      "time": "2026-11-16T03:30:02.399Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:30:43.639Z"
+    },
+    "combat-phone-true": {
+      "status": "PASS",
+      "fingerprint": "f15bf54eba18ef0f3e6d6be7ce525fe733abae3333d5e27cbc2b1fb9454a45eb",
+      "script": "7bd07f2bd6c81b61dc4d3f3a31cabe2143028796af914b4596b3778e6ac5048a",
+      "env": {
+        "EB_COMBAT_CASE": "phone:true"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/combat-phone-true-1794799843653.log",
+      "time": "2026-11-16T03:30:43.654Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:31:23.156Z"
+    },
+    "combat-landscape-false": {
+      "status": "PASS",
+      "fingerprint": "1e2cace0b4caf966c691e6eac5a7ea22e95f51e07b95e9b50cca8edea0ee7201",
+      "script": "7bd07f2bd6c81b61dc4d3f3a31cabe2143028796af914b4596b3778e6ac5048a",
+      "env": {
+        "EB_COMBAT_CASE": "landscape:false"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/combat-landscape-false-1794799883162.log",
+      "time": "2026-11-16T03:31:23.162Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:32:11.822Z"
+    },
+    "combat-landscape-true": {
+      "status": "PASS",
+      "fingerprint": "880fb946129e6a3b22dec9cce67bb9f45c10d9172aff7b66629f4df08cdc9999",
+      "script": "7bd07f2bd6c81b61dc4d3f3a31cabe2143028796af914b4596b3778e6ac5048a",
+      "env": {
+        "EB_COMBAT_CASE": "landscape:true"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/combat-landscape-true-1794799931826.log",
+      "time": "2026-11-16T03:32:11.826Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:33:06.864Z"
+    },
+    "combat-overhead": {
+      "status": "PASS",
+      "fingerprint": "ff19d55648d696d82d550d6a7b468ab86847f0b4b807bdbbcf6562c30b415b7e",
+      "script": "7bd07f2bd6c81b61dc4d3f3a31cabe2143028796af914b4596b3778e6ac5048a",
+      "env": {
+        "EB_COMBAT_CASE": "overhead"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/combat-overhead-1794799986869.log",
+      "time": "2026-11-16T03:33:06.869Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:33:28.717Z"
+    },
+    "outcomes-desktop": {
+      "status": "PASS",
+      "fingerprint": "85ceea3c374d9538b19055b2ab31654c7793ca50b4373cebf7c3d5be4c2d0d4c",
+      "script": "178ec7262fe73f4e03962f1c41a86fa726dd3fdc634989b25e84cbb0d7bada0c",
+      "env": {
+        "EB_OUTCOME_CASE": "desktop"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/outcomes-desktop-1794800008722.log",
+      "time": "2026-11-16T03:33:28.722Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:36:33.681Z"
+    },
+    "outcomes-phone": {
+      "status": "PASS",
+      "fingerprint": "e924d6e6b91aef4cf4334eaf8388053836b7a4129a740b9aa75daeb5ddb3a9a8",
+      "script": "178ec7262fe73f4e03962f1c41a86fa726dd3fdc634989b25e84cbb0d7bada0c",
+      "env": {
+        "EB_OUTCOME_CASE": "phone"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/outcomes-phone-1794800193685.log",
+      "time": "2026-11-16T03:36:33.686Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:38:20.948Z"
+    },
+    "weapon-desktop": {
+      "status": "PASS",
+      "fingerprint": "8c16be2331604ddf50f4279a6a6ea8940880c85d23e372a5aba8187858b2f81a",
+      "script": "4ec6be5098efb1961a9ebd7aa5be08957972a3f7a7613c2048dc210691aa849b",
+      "env": {
+        "EB_WEAPON_CASE": "desktop"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/weapon-desktop-1794800300957.log",
+      "time": "2026-11-16T03:38:20.957Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:38:50.870Z"
+    },
+    "weapon-phone": {
+      "status": "PASS",
+      "fingerprint": "c237191e9e2cb1d5cfcbb892b808058cf60860f57fea768dac036b9ed6dde07a",
+      "script": "4ec6be5098efb1961a9ebd7aa5be08957972a3f7a7613c2048dc210691aa849b",
+      "env": {
+        "EB_WEAPON_CASE": "phone"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/weapon-phone-1794800330879.log",
+      "time": "2026-11-16T03:38:50.879Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:39:07.701Z"
+    },
+    "weapon-landscape": {
+      "status": "PASS",
+      "fingerprint": "deca4c1b6c08005c17594c3ff5f9146a54a4669f60b303f718dfd0dc501db415",
+      "script": "4ec6be5098efb1961a9ebd7aa5be08957972a3f7a7613c2048dc210691aa849b",
+      "env": {
+        "EB_WEAPON_CASE": "landscape"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/weapon-landscape-1794800347713.log",
+      "time": "2026-11-16T03:39:07.713Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:39:28.484Z"
+    },
+    "model-structure-scope": {
+      "status": "PASS",
+      "fingerprint": "bd681b9b9393e22d8b3c8e48deb2e1676b2b0da089b3fd5ef10bc2fad10d5b54",
+      "script": "cd46ea1f3bfd06075fb1a3aa69ace2eb5a9365ee63bf749023ebf96b64a50b04",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/model-structure-scope-1794800368493.log",
+      "time": "2026-11-16T03:39:28.493Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:40:47.272Z"
+    },
+    "corridor-desktop": {
+      "status": "PASS",
+      "fingerprint": "1fa9557b8aa21a369e09ac64959e63dc0bfce3795bc9cf2ab0c6a555da173d04",
+      "script": "96d53680ebe8189e3724045aec33d434e978ae1647ed7a01e1bba4ccda358f51",
+      "env": {
+        "EB_CORRIDOR_CASE": "desktop"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/corridor-desktop-1794800447281.log",
+      "time": "2026-11-16T03:40:47.281Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:41:31.799Z"
+    },
+    "corridor-phone": {
+      "status": "PASS",
+      "fingerprint": "46cb7a1cf4ac39c3ac8a10571d76bf2e6f3ca8309e82c0214ce3c9360dd6b15e",
+      "script": "96d53680ebe8189e3724045aec33d434e978ae1647ed7a01e1bba4ccda358f51",
+      "env": {
+        "EB_CORRIDOR_CASE": "phone"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/corridor-phone-1794800491809.log",
+      "time": "2026-11-16T03:41:31.810Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:42:20.534Z"
+    },
+    "mounted-presentation": {
+      "status": "PASS",
+      "fingerprint": "1ea0163912fdbae42ecb3f2d1adfae9a867455a139db53ace6f9c84a168d6ee9",
+      "script": "61f25c5e1b688179969fde15420e4c5c8736690278d0def1ee4914daae189997",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/mounted-presentation-1794800540548.log",
+      "time": "2026-11-16T03:42:20.549Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:42:57.117Z"
+    },
+    "natural-harvest": {
+      "status": "PASS",
+      "fingerprint": "6234efc564ba33c72d6aee99260721e353fee863e94dd0346fccf0350b5fe9b8",
+      "script": "b0b5c02023d38d495b0a6478d26b04f4366361d6407a3f48013eb30063b1beec",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/natural-harvest-1794800577126.log",
+      "time": "2026-11-16T03:42:57.127Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:47:55.321Z"
+    },
+    "mira-1200--1-false": {
+      "status": "FAIL",
+      "fingerprint": "7b97dd22b29bb8800bec482a15766975692f0c6ede058bf8ef87e0e627522202",
+      "script": "477fc99bf08e07c31eb5f8e8a666be130ffb6c3166e8704f0bad2799227e8df9",
+      "env": {
+        "EB_MIRA_CASE": "12:00:-1:false"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/mira-1200--1-false-1794800875335.log",
+      "time": "2026-11-16T03:47:55.335Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:47:56.367Z"
+    },
+    "mira-1200--1-true": {
+      "status": "FAIL",
+      "fingerprint": "2e4c14d3dacffbffb5385a720b77b527e1044b4f21615645a61f338653340bee",
+      "script": "477fc99bf08e07c31eb5f8e8a666be130ffb6c3166e8704f0bad2799227e8df9",
+      "env": {
+        "EB_MIRA_CASE": "12:00:-1:true"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/mira-1200--1-true-1794800876373.log",
+      "time": "2026-11-16T03:47:56.373Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:47:57.333Z"
+    },
+    "mira-1200-1-false": {
+      "status": "FAIL",
+      "fingerprint": "a42bba50c9e01cce9a5e400e6c0ae60d8e43b6a509a6053d328c1532e5d660b9",
+      "script": "477fc99bf08e07c31eb5f8e8a666be130ffb6c3166e8704f0bad2799227e8df9",
+      "env": {
+        "EB_MIRA_CASE": "12:00:1:false"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/mira-1200-1-false-1794800877339.log",
+      "time": "2026-11-16T03:47:57.339Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:47:58.240Z"
+    },
+    "mira-1200-1-true": {
+      "status": "FAIL",
+      "fingerprint": "7d326bb6d6208fb48aa54bfd1143ea38142012089153b21e061e4212780f1efd",
+      "script": "477fc99bf08e07c31eb5f8e8a666be130ffb6c3166e8704f0bad2799227e8df9",
+      "env": {
+        "EB_MIRA_CASE": "12:00:1:true"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/mira-1200-1-true-1794800878246.log",
+      "time": "2026-11-16T03:47:58.246Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:47:59.317Z"
+    },
+    "mira-1900--1-false": {
+      "status": "FAIL",
+      "fingerprint": "6493b8498e784334e9e606b2f2e241cca2e5b37165c415c69527cd0ea87cb4f7",
+      "script": "477fc99bf08e07c31eb5f8e8a666be130ffb6c3166e8704f0bad2799227e8df9",
+      "env": {
+        "EB_MIRA_CASE": "19:00:-1:false"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/mira-1900--1-false-1794800879324.log",
+      "time": "2026-11-16T03:47:59.324Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:48:00.228Z"
+    },
+    "mira-1900--1-true": {
+      "status": "FAIL",
+      "fingerprint": "2d8a480cfa2d73e625f00ee034156e502cb4de7147f3cfff8fcfe25ca9425c84",
+      "script": "477fc99bf08e07c31eb5f8e8a666be130ffb6c3166e8704f0bad2799227e8df9",
+      "env": {
+        "EB_MIRA_CASE": "19:00:-1:true"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/mira-1900--1-true-1794800880235.log",
+      "time": "2026-11-16T03:48:00.235Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:48:01.124Z"
+    },
+    "mira-1900-1-false": {
+      "status": "FAIL",
+      "fingerprint": "f0e6fac4fa12bc72a0c4ebff0f8b533c3e7c1aac063a5b2c85bdc215367689d1",
+      "script": "477fc99bf08e07c31eb5f8e8a666be130ffb6c3166e8704f0bad2799227e8df9",
+      "env": {
+        "EB_MIRA_CASE": "19:00:1:false"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/mira-1900-1-false-1794800881130.log",
+      "time": "2026-11-16T03:48:01.130Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:48:02.025Z"
+    },
+    "mira-1900-1-true": {
+      "status": "FAIL",
+      "fingerprint": "584225a756271da37295ce2da5be34ef81c76355dbe7142cab84e3190f50b1eb",
+      "script": "477fc99bf08e07c31eb5f8e8a666be130ffb6c3166e8704f0bad2799227e8df9",
+      "env": {
+        "EB_MIRA_CASE": "19:00:1:true"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/mira-1900-1-true-1794800882032.log",
+      "time": "2026-11-16T03:48:02.032Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:48:02.953Z"
+    },
+    "phone-vault-route": {
+      "status": "PASS",
+      "fingerprint": "367c80570352cdd30c774f72a11b8627fae4dee36378e527bf842d1b0e51fdc3",
+      "script": "c0212d45e16b28753e5717740f813a5b887eaf619da1abbc214b655fe34021ee",
+      "env": {
+        "EB_VAULT_PROFILE": "phone"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/phone-vault-route-1794800882958.log",
+      "time": "2026-11-16T03:48:02.959Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:50:05.506Z"
+    },
+    "vault-guards": {
+      "status": "PASS",
+      "fingerprint": "3d264e4b53b15c5ba5e7d46c44466e92f24e4f474ca250d1a990667c7d9d2294",
+      "script": "613586b8babeab331f55c26609d9adefe7b7a6cdd582068e74b68919cd7a5903",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/vault-guards-1794801005522.log",
+      "time": "2026-11-16T03:50:05.522Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:50:18.697Z"
+    },
+    "herb-work": {
+      "status": "PASS",
+      "fingerprint": "81096bf99dac65c9b5f3bf99bd7eb3a6f52e097f567f8c57840529f31805cc6e",
+      "script": "b6d93539e8057ea865e4b0210b4ece43ee5078fadadfaba45fc6e577d1256667",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/herb-work-1794801018708.log",
+      "time": "2026-11-16T03:50:18.708Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:51:03.348Z"
+    },
+    "herb-guards": {
+      "status": "PASS",
+      "fingerprint": "584dcc01d42bb4db3722fe2548b303873e117da113b223c9866fb48b1b083d3c",
+      "script": "c215cad52b912773168bba6973f3170aa6c7f976147a4e8aaeb7b9b8f0f4d419",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/herb-guards-1794801063362.log",
+      "time": "2026-11-16T03:51:03.362Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:51:17.010Z"
+    },
+    "resident-leads": {
+      "status": "FAIL",
+      "fingerprint": "3a9b239e1601559e8c3d792ad459d9ef85454196ef869838a68432a75bce1c34",
+      "script": "1645d78446551aa79d9d3ad37d6f4ada438ef037fd450fd7990f23dd230c7324",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/resident-leads-1794801077018.log",
+      "time": "2026-11-16T03:51:17.018Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:51:22.356Z"
+    },
+    "archive-ledger": {
+      "status": "PASS",
+      "fingerprint": "db13a86352cd5d8e18fd9414aa46035cbaaa8518c2ce73803c804b1e85336f63",
+      "script": "3c33594efb28257f98e08f9fbb85ab01cf20edadbec47f696d62b7e720f93cbb",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/archive-ledger-1794801082366.log",
+      "time": "2026-11-16T03:51:22.366Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:53:21.797Z"
+    },
+    "fp-hud": {
+      "status": "PASS",
+      "fingerprint": "18f665db558e6c5813fa8631258b7f46a36ff5967991e855fa40ec2cd2f59e0a",
+      "script": "9e02ab94c47a9bd8c5e0c849245178130d6e25ba3122a75b80e3d970cbe99efc",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/fp-hud-1794801201805.log",
+      "time": "2026-11-16T03:53:21.806Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:53:57.180Z"
+    },
+    "gait-browser": {
+      "status": "FAIL",
+      "fingerprint": "c79279b25b6a1660bf273f72b5416b49cf17514d0e00ffdd6110148804ed44e5",
+      "script": "5ee9e0363551e4ac2aecd1460ce537f2133ca4f6967ac23b7501bab208982801",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/gait-browser-1794801237187.log",
+      "time": "2026-11-16T03:53:57.187Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:54:23.731Z"
+    },
+    "atmosphere": {
+      "status": "PASS",
+      "fingerprint": "898558c00f4a94baf70eb145b04192a1fbcc1eefcfa72fe2f798f3b908d22b5d",
+      "script": "2b836d19c25e6e3a3a21e9c563cfb0b9d9b5d70ced8ebac45add39adb2a14db2",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/atmosphere-1794801263735.log",
+      "time": "2026-11-16T03:54:23.735Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:55:07.402Z"
+    },
+    "landscape-desktop": {
+      "status": "FAIL",
+      "fingerprint": "08f6765d41d2394418f1704173d329ded46af3b8c60083af05611b03c5dd422c",
+      "script": "f61cf5b39c5785451358c5c85e09e38fcec1edee0807d9d3c401cd0fabb13166",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/landscape-desktop-1794801307412.log",
+      "time": "2026-11-16T03:55:07.412Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:55:17.582Z"
+    },
+    "landscape-phone": {
+      "status": "FAIL",
+      "fingerprint": "77b4ebf7448b147e580a7c1f6e8f472ebad7331adca7bd6c54afd7c8e504bc1b",
+      "script": "f61cf5b39c5785451358c5c85e09e38fcec1edee0807d9d3c401cd0fabb13166",
+      "env": {
+        "EB_LANDSCAPE_PHONE": "1"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/landscape-phone-1794801317590.log",
+      "time": "2026-11-16T03:55:17.590Z",
+      "exitCode": 1,
+      "finished": "2026-11-16T03:55:25.880Z"
+    },
+    "archive-enclosure": {
+      "status": "PASS",
+      "fingerprint": "03f125af952c03bd56fa8a85abf2b2e63e73b8bb8615eddbdacc0fe2a3a47364",
+      "script": "f8bd8bfa5847661d302b3ceb68dcdab431591ac49ffc1316efabe5b084a80018",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/archive-enclosure-1794801325885.log",
+      "time": "2026-11-16T03:55:25.885Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:56:24.033Z"
+    },
+    "enclosed-poses": {
+      "status": "PASS",
+      "fingerprint": "a1e90fdc6d92f3372ffa04d67c47490761bfbf926fbd2209c7e6706a28422352",
+      "script": "2a5728d7751e9635ac8ea302974619fb9d14ef731e6fab285817be82711b8644",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/enclosed-poses-1794801384037.log",
+      "time": "2026-11-16T03:56:24.037Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:56:38.775Z"
+    },
+    "enclosed-actions": {
+      "status": "PASS",
+      "fingerprint": "9bb25a3de17f231e91afffded4714ebd29500f618b46140f5876349ceb5cc831",
+      "script": "1a9808085cc91b01b72798982d085980637f78160295e2192cfdf632f380760c",
+      "env": {},
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/enclosed-actions-1794801398779.log",
+      "time": "2026-11-16T03:56:38.779Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:57:36.681Z"
+    },
+    "vehicles-desktop": {
+      "status": "PASS",
+      "fingerprint": "8b54546c4c222d860ea414df8ac0cefcabdcbd5e6d4862addcd6cb658e36f2f6",
+      "script": "9db9080d69c5a4a34e5808128fc4a87a19bcce07c128e86f82f835f8b9a38421",
+      "env": {
+        "EB_VEHICLE_CASE": "desktop"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/vehicles-desktop-1794801456685.log",
+      "time": "2026-11-16T03:57:36.685Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:58:10.900Z"
+    },
+    "vehicles-phone": {
+      "status": "REUSED",
+      "fingerprint": "c06eb8e7bfb5e6d87d55b04f04dc193b0459ccc8f9d263a775a17ade63ed69b7",
+      "script": "9db9080d69c5a4a34e5808128fc4a87a19bcce07c128e86f82f835f8b9a38421",
+      "env": {
+        "EB_VEHICLE_CASE": "phone"
+      },
+      "evidence": "/workspace/.magic-over-setup/rc24/preflight/ledger.jsonl",
+      "test": "release actual vehicles phone",
+      "time": "2026-11-16T03:58:10.905Z"
+    },
+    "world-save-desktop": {
+      "status": "PASS",
+      "fingerprint": "0063703c059afa55cd7a0731ea10349dd031e6652b49321d64541bbcc48e970c",
+      "script": "9f7b63dde0296282e9cbfbd65499f77db7cb52dbf1d1294b4bda038df6ded60a",
+      "env": {
+        "EB_WORLD_CASE": "desktop"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/world-save-desktop-1794801490909.log",
+      "time": "2026-11-16T03:58:10.909Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:58:35.804Z"
+    },
+    "world-save-phone": {
+      "status": "PASS",
+      "fingerprint": "19ac10a016cbd9a9c33b95283c3b4f609c57cd284436e5ae395d05b64009037e",
+      "script": "9f7b63dde0296282e9cbfbd65499f77db7cb52dbf1d1294b4bda038df6ded60a",
+      "env": {
+        "EB_WORLD_CASE": "phone"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/world-save-phone-1794801515811.log",
+      "time": "2026-11-16T03:58:35.811Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:58:55.343Z"
+    },
+    "world-save-malformed": {
+      "status": "PASS",
+      "fingerprint": "4ad568ec5009487c160650b55438205e2780442d0e9bffe0550d2c404767fd2b",
+      "script": "9f7b63dde0296282e9cbfbd65499f77db7cb52dbf1d1294b4bda038df6ded60a",
+      "env": {
+        "EB_WORLD_CASE": "malformed"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/world-save-malformed-1794801535351.log",
+      "time": "2026-11-16T03:58:55.351Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:59:07.557Z"
+    },
+    "visual-baseline": {
+      "status": "PASS",
+      "fingerprint": "512e7085e4ff267a0e59234e178234651b2d0bc8786b50604d90de31c955a26f",
+      "script": "7d334643a301c551d7dbd8f7fe1ebcdfd00fe6477f72909a0a420f0564b96aea",
+      "env": {
+        "EB_SOURCE": "/workspace/.magic-over-setup/rc24/original/live-r1556.html",
+        "EB_RC_CANDIDATE": "",
+        "EB_VISUAL_LABEL": "live-r1556"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/visual-baseline-1794801547566.log",
+      "time": "2026-11-16T03:59:07.566Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T03:59:52.165Z"
+    },
+    "visual-candidate": {
+      "status": "PASS",
+      "fingerprint": "379670d14d804752c8b39aba6bc1b7b1930bb4af7edc9c0d089c487e3973b06f",
+      "script": "7d334643a301c551d7dbd8f7fe1ebcdfd00fe6477f72909a0a420f0564b96aea",
+      "env": {
+        "EB_VISUAL_LABEL": "rc24"
+      },
+      "log": "/workspace/.magic-over-setup/rc24/matrix-b0/visual-candidate-1794801592177.log",
+      "time": "2026-11-16T03:59:52.177Z",
+      "exitCode": 0,
+      "finished": "2026-11-16T04:00:30.686Z"
+    }
+  }
+}

@@ -1,8 +1,8 @@
 // Deterministic final-state fixture, not evidence of the natural quest route.
-const {chromium}=require('playwright');
+const {launch}=require('./browser.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const out=process.env.EB_EVIDENCE||'/workspace/.magic-over-setup/eternalbliss-evidence';
-(async()=>{const b=await chromium.launch({executablePath:'/usr/lib/chromium/chromium',args:['--no-sandbox','--enable-unsafe-swiftshader']});try{
+(async()=>{const b=await launch();try{
  for(const time of ['12:00','19:00']) for(const side of [-1,1]) for(const nearby of [false,true]){
  if(process.env.EB_MIRA_CASE&&process.env.EB_MIRA_CASE!==`${time}:${side}:${nearby}`)continue;
  const p=await b.newPage({viewport:{width:1280,height:800}}),errors=[];p.on('pageerror',e=>errors.push(e.message));
