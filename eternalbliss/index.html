@@ -15147,8 +15147,12 @@ const ebFarlands = (() => {
     function voyageDraw(now) {
         if(!voyage)return;
         const v=voyage,canvas=get('eb-voyage-canvas'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
-        const dt=Math.min(.05,Math.max(0,(now-v.last)/1000));v.last=now;
-        if(v.sailing && !v.finished) {
+        // R17: the voyage advances by the time that has passed, in fixed 1/60 s steps, so a slow device takes the same
+        // time as a fast one (it used to cap each frame at 0.05 s: 45 s at 60 fps took 176 s at 6 fps). Gaps longer
+        // than half a second (the tab in the background, a stall) count as half a second, as the old cap intended.
+        const elapsed=Math.min(.5,Math.max(0,(now-v.last)/1000));v.last=now;
+        for(let left=elapsed;left>1e-9 && v.sailing && !v.finished;left-=1/60){
+            const dt=Math.min(1/60,left);
             v.progress=Math.min(1,v.progress+dt*(.022/(1+Math.abs(v.offset)*1.6)));
             v.offset+=(v.steer-v.offset)*Math.min(1,dt*1.6);
             if(v.progress>=1){v.finished=true;v.sailing=false;}
