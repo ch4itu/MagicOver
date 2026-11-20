@@ -3039,7 +3039,7 @@ function renderAllEntities() {
     buildings.forEach(building => {
         const buildingEl = document.createElement('div');
         buildingEl.className = building.class;
-        if (building.realmId) buildingEl.dataset.farlandsBuilding=building.landmark ?? building.type;
+        if (building.realmId) buildingEl.dataset.farlandsBuilding=/ Farmstead$/.test(building.name) && !sharedWorld.active() ? building.type : building.landmark ?? building.type; // R17.15
         const { x0, y0, w, h } = buildingFootprint(building);
         buildingEl.style.left = `${x0 * 32}px`;
         buildingEl.style.top = `${y0 * 32}px`;
@@ -10362,7 +10362,10 @@ window.addEventListener('load', () => {
                     if (!record) {
                         const variant = Math.floor(hash(Math.floor(data.x), Math.floor(data.y), 5) * 90);
                         let model;
-                        if (kind === 'building') model = data.realmId && data.landmark ?
+                        // R17.15: a settlement's Farmstead in the Amber, Lantern and Rime regions carries the station
+                        // landmark flag (and its footprint); it is drawn as the farmhouse it is. Flag, footprint, collision
+                        // and door are unchanged.
+                        if (kind === 'building') model = data.realmId && data.landmark && !(/ Farmstead$/.test(data.name) && ebFarlands.surface() && !sharedWorld.active()) ?
                             art.landmark(data.landmark, buildingFootprint(data)) :
                             art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
                                 ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'||data.realmId==='rest-service-2'),
