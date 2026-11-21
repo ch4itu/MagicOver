@@ -2881,6 +2881,21 @@ function boatFitsWater(x, y, tileAt, scale = 1, headings = [.6, .6+Math.PI/2, .6
     return null;
 }
 
+function boatHasChannel(x,y,tileAt) {
+    const queue=[[x,y]];
+    const seen=new Set([y*Farlands.size+x]);
+    for(const [wx,wy] of queue){
+        if(Math.hypot(wx-x,wy-y)>=8)return true;
+        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+            const nx=wx+dx,ny=wy+dy,key=ny*Farlands.size+nx;
+            if(nx<0||ny<0||nx>=Farlands.size||ny>=Farlands.size||seen.has(key))continue;
+            seen.add(key);
+            if(tileAt(nx,ny)==='water')queue.push([nx,ny]);
+        }
+    }
+    return false;
+}
+
 function keepPlayerOnWalkableTile(terrainChanged) {
     const { x,y } = gameState.player;
     const tile = adventureTile(x,y);
@@ -11632,7 +11647,11 @@ window.addEventListener('load', () => {
                         // re-chosen near the player each time the cell came back into range, so a boat the player had
                         // taken reappeared at a new spot beside the one parked elsewhere.
                         if(!this.mooringSpots)this.mooringSpots=new Map();
-                        if(this.mooringSpots.has(id)){wanted.set(id,this.mooringSpots.get(id));continue;}
+                        if(this.mooringSpots.has(id)){
+                            const position=this.mooringSpots.get(id);
+                            if(position)wanted.set(id,position);
+                            continue;
+                        }
                         const startX=ax*80,startY=az*80;
                         let best=null,bestScore=Infinity;
                         for(let oy=2;oy<78;oy+=2)for(let ox=2;ox<78;ox+=2){
@@ -11648,9 +11667,10 @@ window.addEventListener('load', () => {
                             const score=(hash^Math.imul(ox*131+oy+7,2654435761))>>>0;
                             if(score>=bestScore)continue;
                             const heading=boatFitsWater(x,y,Farlands.sample);
-                            if(heading!==null){best={x,y,heading};bestScore=score;}
+                            if(heading!==null&&boatHasChannel(x,y,Farlands.sample)){best={x,y,heading};bestScore=score;}
                         }
-                        if(best){wanted.set(id,best);this.mooringSpots.set(id,best);}
+                        this.mooringSpots.set(id,best);
+                        if(best)wanted.set(id,best);
                     }
                     for(const [id,v] of this.coastalBoats)if(!wanted.has(id)){
                         this.scene.remove(v.model);this.coastalBoats.delete(id);
