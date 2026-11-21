@@ -2040,9 +2040,14 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
  [data-eb-immersive="first"] #eb-eye-actions{right:12px;bottom:184px}
  [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
 }
+/* On a short viewport, keep first-person controls beside the expanded minimap. */
+@media (min-width:601px) and (max-height:650px) {
+ [data-eb-immersive="first"] #eb-eye-actions,
+ [data-eb-immersive="first"] #eb-immersive-look{right:176px}
+}
 @media (max-height:450px) and (pointer:coarse) {
  [data-eb-immersive="first"] #eb-eye-actions{right:190px;bottom:55px}
- [data-eb-immersive="first"] #eb-immersive-look{bottom:55px}
+ [data-eb-immersive="first"] #eb-immersive-look{bottom:55px;right:10px}
 }
 /* D-pad stays usable while filming. */
 /* PR #2: keep desktop controls hidden by default; retain touch movement at every size, including hybrids. */
@@ -10005,6 +10010,10 @@ window.addEventListener('load', () => {
             this.eyeMode = false;
             this.mobile = matchMedia('(pointer: coarse), (max-width: 768px)').matches;
             this.renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: this.mobile ? 'default' : 'high-performance' });
+            const gl = this.renderer.getContext();
+            const debug = gl.fenceSync && gl.getExtension('WEBGL_debug_renderer_info');
+            this.swiftShader = Boolean(debug && /SwiftShader/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)));
+            this.frameFence = null;
             this.renderer.outputEncoding = T.sRGBEncoding;
             this.renderer.toneMapping = T.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.09;
@@ -12018,7 +12027,7 @@ window.addEventListener('load', () => {
             if(boatEye)for(const {node,ghost} of this.shipGhostParts)node.material=ghost;
             if(hideBoatHorse)this.farlandsHorse.visible=false;
             if(eyeEnabled){this.hero.group.visible=false;this.heroTag.hidden=true;}
-            this.renderer.render(this.scene,eyeEnabled?this.eyeCamera:this.camera);
+            this.renderFrame(eyeEnabled);
             if(boatEye)for(const {node,opaque} of this.shipGhostParts)node.material=opaque;
             if(hideBoatHorse)this.farlandsHorse.visible=true;
             if(eyeEnabled){this.hero.group.visible=heroWasVisible;this.heroTag.hidden=tagWasHidden;}
@@ -12033,6 +12042,23 @@ window.addEventListener('load', () => {
                 this.lastSync = 0;
                 this.lastFrame = 0;
                 this.resize();
+        renderFrame(eyeEnabled) {
+            const gl = this.renderer.getContext();
+            const paced = this.swiftShader && eyeEnabled && ebFarlands.inRealm() && !sharedWorld.active();
+            // Keep at most one first-person frame in flight on the software renderer.
+            // Camera, simulation, and input still advance even when a submission is deferred.
+            if (this.frameFence) {
+                if (paced && gl.clientWaitSync(this.frameFence, 0, 0) === gl.TIMEOUT_EXPIRED) return;
+                gl.deleteSync(this.frameFence);
+                this.frameFence = null;
+            }
+            this.renderer.render(this.scene, eyeEnabled ? this.eyeCamera : this.camera);
+            if (paced && !gl.isContextLost()) {
+                this.frameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+                if (this.frameFence) gl.flush();
+            }
+        }
+
                 this.draw(performance.now());
             } else {
                 for (const effect of this.effects) effect.node.remove();
@@ -12042,6 +12068,10 @@ window.addEventListener('load', () => {
     }
 
     function setup() {
+                if (this.frameFence) {
+                    this.renderer.getContext().deleteSync(this.frameFence);
+                    this.frameFence = null;
+                }
         const root = document.documentElement;
         const world = document.getElementById('worldView');
         const canvas = document.getElementById('eb-scene');
