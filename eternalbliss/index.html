@@ -5063,6 +5063,7 @@ function setupMobileControls() {
 // Adventure snapshots are device-local, with one slot for each Smaran public key and one for guests.
 const mapGroups = ['buildings', 'npcs', 'enemies', 'items', 'areas'];
 const saveVersion = 1;
+const farlandsSaveVersion = 1;
 
 function validateAdventureMap(map) {
     if (!map || typeof map !== 'object') throw new Error('A map object is required.');
@@ -5149,6 +5150,9 @@ function loadAdventure(slot) {
     if (!raw) return false;
     const save = JSON.parse(raw);
     if (save?.version !== saveVersion) throw new Error('This save uses a different game version.');
+    if (save.farlands != null && save.farlands.version !== farlandsSaveVersion) {
+        throw new Error('This Farlands journey uses a different save version.');
+    }
     validateAdventureMap(save.map);
     const fields = (source, current) => {
         if (!source || typeof source !== 'object') throw new Error('The saved adventure is incomplete.');
@@ -14839,7 +14843,7 @@ const ebFarlands = (() => {
         if (!journey) return state;
         const active=state.map.terrain instanceof Farlands.Terrain ||
             buildingInterior?.outside.map.terrain instanceof Farlands.Terrain;
-        state.farlands={version:1,active,place:active ? recordLocation() : journey.place,
+        state.farlands={version:farlandsSaveVersion,active,place:active ? recordLocation() : journey.place,
             station:journey.station,pin:journey.pin,horseOwned:journey.horseOwned,horsePlace:journey.horsePlace,visited:[...journey.visited],spent:[...journey.spent],
             edits:[...journey.terrain.edits],boat:{taken:window.__ebTakenMooring||null,parked:window.__ebParkedBoat||null}};
         if (active && home) {
@@ -14852,7 +14856,7 @@ const ebFarlands = (() => {
     }
 
     function restore(save) {
-        if (save?.version!==1) return;
+        if (save?.version!==farlandsSaveVersion) return;
         journey=newJourney(save);
         restoreBoat(save);
         if (save.active===true) enter(true);
@@ -15485,7 +15489,9 @@ const ebFarlands = (() => {
         list.replaceChildren();
         const port=Farlands.waterwayPorts.find(p=>p.id===here.id);
         get('eb-transport-board-title').textContent=(port ? '⚓ '+port.name : '🚋 '+here.name+' Station');
-        get('eb-transport-board-hint').textContent=port ? 'Pilot a passage boat in a separate sailing scene, or take a carriage.' : 'Available road connections from this station:';
+        get('eb-transport-board-hint').textContent=port
+            ? 'Passage boats use a separate sailing scene.'
+            : 'Available road connections from this station:';
         const links=Farlands.stations.filter(site=>site.id!==here.id).map(to=>({to,link:routeFor(here.id,to.id)}));
         // Water connections first. Other stations remain accessible by existing carriage service.
         links.sort((a,b)=>Number(!!b.link)-Number(!!a.link)||a.to.name.localeCompare(b.to.name));
