@@ -1,5 +1,11 @@
 # EternalBliss automation checkpoint
 
+## Automation verification — 2026-11-21, subsequent run
+
+- Verified [GitHub Actions run #16](https://github.com/ch4itu/MagicOver/actions/runs/44896984445) on branch commit `5915ae2ac7ec7f0d54c8d62a245a9ca78ca1e82d`: **Source and regression contracts**, **Chromium browser smoke**, and **Publish regression status** all completed **successfully**. This closes the PR-report-job verification gap noted below. Earlier run #14 was cancelled due to overlapping workflow activity, not a demonstrated test regression.
+- No gameplay changes in this bounded verification pass. The passing CI is a narrow Linux Chromium smoke suite, not the 17-check matrix on a new gameplay candidate. Existing gameplay HTML hash remains `efd0588467394bbb5bd96271b7913ff0f5d7a02db7caa178a52c5f1f44b4f0bd`.
+- Next independent task: profile the costly WebGL submission/shadow and first-person scene paths in a reproducible browser environment before making performance edits. Do not equate SwiftShader measurements with Android GPU behavior. Physical Android, real two-client multiplayer and long advancing-clock play remain open. No merge or deployment.
+
 ## CI monitor verification — 2026-11-21
 
 - GitHub Actions [run #12](https://github.com/ch4itu/MagicOver/actions/runs/44891705752) completed successfully for commit `3ad22ed0c96d28f9f37319cde602e15be7410646`. Both **Source and regression contracts** and **Chromium browser smoke** passed on GitHub-hosted Ubuntu 24.04. This is smoke coverage, **not** a rerun of the 17-check release matrix.
