@@ -100,7 +100,7 @@ jobs:
 
   report:
     name: Publish regression status
-    if: always() && github.event_name != 'pull_request'
+    if: always()
     needs: [source-contracts, browser-smoke]
     runs-on: ubuntu-24.04
     permissions:
@@ -120,7 +120,7 @@ jobs:
             echo '- Development only; no deployment, merge or Codex execution.'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Comment on issue 29 only for failures
-        if: needs.source-contracts.result == 'failure' || needs.browser-smoke.result == 'failure'
+        if: github.event_name != 'pull_request' && (needs.source-contracts.result == 'failure' || needs.browser-smoke.result == 'failure')
         uses: actions/github-script@v7
         with:
           script: |
