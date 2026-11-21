@@ -14744,7 +14744,7 @@ const ebFarlands = (() => {
                 Number.isInteger(entry[0]) && entry[0]>=0 && entry[0]<Farlands.size**2 && ['grass','road'].includes(entry[1]))),
             visited:new Set(list('visited').filter(id=>Farlands.byId.has(id))),
             spent:new Set(list('spent').filter(id=>typeof id==='string' && /^[a-z0-9-]{1,64}$/.test(id))),
-            station:Farlands.stations.some(site=>site.id===save?.station) ? save.station : Farlands.start.id,
+            station:Farlands.byId.get(save?.station)?.station ? save.station : Farlands.start.id,
             pin:Farlands.byId.has(save?.pin) ? save.pin : null,
             place:where, horseOwned:save?.horseOwned===true, horsePlace:save?.horsePlace && validTile(save.horsePlace.x) && validTile(save.horsePlace.y) ? {x:save.horsePlace.x,y:save.horsePlace.y} : null, cells:new Map(), scene:null
         };
@@ -15441,10 +15441,10 @@ const ebFarlands = (() => {
         const travel=get('eb-farlands-travel');
         travel.disabled=!here?.station || !selected.station || here===selected;
         const waterLink=here?.station && selected.station && routeFor(here.id,selected.id);
-        travel.textContent=waterLink ? '⛵ Pilot boat' : selected.region==='lantern' || here?.region==='lantern' ? 'Ferry route unavailable' : 'Horse-drawn carriage';
+        travel.textContent=waterLink ? '⛵ Pilot passage boat' : selected.region==='lantern' || here?.region==='lantern' ? 'Ferry route unavailable' : 'Horse-drawn carriage';
         if(!waterLink && (selected.region==='lantern'||here?.region==='lantern')) travel.disabled=true;
         get('eb-farlands-travel-note').textContent=!selected.station ? 'Reach this landmark on foot. Pin it for a bearing.' :
-            here?.station ? 'Carriages provide station travel. Ferries connect the island quay. Select a linked river port to pilot a boat; other destinations use carriages.' :
+            here?.station ? 'Pilot a passage boat between linked stations in a separate sailing scene. Board boats at a shoreline for free sailing. Carriages serve overland destinations.' :
                 'Ports: Wayfarer’s Rest (Hearthmere), Aldercross, Reedhaven, Amberport and Lantern Quay. Walk to one and tap Routes from… for direct connections.';
         get('eb-farlands-pin').textContent=journey.pin===selected.id ? 'Clear pin' : 'Pin this place';
         get('eb-farlands-discovery').textContent=journey.visited.size+' / '+Farlands.sites.length+' places visited';
@@ -15485,7 +15485,7 @@ const ebFarlands = (() => {
         list.replaceChildren();
         const port=Farlands.waterwayPorts.find(p=>p.id===here.id);
         get('eb-transport-board-title').textContent=(port ? '⚓ '+port.name : '🚋 '+here.name+' Station');
-        get('eb-transport-board-hint').textContent=port ? 'Available boat passages and road connections:' : 'Available road connections from this station:';
+        get('eb-transport-board-hint').textContent=port ? 'Pilot a passage boat in a separate sailing scene, or take a carriage.' : 'Available road connections from this station:';
         const links=Farlands.stations.filter(site=>site.id!==here.id).map(to=>({to,link:routeFor(here.id,to.id)}));
         // Water connections first. Other stations remain accessible by existing carriage service.
         links.sort((a,b)=>Number(!!b.link)-Number(!!a.link)||a.to.name.localeCompare(b.to.name));
@@ -15735,7 +15735,7 @@ const ebFarlands = (() => {
             if(link){voyageStart(here,there,link);return;}
             // Preserve the existing overland carriage service.
             if(here.region==='lantern' || there.region==='lantern') {
-                alert('No navigable waterway connects these ports yet. Select Amberport or Lantern Quay for the coastal passage.');
+                alert('No station passage serves this destination. Select Amberport or Lantern Quay for the coastal passage.');
                 return;
             }
             putPlayer(pointAt(there));
