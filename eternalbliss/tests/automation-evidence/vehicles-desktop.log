@@ -1,0 +1,5 @@
+page.evaluate: Error: no accessible real mooring
+    at eval (eval at evaluate (:290:30), <anonymous>:1:801)
+    at UtilityScript.evaluate (<anonymous>:292:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+    at /workspace/EternalBliss-RC/eternalbliss/tests/release/vehicles.cjs:5:148

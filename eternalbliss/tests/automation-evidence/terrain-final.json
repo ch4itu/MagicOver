@@ -1,0 +1,146 @@
+{
+  "sha256": "d8f7cd113d0681888ba9dead81673d20f49751b698318375ff93bff46672c35d",
+  "geography": {
+    "rest": {
+      "name": "Wayfarer’s Rest",
+      "withinSettlementRadius": 9.2,
+      "waterWithin450": 9.2
+    },
+    "alder": {
+      "name": "Aldercross",
+      "withinSettlementRadius": 8.5,
+      "waterWithin450": 8.5
+    },
+    "amber": {
+      "name": "Amberport",
+      "withinSettlementRadius": null,
+      "waterWithin450": null
+    },
+    "reed": {
+      "name": "Reedhaven",
+      "withinSettlementRadius": null,
+      "waterWithin450": 92.6
+    },
+    "lantern": {
+      "name": "Lantern Quay",
+      "withinSettlementRadius": null,
+      "waterWithin450": 269.7
+    },
+    "wreck": {
+      "name": "Broken Mast Cove",
+      "withinSettlementRadius": null,
+      "waterWithin450": null
+    },
+    "beacon": {
+      "name": "Copperlight Bluff",
+      "withinSettlementRadius": null,
+      "waterWithin450": null
+    },
+    "pearl": {
+      "name": "Pearl Banks",
+      "withinSettlementRadius": null,
+      "waterWithin450": 218.8
+    },
+    "beach": {
+      "name": "Last Light Point",
+      "withinSettlementRadius": null,
+      "waterWithin450": 348.8
+    },
+    "settlement-lantern-0": {
+      "name": "Shellwick",
+      "withinSettlementRadius": null,
+      "waterWithin450": 215.4
+    },
+    "waterfront-0": {
+      "name": "Tidewatch",
+      "withinSettlementRadius": null,
+      "waterWithin450": null
+    },
+    "waterfront-1": {
+      "name": "Saltwind Cove",
+      "withinSettlementRadius": null,
+      "waterWithin450": null
+    },
+    "waterfront-2": {
+      "name": "Seafarer’s Bend",
+      "withinSettlementRadius": null,
+      "waterWithin450": 400.5
+    },
+    "waterfront-3": {
+      "name": "Bluefin Reach",
+      "withinSettlementRadius": null,
+      "waterWithin450": null
+    },
+    "waterfront-4": {
+      "name": "Oysterbank",
+      "withinSettlementRadius": null,
+      "waterWithin450": 195
+    },
+    "waterfront-5": {
+      "name": "Moonwake",
+      "withinSettlementRadius": 8.9,
+      "waterWithin450": 8.9
+    },
+    "waterfront-6": {
+      "name": "Southwatch",
+      "withinSettlementRadius": 8.5,
+      "waterWithin450": 8.5
+    },
+    "waterfront-7": {
+      "name": "Coralhaven",
+      "withinSettlementRadius": null,
+      "waterWithin450": 124.5
+    },
+    "waterfront-8": {
+      "name": "Windlass Point",
+      "withinSettlementRadius": null,
+      "waterWithin450": 133.8
+    },
+    "waterfront-9": {
+      "name": "Deltawick",
+      "withinSettlementRadius": null,
+      "waterWithin450": 105.4
+    },
+    "waterfront-10": {
+      "name": "Willowport",
+      "withinSettlementRadius": null,
+      "waterWithin450": 33.8
+    },
+    "waterfront-11": {
+      "name": "Heronford",
+      "withinSettlementRadius": null,
+      "waterWithin450": 274.9
+    },
+    "waterfront-12": {
+      "name": "Lockmere",
+      "withinSettlementRadius": null,
+      "waterWithin450": 169.8
+    },
+    "waterfront-13": {
+      "name": "Riverbend",
+      "withinSettlementRadius": null,
+      "waterWithin450": 96.2
+    },
+    "waterfront-14": {
+      "name": "Mooring Green",
+      "withinSettlementRadius": null,
+      "waterWithin450": 294.2
+    },
+    "waterfront-15": {
+      "name": "Alderbank",
+      "withinSettlementRadius": 17.1,
+      "waterWithin450": 17.1
+    },
+    "waterfront-16": {
+      "name": "Cedar Quay",
+      "withinSettlementRadius": null,
+      "waterWithin450": 79.1
+    },
+    "waterfront-17": {
+      "name": "Millwater",
+      "withinSettlementRadius": null,
+      "waterWithin450": 313.4
+    }
+  },
+  "v1JourneyFixture": "passed"
+}
