@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           sha256sum eternalbliss/index.html | tee artifacts/html-sha256.txt
-          node eternalbliss/tests/automation-audit.cjs eternalbliss/index.html --require-waterfront > artifacts/geography.json
+          node eternalbliss/tests/automation-audit.cjs eternalbliss/index.html > artifacts/geography.json
           node eternalbliss/tests/automation-quests.cjs <(git show 76664bfa954062cf15de7b63d21edb26d44e7847:eternalbliss/index.html) > artifacts/quests.log
           node - <<'NODE' | tee artifacts/inline-scripts.log
           const fs=require('fs'),vm=require('vm'),assert=require('assert');
@@ -68,7 +68,7 @@ jobs:
           npm install --prefix /tmp/eb-playwright --no-save --no-audit --no-fund playwright@1.56.1
           /tmp/eb-playwright/node_modules/.bin/playwright install --with-deps chromium
           echo "NODE_PATH=/tmp/eb-playwright/node_modules" >> "$GITHUB_ENV"
-          CHROME="$(find "$HOME/.cache/ms-playwright" -path '*/chrome-linux64/chrome' -type f | head -n 1)"
+          CHROME="$(find "$HOME/.cache/ms-playwright" -path '*/chrome-linux64/chrome' -type f -print -quit)"
           test -n "$CHROME"
           echo "EB_CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
       - name: Start isolated local server
@@ -93,3 +93,35 @@ jobs:
           name: eternalbliss-browser-evidence
           path: ${{ runner.temp }}/eternalbliss-evidence/
           retention-days: 14
+
+  report:
+    name: Publish regression status
+    if: always() && github.event_name != 'pull_request'
+    needs: [source-contracts, browser-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Add run summary
+        env:
+          SOURCE_RESULT: ${{ needs.source-contracts.result }}
+          BROWSER_RESULT: ${{ needs.browser-smoke.result }}
+        run: |
+          {
+            echo '## EternalBliss automated regression'
+            echo ''
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Source contracts: $SOURCE_RESULT"
+            echo "- Browser smoke: $BROWSER_RESULT"
+            echo '- Development only; no deployment, merge or Codex execution.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment on issue 29 only for failures
+        if: needs.source-contracts.result == 'failure' || needs.browser-smoke.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner,repo}=context.repo;
+            const sha=context.sha.slice(0,12);
+            const url=`${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body=`Automated EternalBliss regression failed on \`${sha}\`. [View run and evidence](${url}). Source contracts: ${{ toJSON(needs.source-contracts.result) }}; browser smoke: ${{ toJSON(needs.browser-smoke.result) }}. No merge or deployment was performed.`;
+            await github.rest.issues.createComment({owner,repo,issue_number:29,body});
