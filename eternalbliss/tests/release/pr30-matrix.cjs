@@ -43,9 +43,12 @@ for(const [name,script,env={},args=[]] of jobs){
     if(process.env.EB_RC_ONLY&&!process.env.EB_RC_ONLY.split(',').includes(name))continue;
     checkSource();
     const scriptPath=path.join(tests,script);
+    const inputs=[...args,...(env.EB_ROLLBACK_SOURCE?[env.EB_ROLLBACK_SOURCE]:[])];
+    const harvestResume=name==='natural-harvest' && process.env.EB_ROUTE_RESUME==='1';
+    if(harvestResume)inputs.push(path.join(out,'natural-harvest-storage.json'));
     const fingerprint=hash(JSON.stringify({source,script:hash(fs.readFileSync(scriptPath)),env,
         helper:hash(fs.readFileSync(path.join(tests,'browser.cjs'))),
-        inputs:[...args,...(env.EB_ROLLBACK_SOURCE?[env.EB_ROLLBACK_SOURCE]:[])].map(file=>hash(fs.readFileSync(file)))}));
+        inputs:inputs.map(file=>hash(fs.readFileSync(file)))}));
     if(state.jobs[name]?.status==='PASS'&&state.jobs[name].fingerprint===fingerprint){
         console.log('KEEP',name);continue;
     }
@@ -56,7 +59,7 @@ for(const [name,script,env={},args=[]] of jobs){
     write();
     console.log('START',name);
     const result=spawnSync(process.execPath,[scriptPath,...args],{
-        env:{...process.env,EB_SOURCE:html,...env},stdio:['ignore',fd,fd],timeout:240000
+        env:{...process.env,EB_ROUTE_RESUME:harvestResume?'1':'',EB_SOURCE:html,...env},stdio:['ignore',fd,fd],timeout:name==='natural-harvest'?420000:240000
     });
     fs.closeSync(fd);
     Object.assign(row,{status:result.status===0?'PASS':'FAIL',code:result.status,signal:result.signal,
