@@ -24,3 +24,7 @@ These rules apply only to `eternalbliss/`. R15.56 live baseline: commit `77b0b43
 ## Scope and starting point
 
 First address the unverified R15.56 interaction between Mira and nearby residents at the well. Then improve visual quality **one asset or authored location at a time**, on isolated branches. The living-world work must preserve the progress already made at Wayfarer's Rest.
+
+## Autonomous Codex handover (newer task-specific scope)
+
+For the autonomous release-candidate effort on `automation/eternalbliss-codex`, follow `eternalbliss/AUTONOMY.md`. Its verified starting commit and coordinated backlog supersede the older one-village-at-a-time scope above, while all safety, regression, and architecture rules remain in force. Do not merge or deploy automatically.
