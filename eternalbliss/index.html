@@ -4960,6 +4960,32 @@ function findWalkRoute(targetX, targetY) {
     return [];
 }
 
+// Let a native touch click start a ground route, but only after a single stationary touch.
+function groundTap(target) {
+    let start=null, accepted=false;
+    target.addEventListener('pointerdown',event=>{
+        if(event.pointerType!=='touch')return;
+        start=event.isPrimary ? {id:event.pointerId,x:event.clientX,y:event.clientY} : null;
+        accepted=false;
+    });
+    const moved=event=>Math.hypot(event.clientX-start.x,event.clientY-start.y)>10;
+    target.addEventListener('pointermove',event=>{
+        if(start?.id===event.pointerId && moved(event))start=null;
+    });
+    target.addEventListener('pointerup',event=>{
+        if(event.pointerType!=='touch')return;
+        accepted=start?.id===event.pointerId && !moved(event);
+        start=null;
+    });
+    target.addEventListener('pointercancel',()=>{start=null;accepted=false;});
+    return event=>{
+        if(event.pointerType!=='touch')return true;
+        const allowed=accepted && ebFarlands.surface() && !sharedWorld.active();
+        accepted=false;
+        return allowed;
+    };
+}
+
 function walkTo(x, y, then = null) {
     if (movementBlocked()) return false;
     releaseMovement();
@@ -5070,8 +5096,11 @@ function setupMobileControls() {
         button.addEventListener('contextmenu', event => event.preventDefault());
     }
 
-    document.getElementById('worldGrid').addEventListener('click', event => {
-        if (!classicView() || event.pointerType === 'touch' || event.button !== 0 ||
+    const grid=document.getElementById('worldGrid');
+    const acceptsGroundTap=groundTap(grid);
+    grid.addEventListener('click', event => {
+        const groundInput=acceptsGroundTap(event);
+        if (!classicView() || !groundInput || event.button !== 0 ||
             !event.target.classList.contains('tile')) return;
         walkTo(Math.round(parseFloat(event.target.style.left) / 32), Math.round(parseFloat(event.target.style.top) / 32));
     });
@@ -10128,7 +10157,8 @@ window.addEventListener('load', () => {
             this.resize();
             this.observer = new ResizeObserver(() => this.resize());
             this.observer.observe(world);
-            canvas.addEventListener('click', event => this.pick(event));
+            const acceptsGroundTap=groundTap(canvas);
+            canvas.addEventListener('click', event => this.pick(event,acceptsGroundTap(event)));
             canvas.addEventListener('pointermove', event => {
                 if (event.pointerType !== 'mouse') return;
                 const record = this.aim(event);
@@ -11374,7 +11404,7 @@ window.addEventListener('load', () => {
 
         }
 
-        pick(event) {
+        pick(event, groundInput = event.pointerType!=='touch') {
             if(this.eyeMode){
                 if(performance.now()<(this.suppressEyeClickUntil||0))return;
                 this.useEyeTarget();
@@ -11418,7 +11448,7 @@ window.addEventListener('load', () => {
             const crowd = hit?.kind === 'npc' ? this.crowdAt(hit) : [];
             if (crowd.length > 1) ebChoosePerson(crowd);
             else if (hit) this.activate(hit);
-            else if (this.active && event.pointerType !== 'touch' && event.button === 0 &&
+            else if (this.active && groundInput && event.button === 0 &&
                 this.ray.ray.intersectPlane(this.walkPlane, this.groundHit)) {
                 walkTo(Math.round(this.groundHit.x), Math.round(this.groundHit.z));
             }
