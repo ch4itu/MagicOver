@@ -1,0 +1,86 @@
+const t = require('./browser.cjs');
+const fs = require('node:fs');
+const path = require('node:path');
+const cases = [
+    {name:'rest-overhead',eye:false,coast:false},
+    {name:'rest-first-person',eye:true,coast:false},
+    {name:'quay-afloat-first-person',eye:true,coast:true}
+];
+
+(async () => {
+    const browser=await t.launch();
+    try {
+        const page=await t.page(browser,{viewport:{width:844,height:390},hasTouch:true,isMobile:true},(1767225600+4*480+240)*1000);
+        const renderer=await page.evaluate(()=>{
+            const gl=__view.renderer.getContext();
+            const debug=gl.getExtension('WEBGL_debug_renderer_info');
+            return debug && gl.getParameter(debug.UNMASKED_RENDERER_WEBGL);
+        });
+        const results=[];
+        for (const scene of cases) {
+            if (scene.eye!==await page.evaluate(()=>__view.eyeMode)) await page.tap('#eb-immersive-toggle');
+            if (scene.coast) await page.evaluate(()=>{
+                const [x,y]=Farlands.coastalDocks.lantern.water;
+                gameState.sailingMoves=15;
+                applyAdventureMap(captureAdventureMap(),{...gameState.player,x,y,targetX:x,targetY:y});
+                __view.eyeYaw=__view.eyeRenderYaw=0;
+            });
+            const result=await page.evaluate(({samples,warmup})=>new Promise((resolve,reject)=>{
+                const view=__view, renderer=view.renderer;
+                const original={draw:view.draw,render:renderer.render,terrain:view.updateTerrain,actors:view.syncActors,
+                    clone:THREE.Material.prototype.clone};
+                const intervals=[],drawMs=[],submitMs=[],terrainMs=[],actorMs=[];
+                let last, frame=0, clones=0;
+                let start, submitted, terrain, actors, frameClones;
+                const elapsed=(start)=>performance.now()-start;
+                const summary=values=>{
+                    const sorted=[...values].sort((a,b)=>a-b);
+                    const percentile=p=>Number(sorted[Math.ceil(sorted.length*p)-1].toFixed(2));
+                    return {median:percentile(.5),p90:percentile(.9),p95:percentile(.95),p99:percentile(.99),max:percentile(1)};
+                };
+                const restore=()=>{
+                    view.draw=original.draw;view.updateTerrain=original.terrain;view.syncActors=original.actors;
+                    renderer.render=original.render;THREE.Material.prototype.clone=original.clone;
+                };
+                const timeout=setTimeout(()=>{restore();reject(new Error('Render benchmark timed out'));},150000);
+                THREE.Material.prototype.clone=function(){frameClones++;return original.clone.call(this);};
+                renderer.render=function(...args){
+                    const time=performance.now();
+                    try{return original.render.apply(this,args);}finally{submitted+=elapsed(time);}
+                };
+                view.updateTerrain=function(){
+                    const time=performance.now();
+                    try{return original.terrain.call(this);}finally{terrain+=elapsed(time);}
+                };
+                view.syncActors=function(){
+                    const time=performance.now();
+                    try{return original.actors.call(this);}finally{actors+=elapsed(time);}
+                };
+                view.draw=function(now){
+                    const time=performance.now();
+                    submitted=terrain=actors=frameClones=0;
+                    original.draw.call(this,now);
+                    if (frame++>=warmup && last!==undefined) {
+                        intervals.push(time-last);drawMs.push(elapsed(time));submitMs.push(submitted);
+                        terrainMs.push(terrain);actorMs.push(actors);clones+=frameClones;
+                    }
+                    last=time;
+                    if(intervals.length===samples){
+                        clearTimeout(timeout);restore();
+                        resolve({samples,warmup,intervalMs:summary(intervals),drawMs:summary(drawMs),
+                            submitMs:summary(submitMs),terrainMs:summary(terrainMs),actorMs:summary(actorMs),materialClones:clones,
+                            calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,
+                            over100ms:intervals.filter(ms=>ms>100).length});
+                    }
+                };
+            }),{samples:Number(process.env.EB_RENDER_SAMPLES||90),warmup:20});
+            results.push({...scene,...result});
+            console.log(JSON.stringify({renderer,...results.at(-1)}));
+            await t.shot(page,'benchmark-'+scene.name+'-'+t.sha.slice(0,8));
+        }
+        t.assert.deepEqual(page.errors,[]);
+        const report={sha256:t.sha,renderer,profile:'Chromium landscape viewport, 844 x 390',results};
+        fs.writeFileSync(path.join(t.out,'render-'+t.sha.slice(0,8)+'.json'),JSON.stringify(report,null,2)+'\n');
+        t.record('Warmed rendering benchmark',report);
+    } finally {await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});
