@@ -22,6 +22,7 @@ const jobs=[
     ['geography','coastal-geography.cjs'],
     ['quest-contract','automation-quests.cjs',{},[baseline]],
     ['shared-source-boundary','release/pr30-scope.cjs',{},[scope]],
+    ['architecture-batches','architecture-batches.cjs',{},[scope]],
     ['local-occupations','local-occupations.cjs'],
     ['natural-harvest','natural-harvest.cjs'],
     ['mobile-touch','mobile-touch.cjs'],
