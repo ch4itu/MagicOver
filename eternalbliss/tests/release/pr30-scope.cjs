@@ -9,7 +9,7 @@ const read=file=>new Map([...fs.readFileSync(file,'utf8').matchAll(/<script\b([^
 const before=read(process.argv[2]);
 const after=read(candidate);
 assert.equal(after.size,before.size);
-const expected=new Set(['gui.js','gui-models.js','world.js','farlands-map.js','farlands.js','rpg-local-quests.js','r14-adventure-journal.js']);
+const expected=new Set(['gui.js','farlands-map.js','farlands.js','rpg-local-quests.js','farlands-life.js']);
 for(const [name,body] of after){
     new vm.Script(body,{filename:String(name)});
     if(!expected.has(name))assert.ok(body===before.get(name),name+' must match the previous verified checkpoint');

@@ -10,6 +10,7 @@ const source=process.env.EB_RC_CANDIDATE;
 const baseline=process.env.EB_QUEST_BASELINE;
 const rollback=process.env.EB_ROLLBACK_SOURCE;
 const scope=process.env.EB_SCOPE_BASELINE;
+const architecture=process.env.EB_ARCHITECTURE_BASELINE||scope;
 if(!out||!source||!baseline||!rollback||!scope)throw Error('Set EB_EVIDENCE, EB_RC_CANDIDATE, EB_QUEST_BASELINE, EB_SCOPE_BASELINE and EB_ROLLBACK_SOURCE');
 const hash=data=>crypto.createHash('sha256').update(data).digest('hex');
 const checkSource=()=>{
@@ -22,7 +23,7 @@ const jobs=[
     ['geography','coastal-geography.cjs'],
     ['quest-contract','automation-quests.cjs',{},[baseline]],
     ['shared-source-boundary','release/pr30-scope.cjs',{},[scope]],
-    ['architecture-batches','architecture-batches.cjs',{},[scope]],
+    ['architecture-batches','architecture-batches.cjs',{},[architecture]],
     ['local-occupations','local-occupations.cjs'],
     ['natural-harvest','natural-harvest.cjs'],
     ['mobile-touch','mobile-touch.cjs'],

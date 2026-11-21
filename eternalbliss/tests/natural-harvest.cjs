@@ -1,14 +1,15 @@
 // A fresh-guest route using real keys/buttons. Read-only inspection plans paths; no position, stats,
 // inventory, RNG, story flags, terrain or clock changes after startup. Resume only from its recorded local save.
 const t=require('./browser.cjs'),fs=require('node:fs'),path=require('node:path');
+const live=process.env.EB_LIVE_JOURNEY==='1';
 const checkpoint=path.join(t.out,'natural-harvest-storage.json'),events=path.join(t.out,'natural-harvest-events.jsonl');
 (async()=>{const b=await t.launch();let p;try{
- const profile={viewport:{width:1280,height:800}};if(process.env.EB_ROUTE_RESUME)profile.storageState=checkpoint;
- p=await b.newPage(profile);p.errors=[];p.on('pageerror',e=>p.errors.push(e.message));await p.clock.setFixedTime(new Date((1767225600+4*480+240)*1000));
+ const profile={viewport:live?{width:900,height:540}:{width:1280,height:800}};if(process.env.EB_ROUTE_RESUME)profile.storageState=checkpoint;
+ p=await b.newPage(profile);p.errors=[];p.on('pageerror',e=>p.errors.push(e.message));if(!live)await p.clock.setFixedTime(new Date((1767225600+4*480+240)*1000));
  const html=fs.readFileSync(process.env.EB_SOURCE||path.join(__dirname,'../index.html'),'utf8');await p.route('**/eternalbliss/',r=>r.fulfill({contentType:'text/html',body:html.replace('view = new WorldView(canvas, layer, world);','view = new WorldView(canvas, layer, world); window.__view=view;')}));
  await p.goto('http://127.0.0.1:8091/eternalbliss/',{waitUntil:'domcontentloaded'});await p.click('#eb-menu-solo');await p.waitForFunction(()=>window.__view?.active&&ebFarlands.inRealm());
  const started=Date.now();
- const state=()=>p.evaluate(()=>({x:gameState.player.x,y:gameState.player.y,hp:gameState.player.hp,mp:gameState.player.mp,gold:gameState.inventory.gold,xp:gameState.player.xp,keys:gameState.inventory.keys,room:!!buildingInterior,flags:['met','key','gate','guardian','relic','reward'].map(k=>[k,ebFarlands.storyFlag('quest-vault-'+k)]),discoveries:[...ebFarlands.discoveries()]}));
+ const state=()=>p.evaluate(()=>({x:gameState.player.x,y:gameState.player.y,hp:gameState.player.hp,mp:gameState.player.mp,gold:gameState.inventory.gold,xp:gameState.player.xp,keys:gameState.inventory.keys,room:!!buildingInterior,day:worldClimate.day,clock:worldClimate.time,moves:gameState.player.moveCount,afloat:gameState.sailingMoves,flags:['met','key','gate','guardian','relic','reward'].map(k=>[k,ebFarlands.storyFlag('quest-vault-'+k)]),discoveries:[...ebFarlands.discoveries()]}));
  async function mark(label){await p.waitForTimeout(1300);const s=await state();console.log(label,JSON.stringify(s));fs.appendFileSync(events,JSON.stringify({time:new Date().toISOString(),sha:t.sha,label,elapsedMs:Date.now()-started,state:s})+'\n');await p.context().storageState({path:checkpoint});await t.shot(p,'natural-'+label+'-'+t.sha.slice(0,8));}
  const flag=k=>p.evaluate(k=>ebFarlands.storyFlag('quest-vault-'+k),k);
  async function blur(){await p.evaluate(()=>document.activeElement?.blur());}
@@ -64,11 +65,13 @@ const checkpoint=path.join(t.out,'natural-harvest-storage.json'),events=path.joi
   await mark('first-ride');
  }
  const orchardFlag=part=>p.evaluate(part=>ebFarlands.storyFlag('rq-'+part+'-f-rest'),part);
- async function speakToNessa(){
+ async function speakTo(name){
+  if(live) await p.waitForFunction(name=>npcs.some(n=>n.name===name && !n.indoors &&
+   Math.hypot(n.x-gameState.player.x,n.y-gameState.player.y)<12),name,{timeout:500000});
   await p.click('#eb-farlands-people');
-  const row=p.locator('#modalContent > div').filter({has:p.getByText('Nessa, the Orchard Keeper',{exact:true})});
+  const row=p.locator('#modalContent > div').filter({has:p.getByText(name,{exact:true})});
   await row.getByRole('button',{name:/^(Go & talk|Talk)$/}).click();
-  await p.locator('#modalTitle').filter({hasText:'Nessa, the Orchard Keeper'}).waitFor();
+  await p.locator('#modalTitle').filter({hasText:name}).waitFor();
   const tab=p.getByRole('tab',{name:/Quests/});
   if(await tab.isVisible())await tab.click();
  }
@@ -76,10 +79,15 @@ const checkpoint=path.join(t.out,'natural-harvest-storage.json'),events=path.joi
  if(!await orchardFlag('done')){
   const rest=await p.evaluate(()=>[Farlands.start.x,Farlands.start.y]);
   if(!await orchardFlag('taken')){
-   await p.locator('#eb-goal-chip').filter({hasText:'Ask Nessa about the first picking'}).click();
-   const row=p.locator('#modalContent > div').filter({has:p.getByText('Nessa, the Orchard Keeper',{exact:true})});
-   await row.getByRole('button',{name:/^(Go & talk|Talk)$/}).click();
-   await p.getByRole('tab',{name:/Quests/}).click();
+   if(live){
+    await walk(...rest);
+    await speakTo('Nessa, the Orchard Keeper');
+   }else{
+    await p.locator('#eb-goal-chip').filter({hasText:'Ask Nessa about the first picking'}).click();
+    const row=p.locator('#modalContent > div').filter({has:p.getByText('Nessa, the Orchard Keeper',{exact:true})});
+    await row.getByRole('button',{name:/^(Go & talk|Talk)$/}).click();
+    await p.getByRole('tab',{name:/Quests/}).click();
+   }
    await p.locator('#modalContent section').filter({hasText:'The first picking'}).getByRole('button',{name:'Accept quest'}).click();
    await close();
   }
@@ -106,7 +114,7 @@ const checkpoint=path.join(t.out,'natural-harvest-storage.json'),events=path.joi
    await close();
   }
   await walk(...rest);
-  await speakToNessa();
+  await speakTo('Nessa, the Orchard Keeper');
   const gold=(await state()).gold;
   await p.getByRole('button',{name:'Pick the south rows'}).click();
   t.assert.equal((await state()).gold,gold,'wrong rows do not pay');
@@ -117,6 +125,93 @@ const checkpoint=path.join(t.out,'natural-harvest-storage.json'),events=path.joi
   t.assert.equal(await p.getByRole('button',{name:'Pick the north rows'}).count(),0);
   await mark('nessa-reward');
   await close();
+ }
+ if(live){
+  const site=async id=>p.evaluate(id=>{const s=Farlands.byId.get(id);return [s.x,s.y];},id);
+  const rest=await site('rest');
+  const sounding=part=>p.evaluate(part=>ebFarlands.storyFlag('rq-'+part+'-g-rest'),part);
+  const hale='Hale, the Wheelwright';
+  await walk(...rest);
+  if(!await sounding('taken')){
+   await speakTo(hale);
+   await p.locator('#modalContent section').filter({hasText:'Sounding Mill Creek'}).getByRole('button',{name:'Accept quest'}).click();
+   await close();
+  }
+  const board=await p.evaluate(()=>Farlands.creekPilotage.board);
+  await walk(...board);
+  if(!await sounding('step1')){
+   await p.keyboard.press('Space');
+   await p.getByRole('status').filter({hasText:'Sounding started'}).waitFor();
+   await close();
+  }
+  if(await p.evaluate(()=>classicView()))await p.click('#eb-view-toggle');
+  await p.click('#eb-immersive-toggle');
+  await p.waitForFunction(()=>__view.eyeActive()&&__view.coastalBoats.has('63,60'));
+  const berth=await p.evaluate(()=>{
+   const view=__view, {model,position}=view.coastalBoats.get('63,60');
+   model.updateWorldMatrix(true,true);
+   const centre=new THREE.Box3().setFromObject(model.children[0]).getCenter(new THREE.Vector3());
+   centre.sub(view.eyeCamera.position);
+   view.eyeYaw=view.eyeRenderYaw=Math.atan2(-centre.x,-centre.z);
+   view.eyePitch=view.eyeRenderPitch=Math.atan2(centre.y,Math.hypot(centre.x,centre.z));
+   return [position.x,position.y];
+  });
+  await p.click('#eb-eye-use');
+  await p.locator('#eb-vehicle-title').filter({hasText:'Embark'}).waitFor();
+  await p.click('#eb-vehicle-accept');
+  await p.waitForFunction(()=>gameState.sailingMoves>0);
+  const boarded=await state();
+  t.assert.deepEqual([boarded.x,boarded.y],berth);
+  await p.click('#eb-immersive-toggle');
+  const sail=async (key,x,y)=>{
+   await blur();
+   await p.keyboard.press(key);
+   await p.waitForFunction(({x,y})=>gameState.player.x===x && gameState.player.y===y,{x,y},{timeout:5000});
+   await p.waitForTimeout(170);
+  };
+  for(let i=1;i<=3;i++)await sail('ArrowLeft',berth[0]-i,berth[1]);
+  t.assert(await sounding('step2'));
+  await mark('sounding-afloat');
+  await p.reload({waitUntil:'domcontentloaded'});
+  await p.click('#eb-menu-solo');
+  await p.waitForFunction(()=>ebFarlands.surface()&&gameState.sailingMoves>0);
+  t.assert(await sounding('step2'));
+  for(let i=2;i>=0;i--)await sail('ArrowRight',berth[0]-i,berth[1]);
+  await sail('ArrowDown',berth[0],berth[1]+1);
+  const panel=p.locator('#eb-actions-collapse');
+  if(await panel.getAttribute('aria-expanded')==='false')await panel.click();
+  await p.click('#eb-farlands-dock');
+  await p.click('#eb-vehicle-accept');
+  await p.waitForFunction(()=>gameState.sailingMoves===0);
+  if(!await p.evaluate(()=>classicView()))await p.click('#eb-view-toggle');
+  await walk(...rest);
+  await speakTo(hale);
+  const gold=(await state()).gold;
+  await p.getByRole('button',{name:'Report back · collect 20 gold'}).click();
+  t.assert.equal((await state()).gold,gold+20);
+  t.assert(await sounding('done'));
+  t.assert.equal(await p.getByRole('button',{name:'Report back · collect 20 gold'}).count(),0);
+  await close();
+  await mark('hale-reward');
+
+  const neighbors=['mill','orchard','toll'];
+  const travelers=['Ivo, the Millwright','Tamsin, the Herbalist','Wren, a Pilgrim'];
+  const loops=[];
+  do {
+   const index=loops.length%neighbors.length;
+   const before=await state();
+   await walk(...await site(neighbors[index]));
+   await walk(...rest);
+   const available=await p.evaluate(names=>names.filter(name=>npcs.some(n=>n.name===name&&!n.indoors&&
+     Math.hypot(n.x-gameState.player.x,n.y-gameState.player.y)<10)),travelers);
+   if(available.length){await speakTo(available[loops.length%available.length]);await close();}
+   const after=await state();
+   t.assert(after.moves>before.moves,'travel leg accepted movement');
+   loops.push({site:neighbors[index],before:before.clock,after:after.clock,day:after.day,moves:after.moves-before.moves,residents:available});
+   await mark('clock-travel-'+loops.length);
+  } while(Date.now()-started<30*60*1000);
+  t.assert((await state()).day-initial.day>=3,'the unmodified game clock advanced at least three game days');
+  t.record('Advancing-clock solo journey',{elapsedMs:Date.now()-started,initial,final:await state(),loops});
  }
  await p.reload({waitUntil:'domcontentloaded'});await p.click('#eb-menu-solo');await p.waitForFunction(()=>ebFarlands.surface());t.assert(await orchardFlag('done'));t.assert(await flag('reward'));t.assert(await flag('relic'));t.assert(await flag('guardian'));t.assert(await flag('gate'));t.assert(await p.evaluate(()=>ebFarlands.horseState().owned));t.assert.deepEqual(p.errors,[]);await mark('complete-reloaded');t.record('natural Harvest Bell route',{result:'PASS fresh guest onboarding, Atlas pin, actual walking, Harvest Bell quest and combat, horse purchase and ride, both orchard tallies, Nessa’s once-only reward and reload; no injected progress/position/stats/RNG',resumed:!!process.env.EB_ROUTE_RESUME,elapsedMs:Date.now()-started,next,state:await state()});
 }catch(e){if(p){await t.shot(p,'natural-blocker-'+Date.now());await p.context().storageState({path:checkpoint});}throw e;}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});

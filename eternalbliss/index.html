@@ -11112,18 +11112,24 @@ window.addEventListener('load', () => {
             const kit = this.ebPropKit ??= (() => {
                 const mat = c => new T.MeshLambertMaterial({ color: c });
                 return { handle: new T.BoxGeometry(.026, .46, .026), blade: new T.BoxGeometry(.13, .035, .06), bundle: new T.BoxGeometry(.15, .1, .11),
+                    malletHead: new T.BoxGeometry(.17, .08, .08), malletGrip: new T.BoxGeometry(.026, .22, .026),
                     bucket: new T.CylinderGeometry(.055, .045, .095, 8), tray: new T.BoxGeometry(.3, .022, .19),
                     wood: mat(0x8a6240), iron: mat(0x7d8a88), cloth: mat(0xc9a96b), pail: mat(0x6f7f86), plate: mat(0xb08a5a) };
             })();
             const hand = model.arms[1] ?? model.arms[0];
             const hoe = new T.Group(), handle = new T.Mesh(kit.handle, kit.wood), blade = new T.Mesh(kit.blade, kit.iron);
             handle.position.y = -.12; blade.position.set(0, -.34, .05); hoe.add(handle, blade); hoe.position.set(.02, -.2, .02);
+            const mallet = new T.Group();
+            const grip = new T.Mesh(kit.malletGrip, kit.wood), head = new T.Mesh(kit.malletHead, kit.wood);
+            head.position.y = -.13;
+            mallet.add(grip, head);
+            mallet.position.set(.02, -.21, .03);
             const bundle = new T.Mesh(kit.bundle, kit.cloth); bundle.position.set(.02, -.25, .04);
             const bucket = new T.Mesh(kit.bucket, kit.pail); bucket.position.set(.02, -.27, 0);
             const tray = new T.Mesh(kit.tray, kit.plate); tray.position.set(0, .4, .2);
-            for (const prop of [hoe, bundle, bucket, tray]) prop.scale.setScalar(1.4); // readable at the normal zoom
-            hand.add(hoe, bundle, bucket); model.body.add(tray);
-            model.ebProps = { hoe, bundle, bucket, tray };
+            for (const prop of [hoe, mallet, bundle, bucket, tray]) prop.scale.setScalar(1.4); // readable at the normal zoom
+            hand.add(hoe, mallet, bundle, bucket); model.body.add(tray);
+            model.ebProps = { hoe, mallet, bundle, bucket, tray };
             for (const prop of Object.values(model.ebProps)) prop.visible = false;
             return model.ebProps;
         }
@@ -11158,7 +11164,7 @@ window.addEventListener('load', () => {
             const body = model.body, arms = model.arms;
             if (!body || !arms?.length) return;
             const holding = act && (data.walkingUntil ?? 0) < performance.now() ?
-                { work: 'hoe', trade: 'bundle', tend: 'bucket', serve: 'tray', harvest: 'bucket', sortCatch: 'bundle' }[act.kind] : null;
+                { work: 'hoe', repair: 'mallet', trade: 'bundle', tend: 'bucket', serve: 'tray', harvest: 'bucket', sortCatch: 'bundle' }[act.kind] : null;
             if (holding || model.ebProps) {
                 const props = this.activityProps(model);
                 for (const [name, prop] of Object.entries(props)) prop.visible = name === holding;
@@ -11176,6 +11182,7 @@ window.addEventListener('load', () => {
                 switch (act.kind) {
                     // R17: the whole body works, not only the arms: a stroke bends the back, herding is done stooped
                     case 'work':   set(-.9+wave(3.2,.55), -.9+wave(3.2,.55)); lean = .2+wave(3.2,.12,-.6); break;
+                    case 'repair': set(-.65, -.95+wave(4.8,.51)); lean = .22; break;
                     case 'harvest': set(-.35+wave(1.8,.2), -.95+wave(1.8,.35)); lean = .28+wave(1.8,.1); break;
                     case 'sortCatch': set(-.95+wave(2.4,.3), -.95+wave(2.4,.3,2.4)); lean = .16; break;
                     case 'tend':   set(-.75+wave(1.6,.2), -.65+wave(1.6,.2,.6)); lean = .38; break;
@@ -12035,13 +12042,6 @@ window.addEventListener('load', () => {
             this.frame = requestAnimationFrame(next => this.draw(next));
         }
 
-        setActive(active) {
-            this.active = active;
-            cancelAnimationFrame(this.frame);
-            if (active) {
-                this.lastSync = 0;
-                this.lastFrame = 0;
-                this.resize();
         renderFrame(eyeEnabled) {
             const gl = this.renderer.getContext();
             const paced = this.swiftShader && eyeEnabled && ebFarlands.inRealm() && !sharedWorld.active();
@@ -12059,8 +12059,19 @@ window.addEventListener('load', () => {
             }
         }
 
+        setActive(active) {
+            this.active = active;
+            cancelAnimationFrame(this.frame);
+            if (active) {
+                this.lastSync = 0;
+                this.lastFrame = 0;
+                this.resize();
                 this.draw(performance.now());
             } else {
+                if (this.frameFence) {
+                    this.renderer.getContext().deleteSync(this.frameFence);
+                    this.frameFence = null;
+                }
                 for (const effect of this.effects) effect.node.remove();
                 this.effects = [];
             }
@@ -12068,10 +12079,6 @@ window.addEventListener('load', () => {
     }
 
     function setup() {
-                if (this.frameFence) {
-                    this.renderer.getContext().deleteSync(this.frameFence);
-                    this.frameFence = null;
-                }
         const root = document.documentElement;
         const world = document.getElementById('worldView');
         const canvas = document.getElementById('eb-scene');
@@ -14299,6 +14306,7 @@ const Farlands = (() => {
     const villageAt = (x,y) => Math.abs(x-rest.x)<=10 && y-rest.y>=-8 && y-rest.y<=9;
     // Street furniture: [dx, dy, kind, blocks the tile, turn, name, words when used]. Drawn by the 3D ground, shown as a
     // small glyph in the 2D view. Only named pieces can be used.
+    const creekPilotage = {board:[5044,4876], reach:[5041,4874], name:'Mill Creek sounding board'};
     const authoredProps = new Map();
     for (const [dx,dy,kind,solid,turn,name,text] of [
         [0,-1,'well',true,0,'The square well','Cool water from under the square. Travellers fill their flasks here before taking the road.'],
@@ -14318,6 +14326,7 @@ const Farlands = (() => {
         [-6,8,'mooring',false,0]
     ]) authoredProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
     for (const [x,y,name,text,cloth] of [
+        [...creekPilotage.board,creekPilotage.name,'Hale’s chalk marks the starting berth. From the moored boat, row three tiles west along the creek. Turn back by the causeway and give Hale the sounding.',0xa8c5c7],
         [5038,4845,'North orchard tally','White cloth marks the trees ready for picking. Two baskets can go down to the stall before noon.',0xeee4c8],
         [5042,4850,'South orchard tally','Red cloth marks the trees that need another day. Leave those branches for the next crew.',0xb64632],
         [8556,8580,'Shellwick tide board','Shellfish baskets go out past the yellow sand at low tide. The mooring is just southwest. Lantern Quay lies northwest around the head of the bay.'],
@@ -14919,7 +14928,7 @@ const Farlands = (() => {
         }
     }
 
-    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,authoredProps,propAt,propNear,plazaAt,villageAt,
+    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,creekPilotage,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,authoredProps,propAt,propNear,plazaAt,villageAt,
         coastalDocks,sceneCell,remember,hash};
 })();
 
@@ -15156,20 +15165,20 @@ const ebFarlands = (() => {
     // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
     function markRpgQuest(key) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||
-            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0|[ef]-rest)$/.test(key)||journey.spent.has(key))return false;
+            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0|[efg]-rest)$/.test(key)||journey.spent.has(key))return false;
         journey.spent.add(key);saveNow();return true;
     }
     function completeRpgQuest(id,kind) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
-            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&!(['e','f'].includes(kind)&&id==='rest')))return false;
+            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&!(['e','f','g'].includes(kind)&&id==='rest')))return false;
         const site=Farlands.byId.get(id),prefix='rq-';
         // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
         if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
         if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
             !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
             !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
-            (['a','d','e','f'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
-        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:kind==='f'?[22,28]:[14,15];
+            (['a','d','e','f','g'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:kind==='f'?[22,28]:kind==='g'?[20,25]:[14,15];
         journey.spent.add(prefix+'done-'+kind+'-'+id);
         gameState.inventory.gold+=gold;gameState.player.xp+=xp;
         checkLevelUp();updateUI();saveNow();updateHint();return true;
@@ -16335,7 +16344,7 @@ const ebLife = (() => {
         'Ivo, the Millwright':{6:'work',11:'trade',17:'rest'},
         'Tamsin, the Herbalist':{18:'tend'},
         'Bram, the Storyteller':{8:'story',13:'story',18:'story'},
-        'Hale, the Wheelwright':{6:'work',12:'work',19:'rest'},
+        'Hale, the Wheelwright':{6:'repair',12:'repair',19:'rest'},
         'Wren, a Pilgrim':{6:'pray',10:'rest',16:'pray'}
     };
     const NAMED_LOOK = {'Ivo, the Millwright':'Mason','Hale, the Wheelwright':'Mason','Nessa, the Orchard Keeper':'Merchant',
@@ -16868,7 +16877,7 @@ const ebRpgQuests=(()=>{
     const stations=Farlands.sites.filter(s=>s.station);
     const shellwickId='settlement-lantern-0';
     const orchardTallies=['North orchard tally','South orchard tally'];
-    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : site===Farlands.start ? ['a','b','c','e',...(ebFarlands.storyFlag('quest-vault-reward')?['f']:[])] : ['a','b','c'];
+    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : site===Farlands.start ? ['a','b','c','e','g',...(ebFarlands.storyFlag('quest-vault-reward')?['f']:[])] : ['a','b','c'];
     // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
     // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
     const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
@@ -16876,7 +16885,7 @@ const ebRpgQuests=(()=>{
     const flag=(site,kind,part)=>ebFarlands.storyFlag('rq-'+part+'-'+kind+'-'+site.id);
     const mark=(site,kind,part)=>ebFarlands.markRpgQuest('rq-'+part+'-'+kind+'-'+site.id);
     const giverName=(site,kind)=>{
-        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':['b','f'].includes(kind)?'Nessa, the Orchard Keeper':'Ivo, the Millwright';
+        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':['b','f'].includes(kind)?'Nessa, the Orchard Keeper':kind==='g'?'Hale, the Wheelwright':'Ivo, the Millwright';
         return site.name+((kind==='a'||kind==='d')?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
     };
     const receiver=(site)=>giverName(site,'a');
@@ -16906,6 +16915,11 @@ const ebRpgQuests=(()=>{
     };
     function plan(site,kind){
         if(!site?.station||!kinds(site).includes(kind))return null;
+        if(kind==='g')return {
+            site,target:site,kind,title:'Sounding Mill Creek',
+            description:'Read Hale’s sounding board by the southwest causeway. Board the moored boat and row three tiles west, then land and report to Hale.',
+            giver:giverName(site,kind),reward:[20,25]
+        };
         if(kind==='f')return {
             site,target:Farlands.byId.get('orchard'),kind,
             title:'The first picking',
@@ -16936,9 +16950,12 @@ const ebRpgQuests=(()=>{
     }
     const state=q=>flag(q.site,q.kind,'done')?'done':
         flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
-    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d','e','f'].includes(q.kind)||flag(q.site,q.kind,'step2'));
+    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d','e','f','g'].includes(q.kind)||flag(q.site,q.kind,'step2'));
     function next(q){
-        if(q.kind==='f'){
+        if(q.kind==='g'){
+            if(!flag(q.site,'g','step1'))return {site:q.site,label:'Read the sounding board by the southwest causeway'};
+            if(!flag(q.site,'g','step2'))return {site:q.site,label:'Board at the causeway and row three tiles west'};
+        }else if(q.kind==='f'){
             const remaining=orchardTallies.filter((_,i)=>!flag(q.site,'f','step'+(i+1)));
             if(remaining.length)return {site:q.target,label:'Read '+remaining.join(' and ')};
         }else if(q.kind==='e'){
@@ -16964,7 +16981,7 @@ const ebRpgQuests=(()=>{
         return ok;
     }
     function report(q,npc){
-        if(!active()||!q||state(q)!=='ready'||npc?.name!==q.giver||
+        if(!active()||!q||state(q)!=='ready'||npc?.name!==q.giver||(q.kind==='g'&&gameState.sailingMoves>0)||
             !npcs.includes(npc)||Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5)return false;
         return ebFarlands.completeRpgQuest(q.site.id,q.kind);
     }
@@ -16972,6 +16989,10 @@ const ebRpgQuests=(()=>{
         const site=Farlands.start;
         if(!active()||!prop||
             Math.max(Math.abs(gameState.player.x-prop.x),Math.abs(gameState.player.y-prop.y))>1)return '';
+        if(prop.name===Farlands.creekPilotage.name&&flag(site,'g','taken')&&mark(site,'g','step1')){
+            ebFarlands.refreshStoryHint();
+            return 'Sounding started. Board the creek boat and row three tiles west.';
+        }
         const tally=orchardTallies.indexOf(prop.name);
         if(tally!==-1&&flag(site,'f','taken')&&mark(site,'f','step'+(tally+1))){
             const complete=ready(plan(site,'f'));
@@ -16986,6 +17007,14 @@ const ebRpgQuests=(()=>{
     function onLocation(site){
         if(!active())return;
         for(const q of activePlans()){
+            if(q.kind==='g'&&gameState.sailingMoves>0&&flag(q.site,'g','step1')){
+                const [x,y]=Farlands.creekPilotage.reach;
+                const player=gameState.player;
+                if(player.x===x&&player.y===y&&mark(q.site,'g','step2')){
+                    ebFarlands.refreshStoryHint();
+                    showFloatingText('Sounding recorded · land and report to Hale',x*32+16,y*32-30,'#e9c987');
+                }
+            }
             if(q.kind==='e'&&site?.id===q.target.id&&flag(q.site,'e','step1')&&mark(q.site,'e','step2')){
                 ebFarlands.pin(q.site.id);
                 showFloatingText('Tally delivered · return to Ivo',gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
@@ -17123,6 +17152,7 @@ const ebRpgQuests=(()=>{
         const out=[];
         if(site.station){
             const done=k=>flag(site,k,'done')&&plan(site,k);
+            if(done('g'))out.push('Hale marked the safe reach from your sounding. The next timber boat can take the inside bend.');
             if(done('f'))out.push('Nessa sent the first baskets down from Bell Orchard. Your tally kept the pickers on the right rows.');
             if(done('d'))out.push('The route you charted keeps our shell boats clear of the banks.');
             if(done('c'))out.push('You carried our news to '+plan(site,'c').target.name+' and came back to tell us.');
