@@ -10244,11 +10244,16 @@ window.addEventListener('load', () => {
                 this.scene.remove(this.land);
                 this.land.children.forEach(mesh => {
                     if (mesh.isInstancedMesh) mesh.dispose();
-                    else mesh.geometry.dispose();
+                    if (!mesh.isInstancedMesh || mesh.userData.terrainPrototype) mesh.geometry.dispose();
                 });
             }
 
-            const positions = [], tints = [], uvs = [];
+            // Use independent bounds for each patch so both the view and light can reject
+            // off-screen geometry. Keep the coastal blend in its original draw order.
+            const partitioned = this.eyeMode && ebFarlands.surface() && !sharedWorld.active();
+            const patchSize = 24;
+            const patchKey = (x, z) => Math.floor(z / patchSize) * width + Math.floor(x / patchSize);
+            const surfaces = new Map();
             const shorePositions = [], shoreTints = [], shoreUvs = [];
             const logs = [], leaves = [], canopies = [], stones = [], sprouts = [], lanterns = [], roomBlocks = [], glows = [];
             const color = new T.Color();
@@ -10283,6 +10288,9 @@ window.addEventListener('load', () => {
                 for (let x = left; x < right; x++) {
                     const type = this.terrainAt(x, z);
                     if (!type || type === 'water') continue;
+                    const key = partitioned ? patchKey(x,z) : 0;
+                    if (!surfaces.has(key)) surfaces.set(key, [[], [], []]);
+                    const [positions, tints, uvs] = surfaces.get(key);
 
                     const shore = edges.map(([dx, dz]) => !this.room && (!this.terrainAt(x + dx, z + dz) ||
                         this.terrainAt(x + dx, z + dz) === 'water'));
@@ -10432,14 +10440,43 @@ window.addEventListener('load', () => {
             }
 
             this.land = new T.Group();
-            this.land.add(makeSurface(this.ground, positions, tints, uvs));
+            for (const surface of surfaces.values()) this.land.add(makeSurface(this.ground, ...surface));
             if (shorePositions.length) this.land.add(makeSurface(this.shallowsMaterial, shorePositions, shoreTints, shoreUvs));
             for (const [geometry, batch, shadow] of [
                 [this.trunk, logs, true], [this.crown, leaves, true], [this.canopy, canopies, true],
                 [this.rock, stones, true], [this.crown, sprouts, false], [this.roomBlock, roomBlocks, true]
             ]) {
-                const mesh = instanced(geometry, this.terrainMaterial, batch, shadow);
-                if (mesh) this.land.add(mesh);
+                if (!partitioned) {
+                    const mesh = instanced(geometry, this.terrainMaterial, batch, shadow);
+                    if (mesh) this.land.add(mesh);
+                    continue;
+                }
+                const patches = new Map();
+                for (const model of batch) {
+                    const key = patchKey(model[0],model[2]);
+                    if (!patches.has(key)) patches.set(key, []);
+                    patches.get(key).push(model);
+                }
+                geometry.computeBoundingSphere();
+                const primitive = geometry.boundingSphere;
+                const extent = primitive.radius + primitive.center.length();
+                const bounds = new T.Box3(), centre = new T.Vector3();
+                for (const models of patches.values()) {
+                    bounds.makeEmpty();
+                    for (const [x,y,z,sx,sy,sz] of models) {
+                        // Include the primitive's offset and allow any rotation of a scaled instance.
+                        const r = extent * Math.max(sx,sy,sz);
+                        bounds.expandByPoint(centre.set(x-r,y-r,z-r));
+                        bounds.expandByPoint(centre.set(x+r,y+r,z+r));
+                    }
+                    // This Three.js revision looks at geometry bounds, including for instances.
+                    const patchGeometry = geometry.clone();
+                    patchGeometry.boundingSphere = bounds.getBoundingSphere(new T.Sphere());
+                    const mesh = instanced(patchGeometry, this.terrainMaterial, models, shadow);
+                    mesh.userData.terrainPrototype = geometry;
+                    mesh.frustumCulled = true;
+                    this.land.add(mesh);
+                }
             }
             const lamps = instanced(this.lanternGlass, this.lanternMaterial, lanterns, false);
             if (lamps) this.land.add(lamps);
@@ -10822,7 +10859,8 @@ window.addEventListener('load', () => {
             }
             if (!this.land) return;
             for (const mesh of this.land.children) {
-                if (!mesh.isInstancedMesh || (mesh.geometry!==this.trunk && mesh.geometry!==this.crown && mesh.geometry!==this.canopy)) continue;
+                const geometry = mesh.userData.terrainPrototype || mesh.geometry;
+                if (!mesh.isInstancedMesh || (geometry!==this.trunk && geometry!==this.crown && geometry!==this.canopy)) continue;
                 let changed=false;
                 for (let i=0;i<mesh.count;i++) {
                     mesh.getMatrixAt(i,m);
