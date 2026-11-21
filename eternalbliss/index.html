@@ -3793,8 +3793,9 @@ function interact() {
     const prop = ebFarlands.surface() && Farlands.propNear(gameState.player.x, gameState.player.y);
     if (prop) { // R15.56: the well, the signpost, the stall, the shrine
         document.getElementById('modalTitle').textContent = prop.name;
+        const note=ebRpgQuests.onProp(prop);
         document.getElementById('modalContent').innerHTML = `<div style="font-size: 32px; margin-bottom: 20px;">${streetPropIcons[prop.kind]}</div>
-            <p style="line-height: 1.6;">${escapeMapText(prop.text)}</p>`;
+            <p style="line-height: 1.6;">${escapeMapText(prop.text)}</p>${note ? '<p role="status">'+escapeMapText(note)+'</p>' : ''}`;
         document.getElementById('interactionModal').style.display = 'flex';
         return;
     }
@@ -14207,7 +14208,7 @@ const Farlands = (() => {
         [7,-4,'garden',false,0],[8,-4,'garden',false,1],[7,-3,'garden',false,2],[8,-3,'garden',false,3],
         [-6,4,'shrine',true,0,'Wayside shrine','A worn stone for travellers who did not come back down the road. Someone still leaves flowers.'],
         [-6,5,'flowers',false,0],
-        [2,8,'crates',true,0],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
+        [2,8,'crates',true,0,'Ivo’s axle crate','Chalk on the lid reads: Millbend · two axle collars, one oak pin. The river seal is intact.'],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
         [-6,8,'mooring',false,0]
     ]) authoredProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
     for (const [x,y,name,text] of [
@@ -15044,20 +15045,20 @@ const ebFarlands = (() => {
     // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
     function markRpgQuest(key) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||
-            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0)$/.test(key)||journey.spent.has(key))return false;
+            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0|e-rest)$/.test(key)||journey.spent.has(key))return false;
         journey.spent.add(key);saveNow();return true;
     }
     function completeRpgQuest(id,kind) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
-            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')))return false;
+            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&!(kind==='e'&&id==='rest')))return false;
         const site=Farlands.byId.get(id),prefix='rq-';
         // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
         if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
         if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
             !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
             !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
-            ((kind==='a'||kind==='d')&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
-        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:[14,15];
+            (['a','d','e'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:[14,15];
         journey.spent.add(prefix+'done-'+kind+'-'+id);
         gameState.inventory.gold+=gold;gameState.player.xp+=xp;
         checkLevelUp();updateUI();saveNow();updateHint();return true;
@@ -16725,7 +16726,7 @@ const ebRpgQuests=(()=>{
     const active=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior&&!gameState.inBattle;
     const sites=()=>Farlands.sites.filter(s=>s.station);
     const shellwickId='settlement-lantern-0';
-    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : ['a','b','c'];
+    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : site===Farlands.start ? ['a','b','c','e'] : ['a','b','c'];
     // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
     // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
     const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
@@ -16763,6 +16764,12 @@ const ebRpgQuests=(()=>{
     };
     function plan(site,kind){
         if(!site?.station||!kinds(site).includes(kind))return null;
+        if(kind==='e')return {
+            site,target:Farlands.byId.get('mill'),kind,
+            title:'The millwright’s tally',
+            description:'Inspect the axle crate on the south end of Wayfarer’s Rest. Carry its tally along the creek road to Millbend, then report back to Ivo.',
+            giver:giverName(site,kind),reward:[15,18]
+        };
         if(kind==='d')return {
             site,target:Farlands.byId.get('lantern'),kind,
             title:'Sound the Lantern Channel',
@@ -16781,9 +16788,12 @@ const ebRpgQuests=(()=>{
     }
     const state=q=>flag(q.site,q.kind,'done')?'done':
         flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
-    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d'].includes(q.kind)||flag(q.site,q.kind,'step2'));
+    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d','e'].includes(q.kind)||flag(q.site,q.kind,'step2'));
     function next(q){
-        if(q.kind==='d'){
+        if(q.kind==='e'){
+            if(!flag(q.site,'e','step1'))return {site:q.site,label:'Inspect the axle crate at the south landing'};
+            if(!flag(q.site,'e','step2'))return {site:q.target,label:'Carry the tally to Millbend'};
+        }else if(q.kind==='d'){
             if(!flag(q.site,'d','step1'))return {site:q.site,label:'Board at the Shellwick landing'};
             if(!flag(q.site,'d','step2'))return {site:q.target,label:'Sail to the Lantern Quay mooring'};
         }else if(q.kind==='a'){
@@ -16807,9 +16817,21 @@ const ebRpgQuests=(()=>{
             !npcs.includes(npc)||Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5)return false;
         return ebFarlands.completeRpgQuest(q.site.id,q.kind);
     }
+    function onProp(prop){
+        const site=Farlands.start;
+        if(!active()||prop?.name!=='Ivo’s axle crate'||!flag(site,'e','taken')||
+            Math.max(Math.abs(gameState.player.x-prop.x),Math.abs(gameState.player.y-prop.y))>1||
+            !mark(site,'e','step1'))return '';
+        ebFarlands.pin('mill');
+        return 'Tally recorded. Follow the creek road to Millbend.';
+    }
     function onLocation(site){
         if(!active())return;
         for(const q of activePlans()){
+            if(q.kind==='e'&&site?.id===q.target.id&&flag(q.site,'e','step1')&&mark(q.site,'e','step2')){
+                ebFarlands.pin(q.site.id);
+                showFloatingText('Tally delivered · return to Ivo',gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
+            }
             if(q.kind==='d'&&gameState.sailingMoves>0){
                 const departed=flag(q.site,'d','step1');
                 const dock=Farlands.coastalDocks[departed?'lantern':shellwickId];
@@ -16947,7 +16969,7 @@ const ebRpgQuests=(()=>{
         if(site.region==='hearth'&&ebFarlands.storyFlag('quest-vault-reward'))out.push('The Harvest Bell rings again because of you.');
         return out;
     }
-    return {plan,accept,onTalk,onLocation,attach,board,journal,track,goal,deeds};
+    return {plan,accept,onTalk,onLocation,onProp,attach,board,journal,track,goal,deeds};
 })();
 </script>
 <script data-source="r14-adventure-journal.js">
