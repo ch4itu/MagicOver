@@ -2040,6 +2040,9 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
  [data-eb-immersive="first"] #eb-eye-actions{right:12px;bottom:184px}
  [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
 }
+@media (max-height:450px) and (pointer:coarse) {
+ [data-eb-immersive="first"] #eb-eye-actions{right:120px;bottom:82px}
+}
 /* D-pad stays usable while filming. */
 /* PR #2: keep desktop controls hidden by default; retain touch movement at every size, including hybrids. */
 @media (max-width: 768px), (any-pointer: coarse) {
@@ -9989,15 +9992,15 @@ window.addEventListener('load', () => {
             this.parkedShip = art.boat();
             this.parkedShip.visible = false;
             this.scene.add(this.parkedShip);
-            // R15.21: two dockside vessels in SOLO Farlands, visual only.
-            // Do not modify movement, collision, world tiles, persistence or MagicBlock.
+            // Solo dockside boats share the sailing hull geometry, with extra scale per port.
             this.harborVessels = ['amber','lantern','reed','settlement-lantern-0'].map((id,index)=>{
                 const station=Farlands.byId.get(id);
                 const model=art.boat();
-                model.scale.setScalar(index===0?1.35:index===1?1.15:.85);
+                const hullScale=[1.35,1.15,.85,.85][index];
+                model.scale.multiplyScalar(hullScale);
                 model.visible=false;
                 this.scene.add(model);
-                return {id,station,model,position:null};
+                return {id,station,model,hullScale,position:null};
             });
             // R15.28: deterministic shoreline moorings in streamed local cells.
             // No saved schema, random runtime churn, or full-world scan.
@@ -11663,14 +11666,14 @@ window.addEventListener('load', () => {
                     const dock=Farlands.coastalDocks[vessel.id];
                     if(dock){
                         const [x,y]=dock.water;
-                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.model.scale.x);
+                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.hullScale);
                         if(heading!==null)closest={x,y,heading};
                     }
                     for(let dy=-24;!dock&&dy<=24;dy+=2) for(let dx=-24;dx<=24;dx+=2){
                         const x=vessel.station.x+dx,y=vessel.station.y+dy;
                         const d=dx*dx+dy*dy;
                         if(d>=distance||Farlands.sample(x,y)!=='water')continue;
-                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.model.scale.x,[.35,.35+Math.PI/2,.35+Math.PI/4,.35-Math.PI/4]);
+                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.hullScale,[.35,.35+Math.PI/2,.35+Math.PI/4,.35-Math.PI/4]);
                         if(heading!==null){closest={x,y,heading};distance=d;}
                     }
                     vessel.position=closest||false; // searched once even when nothing fits
