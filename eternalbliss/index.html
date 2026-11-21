@@ -5063,7 +5063,7 @@ function setupMobileControls() {
 // Adventure snapshots are device-local, with one slot for each Smaran public key and one for guests.
 const mapGroups = ['buildings', 'npcs', 'enemies', 'items', 'areas'];
 const saveVersion = 1;
-const farlandsSaveVersion = 1;
+const farlandsSaveVersion = 2;
 
 function validateAdventureMap(map) {
     if (!map || typeof map !== 'object') throw new Error('A map object is required.');
@@ -5150,7 +5150,7 @@ function loadAdventure(slot) {
     if (!raw) return false;
     const save = JSON.parse(raw);
     if (save?.version !== saveVersion) throw new Error('This save uses a different game version.');
-    if (save.farlands != null && save.farlands.version !== farlandsSaveVersion) {
+    if (save.farlands != null && ![1, farlandsSaveVersion].includes(save.farlands.version)) {
         throw new Error('This Farlands journey uses a different save version.');
     }
     validateAdventureMap(save.map);
@@ -5171,6 +5171,12 @@ function loadAdventure(slot) {
     if (player.x < 0 || player.x >= save.map.width || player.y < 0 || player.y >= save.map.height ||
         !Number.isInteger(save.sailingMoves) || save.sailingMoves < 0 || save.sailingMoves > 15) {
         throw new Error('The saved position is outside this map.');
+    }
+    if (save.farlands?.version === 1) {
+        save.farlands = ebFarlands.migrateCoast(save.farlands);
+        // Commit the recovery copy before applying new terrain or allowing an autosave.
+        const backup = slot + '/before-farlands-v2';
+        if (localStorage.getItem(backup) !== raw) localStorage.setItem(backup,raw);
     }
     gameState.inventory = inventory;
     gameState.stats = stats;
@@ -9985,7 +9991,7 @@ window.addEventListener('load', () => {
             this.scene.add(this.parkedShip);
             // R15.21: two dockside vessels in SOLO Farlands, visual only.
             // Do not modify movement, collision, world tiles, persistence or MagicBlock.
-            this.harborVessels = ['amber','lantern','reed'].map((id,index)=>{
+            this.harborVessels = ['amber','lantern','reed','settlement-lantern-0'].map((id,index)=>{
                 const station=Farlands.byId.get(id);
                 const model=art.boat();
                 model.scale.setScalar(index===0?1.35:index===1?1.15:.85);
@@ -11654,7 +11660,13 @@ window.addEventListener('load', () => {
                 if(vessel.position===null){
                     // R15.58: the nearest water where the whole (scaled) hull floats, not just its centre tile.
                     let closest=null, distance=Infinity;
-                    for(let dy=-24;dy<=24;dy+=2) for(let dx=-24;dx<=24;dx+=2){
+                    const dock=Farlands.coastalDocks[vessel.id];
+                    if(dock){
+                        const [x,y]=dock.water;
+                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.model.scale.x);
+                        if(heading!==null)closest={x,y,heading};
+                    }
+                    for(let dy=-24;!dock&&dy<=24;dy+=2) for(let dx=-24;dx<=24;dx+=2){
                         const x=vessel.station.x+dx,y=vessel.station.y+dy;
                         const d=dx*dx+dy*dy;
                         if(d>=distance||Farlands.sample(x,y)!=='water')continue;
@@ -13885,6 +13897,12 @@ const Farlands = (() => {
         {name:'Delta distributary',points:[[4990,6790],[4820,7160],[4636,7444],[4700,7630]],kind:'river'},
         {name:'Alderwash landings',points:[[2780,4538],[3340,4480],[3920,4480],[4590,4660],[5064,4864]],kind:'river'}
     ];
+    const coastalDocks = {
+        amber:{shore:[7653,3866],pier:[7654,3866],water:[7656,3866]},
+        lantern:{shore:[8496,8541],pier:[8496,8542],water:[8496,8544]},
+        'settlement-lantern-0':{shore:[8555,8581],pier:[8555,8582],water:[8555,8584]}
+    };
+    const pierTiles = new Set(Object.values(coastalDocks).map(({pier:[x,y]})=>y*size+x));
     const sites = [...stations,...landmarks,...settlements,...waterfrontSettlements];
     const byId = new Map(sites.map(site => [site.id,site]));
     const start = stations[0];
@@ -13947,7 +13965,25 @@ const Farlands = (() => {
     const alderwashY = x => 4500+110*Math.sin((x-2400)/570)-.11*(x-2425);
     const millCreekY = x => 4875+2.4*Math.sin((x-5064)/12);
     const deltaX = y => riverX(y)+(y-7140)*.35;
-    function natural(x,y) {
+    function coastalInlet(x,y) {
+        // A south-facing tidal bay on the Keys and a separate east-facing mainland ria.
+        // Both ellipses extend past the old shore. Their narrow heads leave the town cores dry.
+        if (x>8250 && x<9000 && y>8525 && y<9300) {
+            const along=y-.59*(x-8500);
+            const across=x-.40*(y-8550);
+            const westBank=8455+11*Math.sin((y-8560)/63);
+            return Math.min(ellipse(across,along,8500,8820,186,276)+.055*(noise(x,y,17,121)-.5),
+                (x-westBank)/45);
+        }
+        if (x>7639 && x<9650 && y>3400 && y<4520) {
+            const along=x-7650;
+            const across=y+.055*Math.min(along,100)-.15*Math.max(along-100,0)-21*Math.sin(along/240);
+            const width=Math.min(207,61+.175*along);
+            return ellipse(x,across,8575,3868,923,width)+.025*(noise(x,y,26,123)-.5);
+        }
+        return -1;
+    }
+    function natural(x,y,legacy=false) {
         const shoreNoise = .28*(noise(x,y,630,1)-.5)+.12*(noise(x,y,175,2)-.5)+.045*(noise(x,y,49,3)-.5);
         const land = Math.max(
             ellipse(x,y,4610,4710,4090,4170)-.10*Math.max(0,ellipse(x,y,8150,5740,1100,730)),
@@ -13958,7 +13994,8 @@ const Farlands = (() => {
             ellipse(x,y,8020,9230,340,225),
             ellipse(x,y,1000,7350,310,550)
         )+shoreNoise;
-        if (land<0) return 'water';
+        const inlet=legacy ? -1 : coastalInlet(x,y);
+        if (land<0 || inlet>0) return 'water';
         const river = riverX(y);
         const lake = Math.max(ellipse(x,y,5260,1770,210,170),ellipse(x,y,5570,4820,152,106),
             ellipse(x,y,2425,4500,205,140),ellipse(x,y,6700,6970,180,121));
@@ -13967,7 +14004,7 @@ const Farlands = (() => {
             (x>2425 && x<river && Math.abs(y-alderwashY(x))<12) ||
             (x>riverX(4875)-12 && x<5560 && Math.abs(y-millCreekY(x))<7) ||
             (y>7140 && y<8690 && Math.abs(x-deltaX(y))<13)) return 'water';
-        if (land<.047) return 'sand';
+        if (land<.047 || inlet>-.045) return 'sand';
         const region = regionAt(x,y);
         const stone = noise(x,y,215,6)*.75+noise(x,y,66,7)*.25;
         const growth = noise(x,y,128,8)*.62+noise(x,y,37,9)*.38;
@@ -14053,8 +14090,10 @@ const Farlands = (() => {
         const site = nearbySite(x,y);
         return Math.abs(x-site.x)<=11 && Math.abs(y-site.y)<=11;
     }
-    function baseSample(x,y) {
+    function baseSample(x,y,legacy=false) {
+        if (!legacy && pierTiles.has(y*size+x)) return 'road';
         if (trailAt(x,y)) return 'road';
+        if (!legacy && coastalInlet(x,y)>0) return 'water';
         if (farmlandAt(x,y)) return 'grass';
         const site = nearbySite(x,y);
         if (site) {
@@ -14065,7 +14104,7 @@ const Farlands = (() => {
             }
             if (!site.station && dx<=4 && dy<=3) return 'grass';
         }
-        return natural(x,y);
+        return natural(x,y,legacy);
     }
 
     // R15.56: Wayfarer's Rest is laid out by hand. The map's own generator gave every waystation the same template and
@@ -14085,8 +14124,8 @@ const Farlands = (() => {
     const restSquare = (dx,dy) => Math.abs(dx)<=3 && Math.abs(dy)<=2 &&
         !(dx===-3 && dy===-2) && !(dx===3 && dy===2) && !(dx===-3 && dy===2);
     const restTrees = new Set(['-8,-2','-8,2','8,2','7,-6','-8,-5','8,5']);
-    function sample(x,y) {
-        const base = baseSample(x,y);
+    function sample(x,y,legacy=false) {
+        const base = baseSample(x,y,legacy);
         const dx=x-rest.x, dy=y-rest.y;
         if (!villageAt(x,y)) return base;
         if (base==='water') return dy===8 && (dx===-5 || dx===-6) ? 'road' : base; // the landing's jetty: planks over water
@@ -14710,7 +14749,7 @@ const Farlands = (() => {
     }
 
     return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
-        sceneCell,remember,hash};
+        coastalDocks,sceneCell,remember,hash};
 })();
 
 </script>
@@ -14753,6 +14792,34 @@ const ebFarlands = (() => {
             place:where, horseOwned:save?.horseOwned===true, horsePlace:save?.horsePlace && validTile(save.horsePlace.x) && validTile(save.horsePlace.y) ? {x:save.horsePlace.x,y:save.horsePlace.y} : null, cells:new Map(), scene:null
         };
     }
+    function migrateCoast(save) {
+        const journey=newJourney(save);
+        const terrain=journey.terrain;
+        const dry = (x,y) => {
+            const tile=terrain.edits.get(y*Farlands.size+x) ?? Farlands.sample(x,y);
+            return !['water','mountain','lava','door'].includes(tile);
+        };
+        function moveOffNewWater(point) {
+            if (!point || !Number.isInteger(point.x) || !Number.isInteger(point.y) ||
+                Farlands.sample(point.x,point.y,true)==='water' ||
+                terrain.tileAt(point.x,point.y)!=='water') return point;
+            const {x,y}=point;
+            // Search outward from the flooded tile. The old coordinates are in the recovery copy.
+            for (let radius=1;radius<=1024;radius++) {
+                for (let dy=-radius;dy<=radius;dy++) {
+                    for (let dx=-radius;dx<=radius;dx+=Math.abs(dy)===radius ? 1 : 2*radius) {
+                        const nx=x+dx,ny=y+dy;
+                        if (nx>=0&&ny>=0&&nx<Farlands.size&&ny<Farlands.size&&dry(nx,ny)) return {...point,x:nx,y:ny};
+                    }
+                }
+            }
+            throw new Error('Could not find nearby dry ground for the old Farlands position.');
+        }
+        const place=save.place?.sailing ? save.place : moveOffNewWater(save.place);
+        const aboard=save.place?.sailing && save.horsePlace?.x===save.place.x && save.horsePlace?.y===save.place.y;
+        return {...save,version:farlandsSaveVersion,place,horsePlace:aboard ? save.horsePlace : moveOffNewWater(save.horsePlace)};
+    }
+
     // R15.58: the boat the player took is kept with the save, so a reload neither brings it back to its mooring (a
     // second boat beside the one in use or parked) nor loses the parked one. Optional: older saves have no `boat`.
     function restoreBoat(save) {
@@ -15797,7 +15864,7 @@ const ebFarlands = (() => {
     });
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
-    return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
+    return {migrateCoast,surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
         completeHerbLesson,storyFlag,markStory,markTalk,markRpgQuest,completeRpgQuest,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 

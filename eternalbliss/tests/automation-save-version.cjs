@@ -1,4 +1,5 @@
 const t = require('./browser.cjs');
+const fs = require('node:fs');
 (async () => {
     const browser = await t.launch();
     try {
@@ -33,6 +34,7 @@ const t = require('./browser.cjs');
                 edits: [[Farlands.start.y * Farlands.size + Farlands.start.x, 'road']],
                 spent: ['rq-taken-b-settlement-lantern-0', 'rq-done-a-rest'],
             });
+            save.farlands.version = 1;
             save.inventory.gold = 450;
             const valid = JSON.stringify(save);
             save.farlands.version = 999;
@@ -64,12 +66,33 @@ const t = require('./browser.cjs');
         }, slot);
         t.assert.equal(restored.inventory.gold, 450);
         const original = JSON.parse(valid).farlands;
-        for (const field of ['version', 'station', 'pin', 'place', 'horseOwned', 'horsePlace', 'edits', 'spent', 'boat']) {
+        t.assert.equal(restored.farlands.version, 2);
+        t.assert.equal(await page.evaluate(key => localStorage.getItem(key+'/before-farlands-v2'), slot), valid);
+        for (const field of [ 'station', 'pin', 'place', 'horseOwned', 'horsePlace', 'edits', 'spent', 'boat']) {
             t.assert.deepEqual(restored.farlands[field], original[field], field);
         }
         t.assert.deepEqual(page.errors, []);
         t.record('Farlands v1 round trip', 'PASS v1 checkpoint, hero and room coordinates, horse, parked and taken boat, terrain edit, pin, quest flags and gold');
         console.log('PASS Farlands v1 round trip');
+        if (process.env.EB_ROLLBACK_SOURCE) {
+            const oldHtml = fs.readFileSync(process.env.EB_ROLLBACK_SOURCE, 'utf8');
+            await page.evaluate(key => localStorage.setItem(key,localStorage.getItem(key+'/before-farlands-v2')),slot);
+            await page.route('**/eternalbliss/', route => route.fulfill({contentType:'text/html',body:oldHtml}));
+            await page.reload({waitUntil:'domcontentloaded'});
+            await page.click('#eb-menu-solo');
+            await page.waitForFunction(() => ebFarlands.inRealm() && buildingInterior);
+            const old = await page.evaluate(key => {
+                saveAdventure(key);
+                return JSON.parse(localStorage.getItem(key));
+            },slot);
+            for (const field of ['version','station','pin','place','horseOwned','horsePlace','edits','spent','boat']) {
+                t.assert.deepEqual(old.farlands[field],original[field],field);
+            }
+            t.assert.equal(old.inventory.gold,450);
+            t.assert.deepEqual(page.errors,[]);
+            t.record('Farlands rollback', 'PASS archived v1 loaded and re-saved in prior HTML');
+            console.log('PASS archived v1 rollback in previous HTML');
+        }
     } finally {
         await browser.close();
     }
