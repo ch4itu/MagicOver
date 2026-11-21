@@ -11114,7 +11114,7 @@ window.addEventListener('load', () => {
             const body = model.body, arms = model.arms;
             if (!body || !arms?.length) return;
             const holding = act && (data.walkingUntil ?? 0) < performance.now() ?
-                { work: 'hoe', trade: 'bundle', tend: 'bucket', serve: 'tray' }[act.kind] : null;
+                { work: 'hoe', trade: 'bundle', tend: 'bucket', serve: 'tray', harvest: 'bucket', sortCatch: 'bundle' }[act.kind] : null;
             if (holding || model.ebProps) {
                 const props = this.activityProps(model);
                 for (const [name, prop] of Object.entries(props)) prop.visible = name === holding;
@@ -11132,6 +11132,8 @@ window.addEventListener('load', () => {
                 switch (act.kind) {
                     // R17: the whole body works, not only the arms: a stroke bends the back, herding is done stooped
                     case 'work':   set(-.9+wave(3.2,.55), -.9+wave(3.2,.55)); lean = .2+wave(3.2,.12,-.6); break;
+                    case 'harvest': set(-.35+wave(1.8,.2), -.95+wave(1.8,.35)); lean = .28+wave(1.8,.1); break;
+                    case 'sortCatch': set(-.95+wave(2.4,.3), -.95+wave(2.4,.3,2.4)); lean = .16; break;
                     case 'tend':   set(-.75+wave(1.6,.2), -.65+wave(1.6,.2,.6)); lean = .38; break;
                     case 'trade':  set(-1.15+wave(1.4,.08), -.2); break;                           // goods held out
                     case 'browse': set(-.25, -.25); break;
@@ -16279,6 +16281,17 @@ const ebLife = (() => {
         return {kind,face:null};
     }
     const storyteller = now => roster.find(o => o.name === 'Bram, the Storyteller' && named(o,now)?.kind === 'speak');
+    // A work detail follows the resident's current stop, including the transition between stops.
+    function localWork(npc,now) {
+        if (!standing(npc,now)) return null;
+        const slot=npc.life?.slot;
+        if (!slot || Math.hypot(npc.x-slot.x,npc.y-slot.y)>.15) return null;
+        if (npc.ebSite==='settlement-rest-0' && npc.ebRole==='Farmer' && slot.where==='field')
+            return {kind:'harvest',note:'I gather the ripe crop a row at a time. The granary is east of the square, and the market takes what we can spare.'};
+        if (npc.ebSite==='settlement-lantern-0' && npc.ebRole==='Provisioner' && slot.where==='market')
+            return {kind:'sortCatch',landmark:'pearl',note:'I grade the shell baskets from Pearl Banks here. Follow the path to the tide board by the landing if you’re heading out on the bay.'};
+        return null;
+    }
     function activity(npc, now) {
         if (!npc.ebRole) return NAMED[npc.name] ? named(npc, now) : null;
         const life = npc.life, slot = life?.slot;
@@ -16303,6 +16316,8 @@ const ebLife = (() => {
         }
         const near = (r, pick) => roster.filter(o => o !== npc && standing(o,now) && Math.hypot(o.x-npc.x,o.y-npc.y) <= r && (!pick || pick(o)))
             .sort((a,b) => Math.hypot(a.x-npc.x,a.y-npc.y)-Math.hypot(b.x-npc.x,b.y-npc.y));
+        const work = localWork(npc,now);
+        if (work) return {kind:work.kind,face:null};
         const where = slot.where, role = npc.ebRole;
         if (where === 'market') {
             if (TRADERS.has(role)) {
@@ -16336,7 +16351,7 @@ const ebLife = (() => {
         }
         return null;
     }
-    return { enroll, tick, roster:() => roster, hour, activity, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
+    return { enroll, tick, roster:() => roster, hour, activity, localWork, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
         drawn:npc => Boolean(npc.ebRole || NAMED[npc.name]) };
 })();
 </script>
@@ -16714,7 +16729,13 @@ const ebRpgAccess=(()=>{
     function response(npc,topic){
         const region=Farlands.regions[Farlands.regionAt(npc.x,npc.y)];
         const site=Farlands.nearbySite(npc.x,npc.y);
-        if(topic==='work')return work[roleOf(npc)];
+        if(topic==='work'){
+            const current=ebLife.localWork(npc,performance.now());
+            if(current)return current.note;
+            if(npc.ebRole&&npc.life?.slot?.says&&!npc.indoors&&Math.hypot(npc.x-npc.life.slot.x,npc.y-npc.life.slot.y)<.15)
+                return npc.life.slot.says;
+            return work[roleOf(npc)];
+        }
         if(topic==='news'){
             if(ebFarlands.storyFlag('quest-vault-reward')&&site?.region==='hearth')
                 return 'The Harvest Bell has returned. Even the travelers keep time by it.';
@@ -16736,6 +16757,17 @@ const ebRpgAccess=(()=>{
         p.style.cssText='line-height:1.5;margin:0 0 8px';box.append(p);
         const choices=document.createElement('div');choices.style.cssText='display:flex;flex-direction:column;gap:8px';
         const add=(label,fn)=>{const b=button(label,fn);b.style.width='100%';choices.append(b);};
+        if(topic==='work'){
+            const job=ebLife.localWork(npc,performance.now());
+            const site=job?.landmark && Farlands.byId.get(job.landmark);
+            if(site)add('Mark '+site.name+' on the Atlas',()=>{
+                if(!active()||!inReach(npc)||ebLife.localWork(npc,performance.now())?.landmark!==site.id)return;
+                if(ebFarlands.pin(site.id)){
+                    chat=null;
+                    closeModal();
+                }
+            });
+        }
         if(topic)add('Ask something else',()=>display(npc));
         else{
             add('About your work',()=>display(npc,'work'));
@@ -17080,6 +17112,9 @@ const ebJournal = (() => {
         const local=typeof ebRpgQuests!=='undefined'?ebRpgQuests.goal():null;
         if(local)return {quest:{label:local.label},next:local.site,errand:true};
         if (!ebFarlands.surface()) return null;
+        const rest=Farlands.byId.get('rest'), hero=gameState.player;
+        if (!quest && Math.hypot(hero.x-rest.x,hero.y-rest.y)<=14)
+            return {quest:{label:'Speak to Mira by the square'},people:true};
         const visited=ebFarlands.discoveries();
         for (const chapter of chapters) {
             const sites=chapter.ids.map(id=>Farlands.byId.get(id)).filter(Boolean);
@@ -17111,6 +17146,7 @@ const ebJournal = (() => {
         event.stopPropagation();
         const goal = nextGoal();
         if (!goal) return;
+        if (goal.people) {ebRpgAccess.openNearby();return;}
         if (!goal.next || !ebFarlands.surface() || ebFarlands.pinned()===goal.next.id) open(); else ebFarlands.pin(goal.next.id);
         syncVisibility();
     });

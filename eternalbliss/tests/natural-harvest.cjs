@@ -7,8 +7,9 @@ const checkpoint=path.join(t.out,'natural-harvest-storage.json'),events=path.joi
  p=await b.newPage(profile);p.errors=[];p.on('pageerror',e=>p.errors.push(e.message));await p.clock.setFixedTime(new Date((1767225600+4*480+240)*1000));
  const html=fs.readFileSync(process.env.EB_SOURCE||path.join(__dirname,'../index.html'),'utf8');await p.route('**/eternalbliss/',r=>r.fulfill({contentType:'text/html',body:html.replace('view = new WorldView(canvas, layer, world);','view = new WorldView(canvas, layer, world); window.__view=view;')}));
  await p.goto('http://127.0.0.1:8091/eternalbliss/',{waitUntil:'domcontentloaded'});await p.click('#eb-menu-solo');await p.waitForFunction(()=>window.__view?.active&&ebFarlands.inRealm());
+ const started=Date.now();
  const state=()=>p.evaluate(()=>({x:gameState.player.x,y:gameState.player.y,hp:gameState.player.hp,mp:gameState.player.mp,gold:gameState.inventory.gold,xp:gameState.player.xp,keys:gameState.inventory.keys,room:!!buildingInterior,flags:['met','key','gate','guardian','relic','reward'].map(k=>[k,ebFarlands.storyFlag('quest-vault-'+k)]),discoveries:[...ebFarlands.discoveries()]}));
- async function mark(label){await p.waitForTimeout(1300);const s=await state();console.log(label,JSON.stringify(s));fs.appendFileSync(events,JSON.stringify({time:new Date().toISOString(),sha:t.sha,label,state:s})+'\n');await p.context().storageState({path:checkpoint});await t.shot(p,'natural-'+label+'-'+t.sha.slice(0,8));}
+ async function mark(label){await p.waitForTimeout(1300);const s=await state();console.log(label,JSON.stringify(s));fs.appendFileSync(events,JSON.stringify({time:new Date().toISOString(),sha:t.sha,label,elapsedMs:Date.now()-started,state:s})+'\n');await p.context().storageState({path:checkpoint});await t.shot(p,'natural-'+label+'-'+t.sha.slice(0,8));}
  const flag=k=>p.evaluate(k=>ebFarlands.storyFlag('quest-vault-'+k),k);
  async function blur(){await p.evaluate(()=>document.activeElement?.blur());}
  async function face(dx,dy){const desired=Math.atan2(-dx,-dy);for(let n=0;n<16;n++){const delta=await p.evaluate(y=>Math.atan2(Math.sin(y-__view.eyeYaw),Math.cos(y-__view.eyeYaw)),desired);if(Math.abs(delta)<=.13)return;await p.keyboard.press(delta>0?'KeyQ':'KeyE');}throw Error('turn did not settle');}
@@ -17,8 +18,20 @@ const checkpoint=path.join(t.out,'natural-harvest-storage.json'),events=path.joi
   const r=await p.evaluate(({gx,gy})=>{if(gameState.inBattle)return {battle:true};const px=gameState.player.x,py=gameState.player.y;if(px===gx&&py===gy)return {done:true};const minX=Math.min(px,gx)-22,maxX=Math.max(px,gx)+22,minY=Math.min(py,gy)-22,maxY=Math.max(py,gy)+22,queue=[[px,py]],parent=new Map([[px+','+py,null]]);for(let i=0;i<queue.length&&i<18000;i++){const[x,y]=queue[i];for(const[dx,dy,key]of [[0,-1,'ArrowUp'],[1,0,'ArrowRight'],[0,1,'ArrowDown'],[-1,0,'ArrowLeft']]){const nx=x+dx,ny=y+dy,k=nx+','+ny;if(parent.has(k)||nx<minX||nx>maxX||ny<minY||ny>maxY||!canEntityMoveTo(nx,ny)||enemies.some(e=>Math.hypot(nx-e.x,ny-e.y)<(buildingInterior?1:2)))continue;parent.set(k,{previous:x+','+y,key});if(nx===gx&&ny===gy){let v=k;while(parent.get(v).previous!==px+','+py)v=parent.get(v).previous;return {key:parent.get(v).key,x:px,y:py};}queue.push([nx,ny]);}}return {unreachable:true,x:px,y:py,gx,gy};},{gx,gy});
   if(r.done)return;if(r.battle){if(stopBattle)return;await fight();continue;}t.assert(!r.unreachable,JSON.stringify(r));await p.keyboard.press(r.key);await p.waitForTimeout(170);const same=await p.evaluate(({x,y})=>gameState.player.x===x&&gameState.player.y===y,r);stuck=same?stuck+1:0;t.assert(stuck<6,'actual movement blocked at '+JSON.stringify(r));
  }throw Error('walk limit');}
- console.log(process.env.EB_ROUTE_RESUME?'RESUME recorded natural local save':'FRESH guest',JSON.stringify(await state()));
- if(!await flag('met')){const mira=await p.evaluate(()=>{const n=npcs.find(n=>n.name==='Mira, the Cartographer');return {x:n.x,y:n.y};});await walk(mira.x,mira.y+1);await p.keyboard.press('Space');await p.locator('#modalContent').filter({hasText:'The Silent Harvest'}).waitFor();await p.locator('#interactionModal button[onclick="closeModal()"]').click();t.assert(await flag('met'));await mark('mira-start');}
+ const initial=await state();
+ if(!process.env.EB_ROUTE_RESUME){
+  t.assert(initial.flags.every(([,earned])=>!earned));
+  t.assert.equal(await p.evaluate(()=>gameState.player.moveCount),0);
+ }
+ console.log(process.env.EB_ROUTE_RESUME?'RESUME recorded natural local save':'FRESH guest',JSON.stringify(initial));
+ if(!await flag('met')){
+  const goal=p.locator('#eb-goal-chip').filter({hasText:'Speak to Mira by the square'});
+  await goal.click();
+  const row=p.locator('#modalContent > div').filter({has:p.getByText('Mira, the Cartographer',{exact:true})});
+  await row.getByRole('button',{name:/^(Go & talk|Talk)$/}).click();await p.locator('#modalContent').filter({hasText:'The Silent Harvest'}).waitFor();await p.locator('#interactionModal button[onclick="closeModal()"]').click();t.assert(await flag('met'));await mark('mira-start');
+  await p.locator('#eb-goal-chip').filter({hasText:'Find the ward key at Millbend'}).click();
+  t.assert.equal(await p.evaluate(()=>ebFarlands.pinned()),'mill');
+ }
  if(!await flag('key')){const mill=await p.evaluate(()=>{const s=Farlands.byId.get('mill');return {x:s.x-3,y:s.y+2};});await walk(mill.x,mill.y);t.assert(await flag('key'),'actual creekside key pickup');await mark('mill-key');}
  if(!await flag('relic')){
   if(!await p.evaluate(()=>buildingInterior?.questDungeon)){if(await p.evaluate(()=>__view.eyeMode))await p.click('#eb-immersive-toggle');const at=await p.evaluate(()=>{const s=Farlands.byId.get('toll');return {x:s.x+2,y:s.y};});await walk(at.x,at.y);await p.keyboard.press('Space');await p.locator('.eb-enter-room').click();await p.waitForFunction(()=>buildingInterior?.questDungeon);await mark('archive-entry');}
@@ -29,5 +42,26 @@ const checkpoint=path.join(t.out,'natural-harvest-storage.json'),events=path.joi
  }
  if(await p.evaluate(()=>buildingInterior)){if(!await p.evaluate(()=>__view.eyeMode))await p.click('#eb-immersive-toggle');await walk(4,12);await face(0,1);await p.click('#eb-eye-use');await p.waitForFunction(()=>!buildingInterior);await mark('archive-exit');}
  if(!await flag('reward')){if(await p.evaluate(()=>__view.eyeMode))await p.click('#eb-immersive-toggle');const rest=await p.evaluate(()=>{const s=Farlands.byId.get('rest');return {x:s.x,y:s.y+2};});await walk(rest.x,rest.y);const mira=await p.evaluate(()=>{const n=npcs.find(n=>n.name==='Mira, the Cartographer');return {x:n.x,y:n.y};});await walk(mira.x,mira.y+1);const before=await state();await p.keyboard.press('Space');await p.locator('#modalContent').filter({hasText:'The Harvest Bell restored!'}).waitFor();const after=await state();t.assert.equal(after.gold,before.gold+65);t.assert(await flag('reward'));await mark('mira-reward');await p.locator('#interactionModal button[onclick="closeModal()"]').click();await blur();await p.keyboard.press('Space');t.assert.equal((await state()).gold,after.gold);await p.locator('#interactionModal button[onclick="closeModal()"]').click();}
- await p.reload({waitUntil:'domcontentloaded'});await p.click('#eb-menu-solo');await p.waitForFunction(()=>ebFarlands.surface());t.assert(await flag('reward'));t.assert(await flag('relic'));t.assert(await flag('guardian'));t.assert(await flag('gate'));t.assert.deepEqual(p.errors,[]);await mark('complete-reloaded');t.record('natural Harvest Bell route',{result:'PASS actual guest travel, Mira introduction, creek key pickup, Tollhouse entry, FP gate/combat/relic/exit, return and reward once/reload; no injected progress/position/stats/RNG',resumed:!!process.env.EB_ROUTE_RESUME,state:await state()});
+ await p.locator('#eb-goal-chip').waitFor({state:'visible'});
+ const next=await p.locator('#eb-goal-chip').textContent();
+ t.assert(next.trim() && !next.includes('Bring the Harvest Bell to Mira'),'completed quest hands off to another objective');
+ if(!await p.evaluate(()=>ebFarlands.horseState().owned)){
+  const panel=p.locator('#eb-actions-collapse');
+  if(await panel.getAttribute('aria-expanded')==='false')await panel.click();
+  const horse=p.locator('#eb-farlands-horse');
+  if(await horse.isHidden())await p.click('#eb-actions-more');
+  const gold=(await state()).gold;
+  await horse.click();await p.click('#eb-vehicle-accept');
+  t.assert.equal((await state()).gold,gold-75);
+  await horse.click();await p.click('#eb-vehicle-accept');
+  t.assert(await p.evaluate(()=>ebHorseMounted));
+  const step=await p.evaluate(()=>{
+   const {x,y}=gameState.player;
+   return [[x,y+1],[x+1,y],[x,y-1],[x-1,y]].find(([a,b])=>canEntityMoveTo(a,b));
+  });
+  t.assert(step,'legal first mounted step');
+  await walk(...step);
+  await mark('first-ride');
+ }
+ await p.reload({waitUntil:'domcontentloaded'});await p.click('#eb-menu-solo');await p.waitForFunction(()=>ebFarlands.surface());t.assert(await flag('reward'));t.assert(await flag('relic'));t.assert(await flag('guardian'));t.assert(await flag('gate'));t.assert(await p.evaluate(()=>ebFarlands.horseState().owned));t.assert.deepEqual(p.errors,[]);await mark('complete-reloaded');t.record('natural Harvest Bell route',{result:'PASS fresh guest onboarding, Atlas pin, actual walking, Harvest Bell quest and combat, horse purchase and ride, reload; no injected progress/position/stats/RNG',resumed:!!process.env.EB_ROUTE_RESUME,elapsedMs:Date.now()-started,next,state:await state()});
 }catch(e){if(p){await t.shot(p,'natural-blocker-'+Date.now());await p.context().storageState({path:checkpoint});}throw e;}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});

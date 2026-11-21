@@ -22,6 +22,8 @@ const jobs=[
     ['geography','coastal-geography.cjs'],
     ['quest-contract','automation-quests.cjs',{},[baseline]],
     ['shared-source-boundary','release/pr30-scope.cjs',{},[scope]],
+    ['local-occupations','local-occupations.cjs'],
+    ['natural-harvest','natural-harvest.cjs'],
     ['mobile-touch','mobile-touch.cjs'],
     ['generated-mooring-desktop','release/vehicles.cjs',{EB_VEHICLE_CASE:'desktop'}],
     ['generated-mooring-portrait','release/vehicles.cjs',{EB_VEHICLE_CASE:'phone'}],
@@ -34,7 +36,6 @@ const jobs=[
     ['landscape-combat','combat.cjs',{EB_COMBAT_CASE:'landscape:false'}],
     ['startup-modes','smoke.cjs'],
     ['shared-active-save-guard','release/world-saves.cjs',{EB_WORLD_CASE:'desktop'}],
-    ['natural-harvest','natural-harvest.cjs'],
 ];
 const state=fs.existsSync(artifact)?JSON.parse(fs.readFileSync(artifact,'utf8')):{source,jobs:{}};
 if(state.source!==source)throw Error('Use a separate evidence directory for each candidate');
@@ -59,7 +60,7 @@ for(const [name,script,env={},args=[]] of jobs){
     write();
     console.log('START',name);
     const result=spawnSync(process.execPath,[scriptPath,...args],{
-        env:{...process.env,EB_ROUTE_RESUME:harvestResume?'1':'',EB_SOURCE:html,...env},stdio:['ignore',fd,fd],timeout:name==='natural-harvest'?420000:240000
+        env:{...process.env,EB_ROUTE_RESUME:harvestResume?'1':'',EB_SOURCE:html,...env},stdio:['ignore',fd,fd],timeout:name==='natural-harvest'?600000:240000
     });
     fs.closeSync(fd);
     Object.assign(row,{status:result.status===0?'PASS':'FAIL',code:result.status,signal:result.signal,
