@@ -16609,6 +16609,23 @@ const ebRpgQuests=(()=>{
         entries.sort((a,b)=>Math.hypot(a.x-site.x,a.y-site.y)-Math.hypot(b.x-site.x,b.y-site.y));
         return entries[0]||null;
     };
+    const localStories={
+        rest:[
+            ['A lay of the roads','Mira wants to know what travellers hear before they set out from the square.'],
+            ['Millbend road survey','Nessa wants to know how the approach looks before the next orchard delivery.'],
+            ['A message from the mill','Ivo has news for a neighbouring waykeeper about the mill’s next shipment.']
+        ],
+        'settlement-hearth-0':[
+            ['The harvest rota','The waykeeper is arranging hands for the next load from the fields.'],
+            ['A route for the harvest carts','The warden wants a walker’s account before sending a laden cart out.'],
+            ['Word of the harvest','The provisioner wants a neighbour to know when the next grain shipment is ready.']
+        ],
+        'settlement-lantern-0':[
+            ['The shell traders’ rounds','The waykeeper is checking when the traders and wardens will be in the square.'],
+            ['A foot survey of Pearl Banks','The warden wants a report from the Pearl Banks marker before the collectors set out.'],
+            ['News from the shell market','The provisioner has market news for a neighbouring waykeeper.']
+        ]
+    };
     function plan(site,kind){
         if(!site?.station||!['a','b','c'].includes(kind))return null;
         const target=kind==='a'?site:neighbor(site,kind==='c'?'station':'any');
@@ -16618,7 +16635,8 @@ const ebRpgQuests=(()=>{
             'Speak with '+shown(site,'c')+' and '+shown(site,'b')+', then tell '+shown(site,'a')+' what they said.':
             kind==='b'?'Reach '+target.name+' after accepting, then return and tell '+shown(site,'b')+' what you saw.':
             'Take road news to '+ebDisplayNameOf(receiver(target))+'. Speak directly with the recipient and relay it, then report to '+shown(site,'c')+'.';
-        return {site,target,kind,title:heading,description,giver:giverName(site,kind),reward:kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15]};
+        const story=localStories[site.id]?.['abc'.indexOf(kind)];
+        return {site,target,kind,title:story?.[0]??heading,description:story ? story[1]+' '+description : description,giver:giverName(site,kind),reward:kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15]};
     }
     const state=q=>flag(q.site,q.kind,'done')?'done':
         flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
@@ -16631,8 +16649,9 @@ const ebRpgQuests=(()=>{
             return {site:q.target,label:q.kind==='c'?'Relay news to '+ebDisplayNameOf(receiver(q.target)):'Visit '+q.target.name};
         return {site:q.site,label:'Report to '+ebDisplayNameOf(q.giver)};
     }
-    const activePlans=()=>sites().flatMap(site=>['a','b','c'].map(k=>plan(site,k)).filter(Boolean))
-        .filter(q=>flag(q.site,q.kind,'taken')&&!flag(q.site,q.kind,'done'));
+    const activePlans=()=>sites().flatMap(site=>['a','b','c']
+        .filter(kind=>flag(site,kind,'taken')&&!flag(site,kind,'done'))
+        .map(kind=>plan(site,kind)).filter(Boolean));
     function accept(q){
         if(!active()||!q||state(q)!=='new')return false;
         const ok=mark(q.site,q.kind,'taken');
@@ -16647,7 +16666,7 @@ const ebRpgQuests=(()=>{
     function onLocation(site){
         if(!active())return;
         for(const q of activePlans()){
-            if(q.kind==='b'&&within(q.target,gameState.player.x,gameState.player.y)&&!flag(q.site,'b','step1')){
+            if(q.kind==='b'&&site?.id===q.target.id&&!flag(q.site,'b','step1')){
                 if(mark(q.site,'b','step1')){
                     showFloatingText('Road checked · return to '+ebDisplayNameOf(q.giver),gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
                     ebFarlands.refreshStoryHint();
