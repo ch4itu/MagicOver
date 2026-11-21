@@ -9,7 +9,8 @@ const out=process.env.EB_EVIDENCE;
 const source=process.env.EB_RC_CANDIDATE;
 const baseline=process.env.EB_QUEST_BASELINE;
 const rollback=process.env.EB_ROLLBACK_SOURCE;
-if(!out||!source||!baseline||!rollback)throw Error('Set EB_EVIDENCE, EB_RC_CANDIDATE, EB_QUEST_BASELINE and EB_ROLLBACK_SOURCE');
+const scope=process.env.EB_SCOPE_BASELINE;
+if(!out||!source||!baseline||!rollback||!scope)throw Error('Set EB_EVIDENCE, EB_RC_CANDIDATE, EB_QUEST_BASELINE, EB_SCOPE_BASELINE and EB_ROLLBACK_SOURCE');
 const hash=data=>crypto.createHash('sha256').update(data).digest('hex');
 const checkSource=()=>{
     if(hash(fs.readFileSync(html))!==source)throw Error('Checkout changed from pinned release HTML');
@@ -20,7 +21,7 @@ const artifact=path.join(out,'pr30-matrix.json');
 const jobs=[
     ['geography','coastal-geography.cjs'],
     ['quest-contract','automation-quests.cjs',{},[baseline]],
-    ['shared-source-boundary','release/pr30-scope.cjs',{},[rollback]],
+    ['shared-source-boundary','release/pr30-scope.cjs',{},[scope]],
     ['mobile-touch','mobile-touch.cjs'],
     ['generated-mooring-desktop','release/vehicles.cjs',{EB_VEHICLE_CASE:'desktop'}],
     ['generated-mooring-portrait','release/vehicles.cjs',{EB_VEHICLE_CASE:'phone'}],
@@ -39,6 +40,7 @@ const state=fs.existsSync(artifact)?JSON.parse(fs.readFileSync(artifact,'utf8'))
 if(state.source!==source)throw Error('Use a separate evidence directory for each candidate');
 const write=()=>fs.writeFileSync(artifact,JSON.stringify(state,null,2)+'\n');
 for(const [name,script,env={},args=[]] of jobs){
+    if(process.env.EB_RC_ONLY&&!process.env.EB_RC_ONLY.split(',').includes(name))continue;
     checkSource();
     const scriptPath=path.join(tests,script);
     const fingerprint=hash(JSON.stringify({source,script:hash(fs.readFileSync(scriptPath)),env,

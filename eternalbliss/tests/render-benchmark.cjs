@@ -17,7 +17,10 @@ const cases = [
             return debug && gl.getParameter(debug.UNMASKED_RENDERER_WEBGL);
         });
         const results=[];
+        const selected=process.env.EB_RENDER_SCENE;
+        const skipSubmission=process.env.EB_RENDER_SKIP_SUBMIT==='1';
         for (const scene of cases) {
+            if(selected && scene.name!==selected)continue;
             if (scene.eye!==await page.evaluate(()=>__view.eyeMode)) await page.tap('#eb-immersive-toggle');
             if (scene.coast) await page.evaluate(()=>{
                 const [x,y]=Farlands.coastalDocks.lantern.water;
@@ -25,7 +28,7 @@ const cases = [
                 applyAdventureMap(captureAdventureMap(),{...gameState.player,x,y,targetX:x,targetY:y});
                 __view.eyeYaw=__view.eyeRenderYaw=0;
             });
-            const result=await page.evaluate(({samples,warmup})=>new Promise((resolve,reject)=>{
+            const result=await page.evaluate(({samples,warmup,skipSubmission})=>new Promise((resolve,reject)=>{
                 const view=__view, renderer=view.renderer;
                 const original={draw:view.draw,render:renderer.render,terrain:view.updateTerrain,actors:view.syncActors,
                     clone:THREE.Material.prototype.clone};
@@ -45,6 +48,7 @@ const cases = [
                 const timeout=setTimeout(()=>{restore();reject(new Error('Render benchmark timed out'));},150000);
                 THREE.Material.prototype.clone=function(){frameClones++;return original.clone.call(this);};
                 renderer.render=function(...args){
+                    if(skipSubmission && frame>=warmup)return;
                     const time=performance.now();
                     try{return original.render.apply(this,args);}finally{submitted+=elapsed(time);}
                 };
@@ -73,14 +77,14 @@ const cases = [
                             over100ms:intervals.filter(ms=>ms>100).length});
                     }
                 };
-            }),{samples:Number(process.env.EB_RENDER_SAMPLES||90),warmup:20});
-            results.push({...scene,...result});
+            }),{samples:Number(process.env.EB_RENDER_SAMPLES||90),warmup:20,skipSubmission});
+            results.push({...scene,skipSubmission,...result});
             console.log(JSON.stringify({renderer,...results.at(-1)}));
             await t.shot(page,'benchmark-'+scene.name+'-'+t.sha.slice(0,8));
         }
         t.assert.deepEqual(page.errors,[]);
         const report={sha256:t.sha,renderer,profile:'Chromium landscape viewport, 844 x 390',results};
-        fs.writeFileSync(path.join(t.out,'render-'+t.sha.slice(0,8)+'.json'),JSON.stringify(report,null,2)+'\n');
+        fs.writeFileSync(path.join(t.out,'render-'+t.sha.slice(0,8)+(skipSubmission?'-no-submit':'')+'.json'),JSON.stringify(report,null,2)+'\n');
         t.record('Warmed rendering benchmark',report);
     } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
