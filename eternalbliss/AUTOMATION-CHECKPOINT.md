@@ -2,6 +2,34 @@
 
 The working branch `automation/eternalbliss-release-candidate` was created from the remote automation head `2346b1f28d5baf6202685b3905bcf998dee97635`. It contains Claude’s baseline `76664bfa954062cf15de7b63d21edb26d44e7847` and the two mandate commits. Baseline HTML SHA-256 is `4c08d431fdd3119e96125b4fd15c86d95f1bca6ae4094455e88ee3a9edf86c55`. The working branch is a development checkpoint.
 
+## Coastal continuation
+
+The latest gameplay commit is `75cb6f0c399a6dac1df96b3455a3afcbcd835737`. Its HTML SHA-256 is `f3d1b298955756bab42eaa340bab2f44cc3e01c1dcd4e03c8fb90b720933a5e8`. The older evidence below remains tied to the previous checkpoint.
+
+- `7b96892` adds a south-facing bay in the Lantern Keys and a separate east-facing inlet at Amberport. Lantern Quay and Shellwick have moorings and jetties. Pearl Banks shares the Shellwick landing. The existing station and landmark coordinates are unchanged. The automated geography test checks existing road centerlines, dry settlement cores, the exact rendered-hull clearance calculation and a connected five-tile fairway to open sea.
+- `49ffab4` keeps the station boats' model proportions consistent with terrain clearance and moves Use clear of the landscape minimap. `75cb6f0` also separates Use from the Look controls in short touch layouts and keeps the direct v1 restore caller compatible.
+- `1848171` adds Shellwick's **Sound the Lantern Channel**. It requires the player to visit the Shellwick mooring and then Lantern Quay's mooring while afloat, and report back to the actual waykeeper. It tracks a separate set of flags and pays 24 gold and 25 XP. The old 162 quest plans retain their original givers, objectives and rewards. The two shore markers reuse existing 2D and 3D world props.
+- The nested Farlands save format advances from v1 to v2. Loading v1 archives the complete original save at `<slot>/before-farlands-v2` before applying state or enabling autosave. Dry hero and horse tiles newly under water move to nearby dry ground. Existing edits take precedence. Saved interior coordinates, afloat positions, the horse aboard, boat records, pins, discoveries and quest flags carry over. A failed backup write blocks autosave through the existing save error path.
+- To roll back, close other game tabs and copy the current v2 save somewhere safe. Restore the raw archived value to its original slot under the same browser origin and load gameplay commit `e45702bcb7e97c047f3fd8674148ff844db082d2`. This returns to the pre-migration state. Progress earned after migration stays in the separately retained v2 save. Browser fixtures passed migration and rollback through the prior HTML.
+
+[Coastal evidence](tests/coastal-evidence/) includes maps sampled from the old and new terrain, rendered screenshots with the obstructed and corrected landscape HUD at the same jetty, and exact source hashes in the browser ledger. Chromium tested all three real jetty approaches and desktop/portrait/landscape first-person Use, a water step and disembark. The extra landscape retest also hit-tested both Look controls and changed the camera with a real tap. The Shellwick quest browser fixture accepted the board quest, passed 95 normal game movement checks from the Shellwick mooring to the Quay, restored the result after reload and awarded the quest payoff once through the waykeeper's dialogue. The fixture begins the sailing leg already aboard and positions the player for the report. Boarding is covered independently by the transport fixture.
+
+Rendered frame timings are recorded for 30 consecutive intervals after boarding. Desktop and portrait on the integrated predecessor recorded medians of 28 and 27 ms and p95 intervals of 824 and 477 ms. The final landscape HUD retest recorded 24 ms median and 994 ms p95. These are browser software-renderer observations, with significant stalls. They do not establish a physical phone frame-rate budget.
+
+Use `node eternalbliss/tests/coastal-geography.cjs` for the geography and relocation gates. To rerun the browser fixtures, export `NODE_PATH=/workspace/.magic-over-setup/browser/node_modules`, set `EB_EVIDENCE` to a new writable directory, and run sequentially.
+
+```bash
+git show 047b3c91d0c433c0615d4b319367be8566a96d5d:eternalbliss/index.html > /tmp/eb-before-coast.html
+EB_ROLLBACK_SOURCE=/tmp/eb-before-coast.html node eternalbliss/tests/automation-save-version.cjs
+node eternalbliss/tests/coastal-boarding.cjs
+node eternalbliss/tests/coastal-quest.cjs
+EB_CONTROL_CASE=landscape node eternalbliss/tests/controls.cjs
+EB_DPAD_CASE=tap node eternalbliss/tests/tablet-dpad.cjs
+EB_COMBAT_CASE=landscape:false node eternalbliss/tests/combat.cjs
+```
+
+The original Wayfarer's Rest generated-mooring test remains a separate regression from the new authored-jetty path. It previously failed in fixture selection and aim intersection. The new test positions a hero at a real Lantern Quay jetty, inspects the rendered hull and camera ray, then activates the actual Use button and confirms the boarding dialog. The older full-suite driver still needs portability work, including its private scratch paths. Remaining release gates also include broader resident schedules and early progression, natural first-15-minute gameplay, expanded coastal validation beyond these priority sites, physical device performance and the integrated regression campaign.
+
 ## Implementation
 
 - `7953fcdf4d989cfcd37f972ff6b1dcbe9a020784` accepts valid satellite settlement IDs when reading v1 checkpoints. Existing major stations still work and invalid IDs fall back to Wayfarer’s Rest. The Atlas and transport board explain the separate station sailing scene and distinguish it from free sailing on terrain.
