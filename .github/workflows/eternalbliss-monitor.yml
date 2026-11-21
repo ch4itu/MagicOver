@@ -1,0 +1,95 @@
+name: EternalBliss regression monitor
+on:
+  push:
+    branches:
+      - automation/eternalbliss-release-candidate
+      - automation/eternalbliss-codex
+  pull_request:
+    paths:
+      - 'eternalbliss/**'
+      - '.github/workflows/eternalbliss-monitor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: eternalbliss-monitor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-contracts:
+    name: Source and regression contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify inline scripts, geography, and source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          sha256sum eternalbliss/index.html | tee artifacts/html-sha256.txt
+          node eternalbliss/tests/automation-audit.cjs eternalbliss/index.html --require-waterfront > artifacts/geography.json
+          node eternalbliss/tests/automation-quests.cjs <(git show 76664bfa954062cf15de7b63d21edb26d44e7847:eternalbliss/index.html) > artifacts/quests.log
+          node - <<'NODE' | tee artifacts/inline-scripts.log
+          const fs=require('fs'),vm=require('vm'),assert=require('assert');
+          const html=fs.readFileSync('eternalbliss/index.html','utf8');
+          const scripts=[...html.matchAll(/<script\b[^>]*data-source="([^"]+)"[^>]*>([\s\S]*?)<\/script>/g)];
+          assert(scripts.length>=30,'Expected >=30 named inline scripts');
+          for(const [,name,body] of scripts) new vm.Script(body,{filename:name});
+          console.log('PASS inline JavaScript syntax:',scripts.length,'scripts');
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eternalbliss-source-contracts
+          path: artifacts/
+          retention-days: 14
+
+  browser-smoke:
+    name: Chromium browser smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated Playwright and Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/eb-playwright
+          npm install --prefix /tmp/eb-playwright --no-save --no-audit --no-fund playwright@1.56.1
+          /tmp/eb-playwright/node_modules/.bin/playwright install --with-deps chromium
+          echo "NODE_PATH=/tmp/eb-playwright/node_modules" >> "$GITHUB_ENV"
+          CHROME="$(find "$HOME/.cache/ms-playwright" -path '*/chrome-linux64/chrome' -type f | head -n 1)"
+          test -n "$CHROME"
+          echo "EB_CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
+      - name: Start isolated local server
+        run: |
+          python3 -m http.server 8091 --bind 127.0.0.1 >/tmp/eb-http.log 2>&1 &
+          echo $! >/tmp/eb-http.pid
+          sleep 2
+          curl -fsS http://127.0.0.1:8091/eternalbliss/ >/dev/null
+      - name: Browser checks
+        shell: bash
+        env:
+          EB_EVIDENCE: ${{ runner.temp }}/eternalbliss-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "$EB_EVIDENCE"
+          node eternalbliss/tests/automation-save-version.cjs
+          node eternalbliss/tests/coastal-boarding.cjs
+          EB_VEHICLE_CASE=desktop node eternalbliss/tests/release/vehicles.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eternalbliss-browser-evidence
+          path: ${{ runner.temp }}/eternalbliss-evidence/
+          retention-days: 14
