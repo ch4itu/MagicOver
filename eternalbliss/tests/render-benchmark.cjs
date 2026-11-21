@@ -4,13 +4,17 @@ const path = require('node:path');
 const cases = [
     {name:'rest-overhead',eye:false,coast:false},
     {name:'rest-first-person',eye:true,coast:false},
-    {name:'quay-afloat-first-person',eye:true,coast:true}
+    {name:'quay-afloat-first-person',eye:true,coast:true},
+    {name:'bell-orchard-first-person',eye:true,orchard:true}
 ];
 
 (async () => {
     const browser=await t.launch();
     try {
-        const page=await t.page(browser,{viewport:{width:844,height:390},hasTouch:true,isMobile:true},(1767225600+4*480+240)*1000);
+        const portrait=process.env.EB_RENDER_PROFILE==='portrait';
+        const viewport=portrait?{width:390,height:844}:{width:844,height:390};
+        const profile=portrait?'portrait':'landscape';
+        const page=await t.page(browser,{viewport,hasTouch:true,isMobile:true},(1767225600+4*480+240)*1000);
         const renderer=await page.evaluate(()=>{
             const gl=__view.renderer.getContext();
             const debug=gl.getExtension('WEBGL_debug_renderer_info');
@@ -21,14 +25,22 @@ const cases = [
         const skipSubmission=process.env.EB_RENDER_SKIP_SUBMIT==='1';
         const reuseShadow=process.env.EB_RENDER_REUSE_SHADOW==='1';
         const diagnostic=skipSubmission?'-no-submit':reuseShadow?'-reuse-shadow':'';
-        const report={sha256:t.sha,renderer,profile:'Chromium landscape viewport, 844 x 390',results};
-        const output=path.join(t.out,'render-'+t.sha.slice(0,8)+diagnostic+'.json');
+        const report={sha256:t.sha,renderer,profile:'Chromium '+profile+' viewport, '+viewport.width+' x '+viewport.height,results};
+        const suffix=(portrait?'-portrait':'')+diagnostic;
+        const output=path.join(t.out,'render-'+t.sha.slice(0,8)+suffix+'.json');
         for (const scene of cases) {
-            if(selected && scene.name!==selected)continue;
+            if(selected ? !selected.split(',').includes(scene.name) : scene.orchard)continue;
             if (scene.eye!==await page.evaluate(()=>__view.eyeMode)) await page.tap('#eb-immersive-toggle');
             if (scene.coast) await page.evaluate(()=>{
                 const [x,y]=Farlands.coastalDocks.lantern.water;
                 gameState.sailingMoves=15;
+                applyAdventureMap(captureAdventureMap(),{...gameState.player,x,y,targetX:x,targetY:y});
+                __view.eyeYaw=__view.eyeRenderYaw=0;
+            });
+            if (scene.orchard) await page.evaluate(()=>{
+                const site=Farlands.byId.get('orchard');
+                const x=site.x+2,y=site.y+3;
+                gameState.sailingMoves=0;
                 applyAdventureMap(captureAdventureMap(),{...gameState.player,x,y,targetX:x,targetY:y});
                 __view.eyeYaw=__view.eyeRenderYaw=0;
             });
@@ -89,7 +101,7 @@ const cases = [
             results.push({...scene,skipSubmission,reuseShadow,...result});
             console.log(JSON.stringify({renderer,...results.at(-1)}));
             fs.writeFileSync(output,JSON.stringify(report,null,2)+'\n');
-            await t.shot(page,'benchmark-'+scene.name+'-'+t.sha.slice(0,8)+diagnostic);
+            await t.shot(page,'benchmark-'+scene.name+'-'+t.sha.slice(0,8)+suffix);
         }
         t.assert.deepEqual(page.errors,[]);
         t.record('Warmed rendering benchmark',report);

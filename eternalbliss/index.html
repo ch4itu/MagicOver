@@ -2076,6 +2076,9 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
   html[data-eb-farlands] .location-info.eb-capture-location-closed { display:flex !important; align-items:center; gap:8px; }
   /* R17.11: People nearby stays one tap away while the panel is minimised */
   html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-people-quick:not([hidden]) { display:inline-flex !important; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 !important; font-size:18px; }
+  html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-people-quick[data-goal] {
+    font-size:12px; padding:0 8px !important; white-space:nowrap;
+  }
   /* R17.13: the Show panel button kept the relative offsets (top 6px, right 8px) it has in the open card, which pulled
      it 8px left onto the hero line and 6px down; here it sits in line, after the panel's 8px gap */
   html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-actions-collapse { top:auto !important; right:auto !important; margin:0 !important; flex-shrink:0; }
@@ -3033,7 +3036,8 @@ function renderWorld() {
 
 function renderAllEntities() {
     const worldGrid = document.getElementById('worldGrid');
-    if (ebFarlands.surface()) for (const {kind,x,y} of [...Farlands.authoredProps.values(), ...(sharedWorld.active() ? [] : Farlands.villagePropsNear(gameState.player.x,gameState.player.y))]) { // R15.56: street furniture in the 2D view
+    if (ebFarlands.surface()) for (const {kind,x,y,soloOnly} of [...Farlands.authoredProps.values(), ...(sharedWorld.active() ? [] : Farlands.villagePropsNear(gameState.player.x,gameState.player.y))]) { // R15.56: street furniture in the 2D view
+        if (soloOnly && sharedWorld.active()) continue;
         if (Math.abs(x-gameState.player.x)>48 || Math.abs(y-gameState.player.y)>48) continue;
         const prop = document.createElement('span');
         prop.className = 'eb-room-prop';
@@ -3790,7 +3794,7 @@ function interact() {
             return;
         }
     }
-    const prop = ebFarlands.surface() && Farlands.propNear(gameState.player.x, gameState.player.y);
+    const prop = ebFarlands.surface() && Farlands.propNear(gameState.player.x, gameState.player.y, !sharedWorld.active());
     if (prop) { // R15.56: the well, the signpost, the stall, the shrine
         document.getElementById('modalTitle').textContent = prop.name;
         const note=ebRpgQuests.onProp(prop);
@@ -9083,21 +9087,21 @@ const EternalBlissArt = (() => {
     // tile and door, and is drawn as a farmhouse with a silo instead of a keep; `regional` gives houses their region's walls
     // (Hearthmere keeps the stone it had) and Lanternreach houses a pair of door lanterns.
     const REGION_WALLS = {alder:0x9b7b5a, rime:0xd3d8d2, iron:0xa7a698, amber:0xe7dfcb, salt:0xd4ae78, reed:0xc2ae80, ember:0x9d8a76, lantern:0xd9cdb5};
+    const regionalExteriors = new Map();
     function building(kind, variant, footprint = null, region, authoredRest = false, style = null) {
         if(authoredRest && kind==='inn')return authoredInn(footprint);
         if(authoredRest && kind==='shop')return authoredExchange(footprint);
         if(authoredRest && kind==='temple')return authoredChapel(footprint);
-    const regionalExteriors = new Map();
-        const group = new T.Group();
-        const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
-            amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
-        const slate = roofColors[region] ?? 0x294e50;
         const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
         const key = style?.regional && [kind,region,across,deep,style.farmstead,style.hall,region?'':variant%3].join(':');
         if(key && regionalExteriors.has(key)){
             const model=regionalExteriors.get(key);
             return {...model,group:model.group.clone(true)};
         }
+        const group = new T.Group();
+        const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
+            amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
+        const slate = roofColors[region] ?? 0x294e50;
         const brass = 0xc5a367;
         const limestone = region==='salt' ? 0xd4ae78 : region==='iron' || region==='rime' ? 0xb9b9aa : 0xc8b18a;
         const dark = 0x51463c;
@@ -9265,6 +9269,18 @@ const EternalBlissArt = (() => {
             for (const x of [-.24,.24]) box(group,.09,.66,.14,wood,x,.39,.29);
             stone(group,.26,0x908976,.29,.76,-.18,1,.6,1.15);
             stone(group,.19,0x84796a,-.31,.19,.37,1,.7,1.14);
+        } else if (kind==='orchard-belfry') {
+            box(group,.76,.13,.68,stoneColor,0,.13);
+            for(const x of [-.29,.29])for(const z of [-.23,.23]){
+                box(group,.11,1.01,.11,wood,x,.69,z);
+                box(group,.15,.19,.15,stoneColor,x,.26,z);
+            }
+            box(group,.84,.10,.66,0x62412e,0,1.24);
+            roof(group,.94,.86,1.25,.26,0x984b38);
+            cylinder(group,.088,.16,.21,12,0xa57537,0,1.05);
+            cylinder(group,.17,.16,.04,12,0xc79b52,0,.94);
+            cylinder(group,.032,.032,.09,8,0x594032,0,.89);
+            height=1.53;
         } else if (kind==='wreck') {
             stone(group,.45,0x765c42,0,.30,0,.77,.45,1.08);
             box(group,.065,.80,.063,0x8c7658,0,.60,-.08).rotation.z=.28;
@@ -9880,6 +9896,14 @@ window.addEventListener('load', () => {
                 block(.24,1.22,0,.56,.13,.04,0xd9c08a);
                 block(-.22,1.04,0,.50,.13,.04,0xcfb47c,.5);
                 block(.06,.86,.20,.50,.13,.04,0xd9c08a,-1.25);
+                if(prop.cloth!==undefined){
+                    block(.37,.92,.03,.17,.48,.04,prop.cloth);
+                    post(-.25,.10,.24,.18,.20,0x9a714d);
+                    if(prop.cloth===0xeee4c8){
+                        for(const [dx,dz] of [[-.31,.19],[-.19,.20],[-.24,.31]])
+                            round(dx,.23,dz,.075,.075,.075,0xa83e2f);
+                    }
+                }
                 round(0,.06,0,.17,.07,.17,0x8f8a78);
                 break;
             case 'lamp':
@@ -10351,7 +10375,7 @@ window.addEventListener('load', () => {
                         ], surfColor, shorePositions, shoreTints, shoreUvs);
                     }
                     // R15.56: street furniture of an authored village, built from the same scenery pieces as the trees
-                    const prop = streamed && !this.room && (Farlands.propAt(x,z) || (!sharedWorld.active() && Farlands.villagePropAt(x,z)));
+                    const prop = streamed && !this.room && (Farlands.propAt(x,z,!sharedWorld.active()) || (!sharedWorld.active() && Farlands.villagePropAt(x,z)));
                     if (prop) { streetProp(prop, {logs, leaves, stones, sprouts, lanterns, roomBlocks, glows}, season, tileTop); continue; }
                     // A building's tiles keep only their ground: no tree, rock or lantern grows through its walls.
                     if (!this.room && buildingFootprints.has(z * width + x)) continue;
@@ -10527,7 +10551,8 @@ window.addEventListener('load', () => {
                         // landmark flag (and its footprint); it is drawn as the farmhouse it is. Flag, footprint, collision
                         // and door are unchanged.
                         if (kind === 'building') model = data.realmId && data.landmark && !(/ Farmstead$/.test(data.name) && ebFarlands.surface() && !sharedWorld.active()) ?
-                            art.landmark(data.landmark, buildingFootprint(data)) :
+                            art.landmark(data.realmId==='orchard-structure' && ebFarlands.surface() && !sharedWorld.active()
+                                ? 'orchard-belfry' : data.landmark, buildingFootprint(data)) :
                             art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
                                 ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'||data.realmId==='rest-service-2'),
                                 ebFarlands.surface() && !sharedWorld.active() && data.realmId ? {farmstead:/ Farmstead$/.test(data.name), regional:true, hall:data.realmId==='rest-service-3'} : null);
@@ -14262,16 +14287,21 @@ const Farlands = (() => {
         [2,8,'crates',true,0,'Ivo’s axle crate','Chalk on the lid reads: Millbend · two axle collars, one oak pin. The river seal is intact.'],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
         [-6,8,'mooring',false,0]
     ]) authoredProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
-    for (const [x,y,name,text] of [
+    for (const [x,y,name,text,cloth] of [
+        [5038,4845,'North orchard tally','White cloth marks the trees ready for picking. Two baskets can go down to the stall before noon.',0xeee4c8],
+        [5042,4850,'South orchard tally','Red cloth marks the trees that need another day. Leave those branches for the next crew.',0xb64632],
         [8556,8580,'Shellwick tide board','Shellfish baskets go out past the yellow sand at low tide. The mooring is just southwest. Lantern Quay lies northwest around the head of the bay.'],
         [8559,8565,'Pearl Banks tally post','Collectors count the day’s shells here before taking them to the Shellwick market. Follow the bank southwest for the shared landing.']
-    ]) authoredProps.set(y*size+x,{x,y,kind:'signpost',solid:false,turn:0,name,text});
-    const propAt = (x,y) => authoredProps.get(y*size+x);
-    function propNear(x,y) {
+    ]) authoredProps.set(y*size+x,{x,y,kind:'signpost',solid:false,turn:0,name,text,cloth,soloOnly:cloth!==undefined});
+    function propAt(x,y,solo=true) {
+        const prop=authoredProps.get(y*size+x);
+        return !solo&&prop?.soloOnly?undefined:prop;
+    }
+    function propNear(x,y,solo=true) {
         let best=null, near=Infinity;
         for (const prop of authoredProps.values()) {
             const d=Math.max(Math.abs(prop.x-x),Math.abs(prop.y-y));
-            if (prop.text && d<=1 && d<near) { best=prop; near=d; }
+            if (prop.text && (solo || !prop.soloOnly) && d<=1 && d<near) { best=prop; near=d; }
         }
         return best;
     }
@@ -15096,20 +15126,20 @@ const ebFarlands = (() => {
     // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
     function markRpgQuest(key) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||
-            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0|e-rest)$/.test(key)||journey.spent.has(key))return false;
+            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0|[ef]-rest)$/.test(key)||journey.spent.has(key))return false;
         journey.spent.add(key);saveNow();return true;
     }
     function completeRpgQuest(id,kind) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
-            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&!(kind==='e'&&id==='rest')))return false;
+            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&!(['e','f'].includes(kind)&&id==='rest')))return false;
         const site=Farlands.byId.get(id),prefix='rq-';
         // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
         if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
         if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
             !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
             !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
-            (['a','d','e'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
-        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:[14,15];
+            (['a','d','e','f'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:kind==='f'?[22,28]:[14,15];
         journey.spent.add(prefix+'done-'+kind+'-'+id);
         gameState.inventory.gold+=gold;gameState.player.xp+=xp;
         checkLevelUp();updateUI();saveNow();updateHint();return true;
@@ -16805,17 +16835,18 @@ const ebRpgAccess=(()=>{
 // C relays news to an actual waykeeper and then reports back to the actual provisioner.
 const ebRpgQuests=(()=>{
     const active=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior&&!gameState.inBattle;
-    const sites=()=>Farlands.sites.filter(s=>s.station);
+    const stations=Farlands.sites.filter(s=>s.station);
     const shellwickId='settlement-lantern-0';
-    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : site===Farlands.start ? ['a','b','c','e'] : ['a','b','c'];
+    const orchardTallies=['North orchard tally','South orchard tally'];
+    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : site===Farlands.start ? ['a','b','c','e',...(ebFarlands.storyFlag('quest-vault-reward')?['f']:[])] : ['a','b','c'];
     // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
     // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
     const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
-    const stationAt=(x,y)=>sites().filter(s=>within(s,x,y)).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]??null;
+    const stationAt=(x,y)=>stations.filter(s=>within(s,x,y)).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]??null;
     const flag=(site,kind,part)=>ebFarlands.storyFlag('rq-'+part+'-'+kind+'-'+site.id);
     const mark=(site,kind,part)=>ebFarlands.markRpgQuest('rq-'+part+'-'+kind+'-'+site.id);
     const giverName=(site,kind)=>{
-        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':kind==='b'?'Nessa, the Orchard Keeper':'Ivo, the Millwright';
+        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':['b','f'].includes(kind)?'Nessa, the Orchard Keeper':'Ivo, the Millwright';
         return site.name+((kind==='a'||kind==='d')?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
     };
     const receiver=(site)=>giverName(site,'a');
@@ -16845,6 +16876,12 @@ const ebRpgQuests=(()=>{
     };
     function plan(site,kind){
         if(!site?.station||!kinds(site).includes(kind))return null;
+        if(kind==='f')return {
+            site,target:Farlands.byId.get('orchard'),kind,
+            title:'The first picking',
+            description:'The bell has brought Nessa’s pickers back. Read the north and south tally boards at Bell Orchard, then tell her which rows are ready.',
+            giver:giverName(site,kind),reward:[22,28]
+        };
         if(kind==='e')return {
             site,target:Farlands.byId.get('mill'),kind,
             title:'The millwright’s tally',
@@ -16869,9 +16906,12 @@ const ebRpgQuests=(()=>{
     }
     const state=q=>flag(q.site,q.kind,'done')?'done':
         flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
-    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d','e'].includes(q.kind)||flag(q.site,q.kind,'step2'));
+    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d','e','f'].includes(q.kind)||flag(q.site,q.kind,'step2'));
     function next(q){
-        if(q.kind==='e'){
+        if(q.kind==='f'){
+            const remaining=orchardTallies.filter((_,i)=>!flag(q.site,'f','step'+(i+1)));
+            if(remaining.length)return {site:q.target,label:'Read '+remaining.join(' and ')};
+        }else if(q.kind==='e'){
             if(!flag(q.site,'e','step1'))return {site:q.site,label:'Inspect the axle crate at the south landing'};
             if(!flag(q.site,'e','step2'))return {site:q.target,label:'Carry the tally to Millbend'};
         }else if(q.kind==='d'){
@@ -16884,7 +16924,7 @@ const ebRpgQuests=(()=>{
             return {site:q.target,label:q.kind==='c'?'Relay news to '+ebDisplayNameOf(receiver(q.target)):'Visit '+q.target.name};
         return {site:q.site,label:'Report to '+ebDisplayNameOf(q.giver)};
     }
-    const activePlans=()=>sites().flatMap(site=>kinds(site)
+    const activePlans=()=>stations.flatMap(site=>kinds(site)
         .filter(kind=>flag(site,kind,'taken')&&!flag(site,kind,'done'))
         .map(kind=>plan(site,kind)).filter(Boolean));
     function accept(q){
@@ -16900,9 +16940,16 @@ const ebRpgQuests=(()=>{
     }
     function onProp(prop){
         const site=Farlands.start;
-        if(!active()||prop?.name!=='Ivo’s axle crate'||!flag(site,'e','taken')||
-            Math.max(Math.abs(gameState.player.x-prop.x),Math.abs(gameState.player.y-prop.y))>1||
-            !mark(site,'e','step1'))return '';
+        if(!active()||!prop||
+            Math.max(Math.abs(gameState.player.x-prop.x),Math.abs(gameState.player.y-prop.y))>1)return '';
+        const tally=orchardTallies.indexOf(prop.name);
+        if(tally!==-1&&flag(site,'f','taken')&&mark(site,'f','step'+(tally+1))){
+            const complete=ready(plan(site,'f'));
+            if(complete)ebFarlands.pin(site.id);
+            ebFarlands.refreshStoryHint();
+            return complete?'Both tallies recorded. Return to Nessa.':'Tally recorded. Read the other board before returning.';
+        }
+        if(prop.name!=='Ivo’s axle crate'||!flag(site,'e','taken')||!mark(site,'e','step1'))return '';
         ebFarlands.pin('mill');
         return 'Tally recorded. Follow the creek road to Millbend.';
     }
@@ -16964,9 +17011,16 @@ const ebRpgQuests=(()=>{
             if(v==='new')actions.append(button('Accept quest',()=>{
                 if(accept(q)){refresh();ebFarlands.refreshStoryHint();}
             }));
-            else if(v==='ready'&&npc?.name===q.giver)actions.append(button('Report back · collect '+q.reward[0]+' gold',()=>{
-                if(report(q,npc)){refresh();status.textContent='Quest completed · +'+q.reward[0]+' gold · +'+q.reward[1]+' XP';}
-            }));
+            else if(v==='ready'&&npc?.name===q.giver){
+                const pay=()=>{if(report(q,npc)){refresh();status.textContent='Quest completed · +'+q.reward[0]+' gold · +'+q.reward[1]+' XP';}};
+                if(q.kind==='f'){
+                    status.textContent='Nessa asks which rows are ready for the pickers.';
+                    status.setAttribute('aria-live','polite');
+                    actions.append(button('Pick the north rows',pay),button('Pick the south rows',()=>{
+                        status.textContent='The south tally asked for another day. Which rows carried the white cloth?';
+                    }));
+                }else actions.append(button('Report back · collect '+q.reward[0]+' gold',pay));
+            }
             else if(v!=='done')actions.append(button('Track next step',()=>{ebFarlands.pin(next(q).site.id);status.textContent='Tracking · '+next(q).label;}));
         };
         refresh();return box;
@@ -17039,11 +17093,12 @@ const ebRpgQuests=(()=>{
         const out=[];
         if(site.station){
             const done=k=>flag(site,k,'done')&&plan(site,k);
+            if(done('f'))out.push('Nessa sent the first baskets down from Bell Orchard. Your tally kept the pickers on the right rows.');
             if(done('d'))out.push('The route you charted keeps our shell boats clear of the banks.');
             if(done('c'))out.push('You carried our news to '+plan(site,'c').target.name+' and came back to tell us.');
             if(done('b'))out.push('You walked the road to '+plan(site,'b').target.name+' for our warden.');
             if(done('a'))out.push('You met our people here; the waykeeper speaks well of you.');
-            const from=sites().find(o=>o!==site&&plan(o,'c')?.target===site&&flag(o,'c','step1'));
+            const from=stations.find(o=>o!==site&&plan(o,'c')?.target===site&&flag(o,'c','step1'));
             if(from)out.push('You brought us word from '+from.name+'.');
             if(ebFarlands.storyFlag('errand-'+site.id))out.push('You did our provisioner’s errand on the road.');
         }
@@ -17123,8 +17178,11 @@ const ebJournal = (() => {
         if(local)return {quest:{label:local.label},next:local.site,errand:true};
         if (!ebFarlands.surface()) return null;
         const rest=Farlands.byId.get('rest'), hero=gameState.player;
+        if (quest?.done && !ebFarlands.storyFlag('rq-taken-f-rest') &&
+            Math.hypot(hero.x-rest.x,hero.y-rest.y)<=14)
+            return {quest:{label:'Ask Nessa about the first picking'},person:'Find Nessa'};
         if (!quest && Math.hypot(hero.x-rest.x,hero.y-rest.y)<=14)
-            return {quest:{label:'Speak to Mira by the square'},people:true};
+            return {quest:{label:'Speak to Mira by the square'},person:'Meet Mira'};
         const visited=ebFarlands.discoveries();
         for (const chapter of chapters) {
             const sites=chapter.ids.map(id=>Farlands.byId.get(id)).filter(Boolean);
@@ -17138,6 +17196,16 @@ const ebJournal = (() => {
         if (!chip) return;
         const goal = visible ? nextGoal() : null;
         chip.hidden = !goal;
+        const people=document.getElementById('eb-people-quick');
+        if(people){
+            const label=goal?.person??'People nearby';
+            if(people.getAttribute('aria-label')!==label){
+                people.textContent=goal?.person??'👥';
+                people.setAttribute('aria-label',label);
+                people.title=label;
+                people.toggleAttribute('data-goal',Boolean(goal?.person));
+            }
+        }
         if (!goal) return;
         const text = goal.errand ? '📜 '+goal.quest.label : goal.quest ? (goal.next && ebFarlands.pinned()===goal.next.id ? '📍 ' : '🔔 ')+goal.quest.label
             : (ebFarlands.pinned()===goal.next.id ? '📍 ' : '📖 ')+goal.chapter.title.replace(/^The /,'')+' '+goal.done+'/'+goal.total+' · '+goal.next.name;
@@ -17156,7 +17224,7 @@ const ebJournal = (() => {
         event.stopPropagation();
         const goal = nextGoal();
         if (!goal) return;
-        if (goal.people) {ebRpgAccess.openNearby();return;}
+        if (goal.person) {ebRpgAccess.openNearby();return;}
         if (!goal.next || !ebFarlands.surface() || ebFarlands.pinned()===goal.next.id) open(); else ebFarlands.pin(goal.next.id);
         syncVisibility();
     });

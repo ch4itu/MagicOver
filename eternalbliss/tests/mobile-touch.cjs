@@ -6,6 +6,10 @@ const profiles=[['portrait',390,844],['landscape',844,390]];
         for(const [name,width,height] of profiles){
             if(process.env.EB_TOUCH_PROFILE && process.env.EB_TOUCH_PROFILE!==name)continue;
             const page=await t.page(browser,{viewport:{width,height},hasTouch:true,isMobile:true},(1767225600+4*480+240)*1000);
+            const objective=page.locator(name==='landscape'?'#eb-people-quick':'#eb-goal-chip');
+            await objective.filter({hasText:name==='landscape'?'Meet Mira':'Speak to Mira'}).tap();
+            await page.locator('#modalContent').getByText('Mira, the Cartographer',{exact:true}).waitFor();
+            await page.locator('#interactionModal').getByRole('button',{name:'Close',exact:true}).tap();
             const cdp=await page.context().newCDPSession(page);
             const touch=(type,points)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points});
             await page.evaluate(()=>{

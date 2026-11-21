@@ -63,5 +63,60 @@ const checkpoint=path.join(t.out,'natural-harvest-storage.json'),events=path.joi
   await walk(...step);
   await mark('first-ride');
  }
- await p.reload({waitUntil:'domcontentloaded'});await p.click('#eb-menu-solo');await p.waitForFunction(()=>ebFarlands.surface());t.assert(await flag('reward'));t.assert(await flag('relic'));t.assert(await flag('guardian'));t.assert(await flag('gate'));t.assert(await p.evaluate(()=>ebFarlands.horseState().owned));t.assert.deepEqual(p.errors,[]);await mark('complete-reloaded');t.record('natural Harvest Bell route',{result:'PASS fresh guest onboarding, Atlas pin, actual walking, Harvest Bell quest and combat, horse purchase and ride, reload; no injected progress/position/stats/RNG',resumed:!!process.env.EB_ROUTE_RESUME,elapsedMs:Date.now()-started,next,state:await state()});
+ const orchardFlag=part=>p.evaluate(part=>ebFarlands.storyFlag('rq-'+part+'-f-rest'),part);
+ async function speakToNessa(){
+  await p.click('#eb-farlands-people');
+  const row=p.locator('#modalContent > div').filter({has:p.getByText('Nessa, the Orchard Keeper',{exact:true})});
+  await row.getByRole('button',{name:/^(Go & talk|Talk)$/}).click();
+  await p.locator('#modalTitle').filter({hasText:'Nessa, the Orchard Keeper'}).waitFor();
+  const tab=p.getByRole('tab',{name:/Quests/});
+  if(await tab.isVisible())await tab.click();
+ }
+ const close=()=>p.locator('#interactionModal').getByRole('button',{name:'Close',exact:true}).click();
+ if(!await orchardFlag('done')){
+  const rest=await p.evaluate(()=>[Farlands.start.x,Farlands.start.y]);
+  if(!await orchardFlag('taken')){
+   await p.locator('#eb-goal-chip').filter({hasText:'Ask Nessa about the first picking'}).click();
+   const row=p.locator('#modalContent > div').filter({has:p.getByText('Nessa, the Orchard Keeper',{exact:true})});
+   await row.getByRole('button',{name:/^(Go & talk|Talk)$/}).click();
+   await p.getByRole('tab',{name:/Quests/}).click();
+   await p.locator('#modalContent section').filter({hasText:'The first picking'}).getByRole('button',{name:'Accept quest'}).click();
+   await close();
+  }
+  if(!await p.evaluate(()=>classicView()))await p.click('#eb-view-toggle');
+  const orchard=await p.evaluate(()=>{const s=Farlands.byId.get('orchard');return [s.x,s.y];});
+  await walk(...orchard);
+  for(const [index,name] of ['North orchard tally','South orchard tally'].entries()){
+   if(await orchardFlag('step'+(index+1)))continue;
+   const approach=await p.evaluate(name=>{
+    const prop=[...Farlands.authoredProps.values()].find(p=>p.name===name);
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+     const x=prop.x+dx,y=prop.y+dy;
+     if(Farlands.propNear(x,y)===prop&&canEntityMoveTo(x,y)&&
+       !buildings.some(b=>buildingDistance(b,x,y)<=2)&&!npcs.some(n=>Math.hypot(n.x-x,n.y-y)<=1.5))
+         return [x,y];
+    }
+   },name);
+   t.assert(approach,'walkable approach to '+name);
+   await walk(...approach);
+   await p.keyboard.press('Space');
+   await p.locator('#modalTitle').filter({hasText:name}).waitFor();
+   t.assert(await orchardFlag('step'+(index+1)));
+   await mark('orchard-tally-'+(index+1));
+   await close();
+  }
+  await walk(...rest);
+  await speakToNessa();
+  const gold=(await state()).gold;
+  await p.getByRole('button',{name:'Pick the south rows'}).click();
+  t.assert.equal((await state()).gold,gold,'wrong rows do not pay');
+  t.assert.equal(await orchardFlag('done'),false);
+  await p.getByRole('button',{name:'Pick the north rows'}).click();
+  t.assert.equal((await state()).gold,gold+22);
+  t.assert(await orchardFlag('done'));
+  t.assert.equal(await p.getByRole('button',{name:'Pick the north rows'}).count(),0);
+  await mark('nessa-reward');
+  await close();
+ }
+ await p.reload({waitUntil:'domcontentloaded'});await p.click('#eb-menu-solo');await p.waitForFunction(()=>ebFarlands.surface());t.assert(await orchardFlag('done'));t.assert(await flag('reward'));t.assert(await flag('relic'));t.assert(await flag('guardian'));t.assert(await flag('gate'));t.assert(await p.evaluate(()=>ebFarlands.horseState().owned));t.assert.deepEqual(p.errors,[]);await mark('complete-reloaded');t.record('natural Harvest Bell route',{result:'PASS fresh guest onboarding, Atlas pin, actual walking, Harvest Bell quest and combat, horse purchase and ride, both orchard tallies, Nessa’s once-only reward and reload; no injected progress/position/stats/RNG',resumed:!!process.env.EB_ROUTE_RESUME,elapsedMs:Date.now()-started,next,state:await state()});
 }catch(e){if(p){await t.shot(p,'natural-blocker-'+Date.now());await p.context().storageState({path:checkpoint});}throw e;}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});
