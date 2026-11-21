@@ -10,6 +10,14 @@ const profiles=[['portrait',390,844],['landscape',844,390]];
             const touch=(type,points)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points});
             await page.evaluate(()=>{
                 window.groundEvents=[];
+                window.groundPointerTrace=[];
+                for(const type of ['pointerdown','pointermove','pointerup','pointercancel','click']){
+                    document.addEventListener(type,event=>{
+                        if(event.pointerType==='touch')window.groundPointerTrace.push({
+                            type,id:event.target.id||event.target.className,primary:event.isPrimary,
+                            x:event.clientX,y:event.clientY,button:event.button});
+                    },true);
+                }
                 document.addEventListener('click',event=>{
                     if(event.pointerType==='touch')window.groundEvents.push(event.target.id||event.target.className);
                 },true);
@@ -54,7 +62,18 @@ const profiles=[['portrait',390,844],['landscape',844,390]];
                 await page.waitForTimeout(200);
                 t.assert.equal(await page.evaluate(()=>gameState.player.moveCount),before,'swipe does not walk');
                 await page.touchscreen.tap(point.left, point.top);
-                await page.waitForFunction(({x,y})=>gameState.player.x===x&&gameState.player.y===y,point);
+                try {
+                    await page.waitForFunction(({x,y})=>gameState.player.x===x&&gameState.player.y===y,point,{timeout:8000});
+                } catch(error) {
+                    const diagnostic=await page.evaluate(point=>({
+                        position:[gameState.player.x,gameState.player.y],route:walkRoute?.steps,
+                        hit:document.elementFromPoint(point.left,point.top)?.className,
+                        blocked:movementBlocked(),events:window.groundPointerTrace.slice(-14)
+                    }),point);
+                    console.error(name,mode,JSON.stringify({point,diagnostic}));
+                    await t.shot(page,'touch-failure-'+name+'-'+mode+'-'+t.sha.slice(0,8));
+                    throw error;
+                }
                 moved.push({mode,point,steps:await page.evaluate(n=>gameState.player.moveCount-n,before)});
             }
 
