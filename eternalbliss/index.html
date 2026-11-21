@@ -2845,7 +2845,7 @@ function updateBuildingFootprints() {
         }
     }
     // R15.56: street furniture of the Farlands (a well, a lamp post) blocks its tile like a wall.
-    if (ebFarlands.surface()) for (const prop of Farlands.restProps.values()) if (prop.solid) buildingFootprints.add(prop.y*width+prop.x);
+    if (ebFarlands.surface()) for (const prop of Farlands.authoredProps.values()) if (prop.solid) buildingFootprints.add(prop.y*width+prop.x);
     if (before.size !== buildingFootprints.size || [...buildingFootprints].some(tile => !before.has(tile))) buildingFootprintRevision++;
 }
 
@@ -3017,7 +3017,7 @@ function renderWorld() {
 
 function renderAllEntities() {
     const worldGrid = document.getElementById('worldGrid');
-    if (ebFarlands.surface()) for (const {kind,x,y} of [...Farlands.restProps.values(), ...(sharedWorld.active() ? [] : Farlands.villagePropsNear(gameState.player.x,gameState.player.y))]) { // R15.56: street furniture in the 2D view
+    if (ebFarlands.surface()) for (const {kind,x,y} of [...Farlands.authoredProps.values(), ...(sharedWorld.active() ? [] : Farlands.villagePropsNear(gameState.player.x,gameState.player.y))]) { // R15.56: street furniture in the 2D view
         if (Math.abs(x-gameState.player.x)>48 || Math.abs(y-gameState.player.y)>48) continue;
         const prop = document.createElement('span');
         prop.className = 'eb-room-prop';
@@ -13849,7 +13849,8 @@ const Farlands = (() => {
         const [dx,dy] = satelliteOffsets[j];
         return {id:'settlement-'+station.id+'-'+j,name,
             x:station.x+dx,y:station.y+dy,region:station.region,
-            story:name+' is a '+(j===0?'market town':j===1?'farming village':'rural hamlet')+
+            story:name==='Shellwick' ? 'Shellwick sorts the catch and trades shells from Pearl Banks. A short path from the market leads to the landing on the bay.' :
+                name+' is a '+(j===0?'market town':j===1?'farming village':'rural hamlet')+
                 ' where growers, herders and traders make their living.',
             services:[name+' Inn',name+' Market',name+' Gathering Hall',name+' Farmstead'],
             index:index*3+j,station:true,settlement:true,kind:j===0?'town':'village',radius:18};
@@ -14140,7 +14141,7 @@ const Farlands = (() => {
     const villageAt = (x,y) => Math.abs(x-rest.x)<=10 && y-rest.y>=-8 && y-rest.y<=9;
     // Street furniture: [dx, dy, kind, blocks the tile, turn, name, words when used]. Drawn by the 3D ground, shown as a
     // small glyph in the 2D view. Only named pieces can be used.
-    const restProps = new Map();
+    const authoredProps = new Map();
     for (const [dx,dy,kind,solid,turn,name,text] of [
         [0,-1,'well',true,0,'The square well','Cool water from under the square. Travellers fill their flasks here before taking the road.'],
         [-2,-1,'oak',true,0],
@@ -14157,11 +14158,15 @@ const Farlands = (() => {
         [-6,5,'flowers',false,0],
         [2,8,'crates',true,0],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
         [-6,8,'mooring',false,0]
-    ]) restProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
-    const propAt = (x,y) => restProps.get(y*size+x);
+    ]) authoredProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
+    for (const [x,y,name,text] of [
+        [8556,8580,'Shellwick tide board','Shellfish baskets go out past the yellow sand at low tide. The mooring is just southwest. Lantern Quay lies northwest around the head of the bay.'],
+        [8559,8565,'Pearl Banks tally post','Collectors count the day’s shells here before taking them to the Shellwick market. Follow the bank southwest for the shared landing.']
+    ]) authoredProps.set(y*size+x,{x,y,kind:'signpost',solid:false,turn:0,name,text});
+    const propAt = (x,y) => authoredProps.get(y*size+x);
     function propNear(x,y) {
         let best=null, near=Infinity;
-        for (const prop of restProps.values()) {
+        for (const prop of authoredProps.values()) {
             const d=Math.max(Math.abs(prop.x-x),Math.abs(prop.y-y));
             if (prop.text && d<=1 && d<near) { best=prop; near=d; }
         }
@@ -14751,7 +14756,7 @@ const Farlands = (() => {
         }
     }
 
-    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
+    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,authoredProps,propAt,propNear,plazaAt,villageAt,
         coastalDocks,sceneCell,remember,hash};
 })();
 
@@ -14987,20 +14992,20 @@ const ebFarlands = (() => {
     // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
     function markRpgQuest(key) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||
-            !/^rq-(taken|step1|step2)-[abc]-[a-z0-9-]+$/.test(key)||journey.spent.has(key))return false;
+            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0)$/.test(key)||journey.spent.has(key))return false;
         journey.spent.add(key);saveNow();return true;
     }
     function completeRpgQuest(id,kind) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
-            !/^[a-z0-9-]+$/.test(id)||!['a','b','c'].includes(kind))return false;
+            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')))return false;
         const site=Farlands.byId.get(id),prefix='rq-';
         // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
         if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
         if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
             !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
             !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
-            (kind==='a'&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
-        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15];
+            ((kind==='a'||kind==='d')&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:[14,15];
         journey.spent.add(prefix+'done-'+kind+'-'+id);
         gameState.inventory.gold+=gold;gameState.player.xp+=xp;
         checkLevelUp();updateUI();saveNow();updateHint();return true;
@@ -15013,7 +15018,7 @@ const ebFarlands = (() => {
         const site=Farlands.nearbySite(x,y);
         if (site?.station) journey.station=site.id;
         if (site && !sharedWorld.active()) errandArrived(site);
-        if (site && !sharedWorld.active() && typeof ebRpgQuests!=='undefined') ebRpgQuests.onLocation(site);
+        if ((site || gameState.sailingMoves>0) && !sharedWorld.active() && typeof ebRpgQuests!=='undefined') ebRpgQuests.onLocation(site);
         if (site && !journey.visited.has(site.id)) {
             journey.visited.add(site.id);
             if (Farlands.survey.includes(site.id) && Farlands.survey.every(id=>journey.visited.has(id))) {
@@ -16667,6 +16672,8 @@ const ebRpgAccess=(()=>{
 const ebRpgQuests=(()=>{
     const active=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior&&!gameState.inBattle;
     const sites=()=>Farlands.sites.filter(s=>s.station);
+    const shellwickId='settlement-lantern-0';
+    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : ['a','b','c'];
     // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
     // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
     const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
@@ -16675,7 +16682,7 @@ const ebRpgQuests=(()=>{
     const mark=(site,kind,part)=>ebFarlands.markRpgQuest('rq-'+part+'-'+kind+'-'+site.id);
     const giverName=(site,kind)=>{
         if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':kind==='b'?'Nessa, the Orchard Keeper':'Ivo, the Millwright';
-        return site.name+(kind==='a'?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
+        return site.name+((kind==='a'||kind==='d')?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
     };
     const receiver=(site)=>giverName(site,'a');
     const shown=(site,kind)=>ebDisplayNameOf(giverName(site,kind)); // R17.12: the name the player sees
@@ -16703,7 +16710,13 @@ const ebRpgQuests=(()=>{
         ]
     };
     function plan(site,kind){
-        if(!site?.station||!['a','b','c'].includes(kind))return null;
+        if(!site?.station||!kinds(site).includes(kind))return null;
+        if(kind==='d')return {
+            site,target:Farlands.byId.get('lantern'),kind,
+            title:'Sound the Lantern Channel',
+            description:'Take a boat from the Shellwick landing and follow the bay to Lantern Quay. Come within four tiles of the Quay’s moored boat while afloat, then report back to the Shellwick waykeeper.',
+            giver:giverName(site,kind),reward:[24,25]
+        };
         const target=kind==='a'?site:neighbor(site,kind==='c'?'station':'any');
         if(!target)return null;
         const heading=kind==='a'?'Meet the local team':kind==='b'?'Check the road to '+target.name:'Carry news to '+target.name;
@@ -16716,22 +16729,25 @@ const ebRpgQuests=(()=>{
     }
     const state=q=>flag(q.site,q.kind,'done')?'done':
         flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
-    const ready=q=>flag(q.site,q.kind,'step1')&&(q.kind!=='a'||flag(q.site,q.kind,'step2'));
+    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d'].includes(q.kind)||flag(q.site,q.kind,'step2'));
     function next(q){
-        if(q.kind==='a'){
+        if(q.kind==='d'){
+            if(!flag(q.site,'d','step1'))return {site:q.site,label:'Board at the Shellwick landing'};
+            if(!flag(q.site,'d','step2'))return {site:q.target,label:'Sail to the Lantern Quay mooring'};
+        }else if(q.kind==='a'){
             if(!flag(q.site,'a','step1'))return {site:q.site,label:'Speak to '+shown(q.site,'c')};
             if(!flag(q.site,'a','step2'))return {site:q.site,label:'Speak to '+shown(q.site,'b')};
         }else if(!flag(q.site,q.kind,'step1'))
             return {site:q.target,label:q.kind==='c'?'Relay news to '+ebDisplayNameOf(receiver(q.target)):'Visit '+q.target.name};
         return {site:q.site,label:'Report to '+ebDisplayNameOf(q.giver)};
     }
-    const activePlans=()=>sites().flatMap(site=>['a','b','c']
+    const activePlans=()=>sites().flatMap(site=>kinds(site)
         .filter(kind=>flag(site,kind,'taken')&&!flag(site,kind,'done'))
         .map(kind=>plan(site,kind)).filter(Boolean));
     function accept(q){
         if(!active()||!q||state(q)!=='new')return false;
         const ok=mark(q.site,q.kind,'taken');
-        if(ok)ebFarlands.pin(q.target.id);
+        if(ok)ebFarlands.pin(next(q).site.id);
         return ok;
     }
     function report(q,npc){
@@ -16742,6 +16758,16 @@ const ebRpgQuests=(()=>{
     function onLocation(site){
         if(!active())return;
         for(const q of activePlans()){
+            if(q.kind==='d'&&gameState.sailingMoves>0){
+                const departed=flag(q.site,'d','step1');
+                const dock=Farlands.coastalDocks[departed?'lantern':shellwickId];
+                const [x,y]=dock.water, player=gameState.player;
+                if(Math.hypot(player.x-x,player.y-y)<=4&&mark(q.site,'d',departed?'step2':'step1')){
+                    ebFarlands.pin(departed?q.site.id:q.target.id);
+                    showFloatingText(departed?'Channel charted · return to Shellwick':'Underway · sail to Lantern Quay',
+                        player.x*32+16,player.y*32-30,'#e9c987');
+                }
+            }
             if(q.kind==='b'&&site?.id===q.target.id&&!flag(q.site,'b','step1')){
                 if(mark(q.site,'b','step1')){
                     showFloatingText('Road checked · return to '+ebDisplayNameOf(q.giver),gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
@@ -16795,7 +16821,7 @@ const ebRpgQuests=(()=>{
         const content=document.getElementById('modalContent');
         const here=stationAt(npc.x,npc.y);
         if(here){
-            for(const kind of ['a','b','c']){
+            for(const kind of kinds(here)){
                 const q=plan(here,kind);
                 if(q&&npc.name===q.giver){const c=card(q,npc);c.dataset.ebPane='quests';if(state(q)==='ready')c.dataset.ebReady='1';content.append(c);}
             }
@@ -16847,7 +16873,7 @@ const ebRpgQuests=(()=>{
         const content=document.getElementById('modalContent');content.replaceChildren();
         const intro=document.createElement('p');intro.textContent='Talk to local residents to follow these quests, or accept one here. Report to the actual giver for a reward.';
         content.append(intro);
-        for(const kind of ['a','b','c']){const q=plan(site,kind);if(q)content.append(card(q,null));}
+        for(const kind of kinds(site)){const q=plan(site,kind);if(q)content.append(card(q,null));}
         releaseMovement();document.getElementById('interactionModal').style.display='flex';
     }
     document.getElementById('eb-farlands-quests')?.addEventListener('click',board);
@@ -16858,6 +16884,7 @@ const ebRpgQuests=(()=>{
         const out=[];
         if(site.station){
             const done=k=>flag(site,k,'done')&&plan(site,k);
+            if(done('d'))out.push('The route you charted keeps our shell boats clear of the banks.');
             if(done('c'))out.push('You carried our news to '+plan(site,'c').target.name+' and came back to tell us.');
             if(done('b'))out.push('You walked the road to '+plan(site,'b').target.name+' for our warden.');
             if(done('a'))out.push('You met our people here; the waykeeper speaks well of you.');
