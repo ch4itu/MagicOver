@@ -1,0 +1,15 @@
+PASS unknown Farlands version protection
+AssertionError [ERR_ASSERTION]: station
++ actual - expected
+
++ 'rest'
+- 'settlement-lantern-0'
+
+    at /workspace/EternalBliss-RC/eternalbliss/tests/automation-save-version.cjs:66:22 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'rest',
+  expected: 'settlement-lantern-0',
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}

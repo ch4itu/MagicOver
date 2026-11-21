@@ -1,0 +1,23 @@
+PASS Atlas and passage entry desktop
+PASS Atlas and passage entry portrait
+locator.click: Timeout 20000ms exceeded.
+Call log:
+[2m  - waiting for locator('#eb-actions-more')[22m
+[2m    - locator resolved to <button type="button" id="eb-actions-more" aria-expanded="false" class="eb-panel-button" aria-controls="eb-world-actions">☰ Actions</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not visible[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not visible[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    24 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is not visible[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+    at /workspace/EternalBliss-RC/eternalbliss/tests/automation-smoke.cjs:17:56 {
+  name: 'TimeoutError'
+}

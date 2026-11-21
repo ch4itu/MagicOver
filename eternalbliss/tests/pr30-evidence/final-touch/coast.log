@@ -1,0 +1,2 @@
+landscape mooring ray {"aim":{"centre":[8496.038889505831,0.08182323014960652,8544.059775203816],"bounds":[2.6982678346594184,0.30187499057501554,3.0789787795183656],"distance":2.3137345553174766},"hit":{"camera":[8496,1.135,8542],"distance":1.9201541541942206,"actorHit":null}}
+PASS landscape {"samples":30,"frameIntervals":{"medianMs":17,"p95Ms":885,"maxMs":908},"cpuSubmission":{"medianMs":2,"p95Ms":29,"maxMs":32}}

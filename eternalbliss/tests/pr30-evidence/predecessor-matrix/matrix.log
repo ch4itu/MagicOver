@@ -1,0 +1,33 @@
+START geography
+PASS geography geography-1795248963784.log
+START quest-contract
+PASS quest-contract quest-contract-1795248965907.log
+START shared-source-boundary
+PASS shared-source-boundary shared-source-boundary-1795248966313.log
+START mobile-touch
+FAIL mobile-touch mobile-touch-1795248966518.log
+START generated-mooring-desktop
+PASS generated-mooring-desktop generated-mooring-desktop-1795249006642.log
+START generated-mooring-portrait
+PASS generated-mooring-portrait generated-mooring-portrait-1795249045983.log
+START generated-mooring-landscape
+PASS generated-mooring-landscape generated-mooring-landscape-1795249083920.log
+START fresh-first-visit
+PASS fresh-first-visit fresh-first-visit-1795249170968.log
+START save-and-rollback
+FAIL save-and-rollback save-and-rollback-1795249217021.log
+START authored-coastal-transport
+PASS authored-coastal-transport authored-coastal-transport-1795249267752.log
+START shellwick-quest
+PASS shellwick-quest shellwick-quest-1795249363471.log
+START portrait-combat
+PASS portrait-combat portrait-combat-1795249382263.log
+START landscape-combat
+PASS landscape-combat landscape-combat-1795249440342.log
+START startup-modes
+PASS startup-modes startup-modes-1795249512020.log
+START shared-active-save-guard
+PASS shared-active-save-guard shared-active-save-guard-1795249575671.log
+START natural-harvest
+FAIL natural-harvest natural-harvest-1795249595801.log
+MATRIX {"PASS":13,"FAIL":3}

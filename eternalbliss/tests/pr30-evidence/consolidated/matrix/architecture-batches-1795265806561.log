@@ -1,0 +1,5 @@
+house hearth {} 26 → 16 meshes matching triangles, materials and shadows
+shop lantern {} 32 → 19 meshes matching triangles, materials and shadows
+castle hearth { hall: true } 64 → 13 meshes matching triangles, materials and shadows
+castle hearth { farmstead: true } 15 → 12 meshes matching triangles, materials and shadows
+inn rime {} 32 → 19 meshes matching triangles, materials and shadows

@@ -1,0 +1,1 @@
+{"endpoint":"wss://devnet-as.magicblock.app/","method":"slotSubscribe","results":[{"client":1,"subscribed":false,"reason":"WebSocket connection error"},{"client":2,"subscribed":false,"reason":"WebSocket connection error"}]}

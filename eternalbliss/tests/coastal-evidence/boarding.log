@@ -1,0 +1,37 @@
+desktop mooring ray {"aim":{"centre":[8496.038938353142,0.07881755324172873,8544.05974339553],"bounds":[2.6995017966473824,0.30187499057501554,3.078742526420683],"distance":2.3150767614951646},"hit":{"camera":[8496,1.135,8542],"distance":1.8999708829507864,"actorHit":null}}
+PASS desktop {"samples":30,"frameIntervals":{"medianMs":35,"p95Ms":739,"maxMs":826},"cpuSubmission":{"medianMs":13,"p95Ms":44,"maxMs":51}}
+portrait mooring ray {"aim":{"centre":[8496.039302024834,0.056878381268448824,8544.059504785511],"bounds":[2.7086525367085414,0.30187499057501554,3.076914689700061],"distance":2.3249625449620392},"hit":{"camera":[8496,1.135,8542],"distance":1.9043877216692444,"actorHit":null}}
+PASS portrait {"samples":30,"frameIntervals":{"medianMs":26,"p95Ms":474,"maxMs":601},"cpuSubmission":{"medianMs":8,"p95Ms":35,"maxMs":44}}
+landscape mooring ray {"aim":{"centre":[8496.03882987459,0.08500028033963036,8544.059813957354],"bounds":[2.6967599005529337,0.30187499057501554,3.07926423355093],"distance":2.3123236601647577},"hit":{"camera":[8496,1.135,8542],"distance":1.907039648654228,"actorHit":null}}
+page.tap: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('#eb-eye-use')[22m
+[2m    - locator resolved to <button type="button" id="eb-eye-use" aria-describedby="eb-eye-context" aria-label="Interact with object ahead">✋ Use</button>[22m
+[2m  - attempting tap action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <canvas role="img" width="89" height="76" id="eb-minimap-canvas" aria-label="Local map following your hero, 18 by 18 tiles"></canvas> from <section class="minimap" aria-label="Minimap">…</section> subtree intercepts pointer events[22m
+[2m    - retrying tap action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <canvas role="img" width="89" height="76" id="eb-minimap-canvas" aria-label="Local map following your hero, 18 by 18 tiles"></canvas> from <section class="minimap" aria-label="Minimap">…</section> subtree intercepts pointer events[22m
+[2m    - retrying tap action[22m
+[2m      - waiting 100ms[22m
+[2m    15 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is visible, enabled and stable[22m
+[2m       - scrolling into view if needed[22m
+[2m       - done scrolling[22m
+[2m       - <canvas role="img" width="89" height="76" id="eb-minimap-canvas" aria-label="Local map following your hero, 18 by 18 tiles"></canvas> from <section class="minimap" aria-label="Minimap">…</section> subtree intercepts pointer events[22m
+[2m     - retrying tap action[22m
+[2m       - waiting 500ms[22m
+[2m    - waiting for element to be visible, enabled and stable[22m
+
+    at use (/workspace/EternalBliss-RC/eternalbliss/tests/coastal-boarding.cjs:13:61)
+    at /workspace/EternalBliss-RC/eternalbliss/tests/coastal-boarding.cjs:65:19 {
+  name: 'TimeoutError'
+}

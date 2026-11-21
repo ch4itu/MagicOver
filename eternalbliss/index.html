@@ -2040,6 +2040,15 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
  [data-eb-immersive="first"] #eb-eye-actions{right:12px;bottom:184px}
  [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
 }
+/* On a short viewport, keep first-person controls beside the expanded minimap. */
+@media (min-width:601px) and (max-height:650px) {
+ [data-eb-immersive="first"] #eb-eye-actions,
+ [data-eb-immersive="first"] #eb-immersive-look{right:176px}
+}
+@media (max-height:450px) and (pointer:coarse) {
+ [data-eb-immersive="first"] #eb-eye-actions{right:190px;bottom:55px}
+ [data-eb-immersive="first"] #eb-immersive-look{bottom:55px;right:10px}
+}
 /* D-pad stays usable while filming. */
 /* PR #2: keep desktop controls hidden by default; retain touch movement at every size, including hybrids. */
 @media (max-width: 768px), (any-pointer: coarse) {
@@ -2072,6 +2081,9 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
   html[data-eb-farlands] .location-info.eb-capture-location-closed { display:flex !important; align-items:center; gap:8px; }
   /* R17.11: People nearby stays one tap away while the panel is minimised */
   html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-people-quick:not([hidden]) { display:inline-flex !important; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 !important; font-size:18px; }
+  html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-people-quick[data-goal] {
+    font-size:12px; padding:0 8px !important; white-space:nowrap;
+  }
   /* R17.13: the Show panel button kept the relative offsets (top 6px, right 8px) it has in the open card, which pulled
      it 8px left onto the hero line and 6px down; here it sits in line, after the panel's 8px gap */
   html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-actions-collapse { top:auto !important; right:auto !important; margin:0 !important; flex-shrink:0; }
@@ -2842,7 +2854,7 @@ function updateBuildingFootprints() {
         }
     }
     // R15.56: street furniture of the Farlands (a well, a lamp post) blocks its tile like a wall.
-    if (ebFarlands.surface()) for (const prop of Farlands.restProps.values()) if (prop.solid) buildingFootprints.add(prop.y*width+prop.x);
+    if (ebFarlands.surface()) for (const prop of Farlands.authoredProps.values()) if (prop.solid) buildingFootprints.add(prop.y*width+prop.x);
     if (before.size !== buildingFootprints.size || [...buildingFootprints].some(tile => !before.has(tile))) buildingFootprintRevision++;
 }
 
@@ -2875,6 +2887,21 @@ function boatFitsWater(x, y, tileAt, scale = 1, headings = [.6, .6+Math.PI/2, .6
     for (const heading of headings)
         if (boatHullTiles(x, y, heading, scale).every(([tx, ty]) => tileAt(tx, ty) === 'water')) return heading;
     return null;
+}
+
+function boatHasChannel(x,y,tileAt) {
+    const queue=[[x,y]];
+    const seen=new Set([y*Farlands.size+x]);
+    for(const [wx,wy] of queue){
+        if(Math.hypot(wx-x,wy-y)>=8)return true;
+        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+            const nx=wx+dx,ny=wy+dy,key=ny*Farlands.size+nx;
+            if(nx<0||ny<0||nx>=Farlands.size||ny>=Farlands.size||seen.has(key))continue;
+            seen.add(key);
+            if(tileAt(nx,ny)==='water')queue.push([nx,ny]);
+        }
+    }
+    return false;
 }
 
 function keepPlayerOnWalkableTile(terrainChanged) {
@@ -3014,7 +3041,8 @@ function renderWorld() {
 
 function renderAllEntities() {
     const worldGrid = document.getElementById('worldGrid');
-    if (ebFarlands.surface()) for (const {kind,x,y} of [...Farlands.restProps.values(), ...(sharedWorld.active() ? [] : Farlands.villagePropsNear(gameState.player.x,gameState.player.y))]) { // R15.56: street furniture in the 2D view
+    if (ebFarlands.surface()) for (const {kind,x,y,soloOnly} of [...Farlands.authoredProps.values(), ...(sharedWorld.active() ? [] : Farlands.villagePropsNear(gameState.player.x,gameState.player.y))]) { // R15.56: street furniture in the 2D view
+        if (soloOnly && sharedWorld.active()) continue;
         if (Math.abs(x-gameState.player.x)>48 || Math.abs(y-gameState.player.y)>48) continue;
         const prop = document.createElement('span');
         prop.className = 'eb-room-prop';
@@ -3771,11 +3799,12 @@ function interact() {
             return;
         }
     }
-    const prop = ebFarlands.surface() && Farlands.propNear(gameState.player.x, gameState.player.y);
+    const prop = ebFarlands.surface() && Farlands.propNear(gameState.player.x, gameState.player.y, !sharedWorld.active());
     if (prop) { // R15.56: the well, the signpost, the stall, the shrine
         document.getElementById('modalTitle').textContent = prop.name;
+        const note=ebRpgQuests.onProp(prop);
         document.getElementById('modalContent').innerHTML = `<div style="font-size: 32px; margin-bottom: 20px;">${streetPropIcons[prop.kind]}</div>
-            <p style="line-height: 1.6;">${escapeMapText(prop.text)}</p>`;
+            <p style="line-height: 1.6;">${escapeMapText(prop.text)}</p>${note ? '<p role="status">'+escapeMapText(note)+'</p>' : ''}`;
         document.getElementById('interactionModal').style.display = 'flex';
         return;
     }
@@ -4941,6 +4970,27 @@ function findWalkRoute(targetX, targetY) {
     return [];
 }
 
+// Handle a stationary primary touch on release. Some touch drivers suppress the
+// compatibility click after a swipe even when the next pointer sequence is a tap.
+function groundTap(target,onTap) {
+    let start=null;
+    target.addEventListener('pointerdown',event=>{
+        if(event.pointerType!=='touch')return;
+        start=event.isPrimary ? {id:event.pointerId,x:event.clientX,y:event.clientY} : null;
+    });
+    const moved=event=>Math.hypot(event.clientX-start.x,event.clientY-start.y)>10;
+    target.addEventListener('pointermove',event=>{
+        if(start?.id===event.pointerId && moved(event))start=null;
+    });
+    target.addEventListener('pointerup',event=>{
+        if(event.pointerType!=='touch')return;
+        const accepted=start?.id===event.pointerId && !moved(event);
+        start=null;
+        if(accepted && ebFarlands.surface() && !sharedWorld.active())onTap(event);
+    });
+    target.addEventListener('pointercancel',()=>{start=null;});
+}
+
 function walkTo(x, y, then = null) {
     if (movementBlocked()) return false;
     releaseMovement();
@@ -5051,10 +5101,14 @@ function setupMobileControls() {
         button.addEventListener('contextmenu', event => event.preventDefault());
     }
 
-    document.getElementById('worldGrid').addEventListener('click', event => {
-        if (!classicView() || event.pointerType === 'touch' || event.button !== 0 ||
-            !event.target.classList.contains('tile')) return;
-        walkTo(Math.round(parseFloat(event.target.style.left) / 32), Math.round(parseFloat(event.target.style.top) / 32));
+    const grid=document.getElementById('worldGrid');
+    const walkToTile=event=>{
+        if(!classicView() || event.button!==0 || !event.target.classList.contains('tile'))return;
+        walkTo(Math.round(parseFloat(event.target.style.left)/32),Math.round(parseFloat(event.target.style.top)/32));
+    };
+    groundTap(grid,walkToTile);
+    grid.addEventListener('click',event=>{
+        if(event.pointerType!=='touch')walkToTile(event);
     });
 }
 
@@ -5063,6 +5117,7 @@ function setupMobileControls() {
 // Adventure snapshots are device-local, with one slot for each Smaran public key and one for guests.
 const mapGroups = ['buildings', 'npcs', 'enemies', 'items', 'areas'];
 const saveVersion = 1;
+const farlandsSaveVersion = 2;
 
 function validateAdventureMap(map) {
     if (!map || typeof map !== 'object') throw new Error('A map object is required.');
@@ -5149,6 +5204,9 @@ function loadAdventure(slot) {
     if (!raw) return false;
     const save = JSON.parse(raw);
     if (save?.version !== saveVersion) throw new Error('This save uses a different game version.');
+    if (save.farlands != null && ![1, farlandsSaveVersion].includes(save.farlands.version)) {
+        throw new Error('This Farlands journey uses a different save version.');
+    }
     validateAdventureMap(save.map);
     const fields = (source, current) => {
         if (!source || typeof source !== 'object') throw new Error('The saved adventure is incomplete.');
@@ -5167,6 +5225,12 @@ function loadAdventure(slot) {
     if (player.x < 0 || player.x >= save.map.width || player.y < 0 || player.y >= save.map.height ||
         !Number.isInteger(save.sailingMoves) || save.sailingMoves < 0 || save.sailingMoves > 15) {
         throw new Error('The saved position is outside this map.');
+    }
+    if (save.farlands?.version === 1) {
+        save.farlands = ebFarlands.migrateCoast(save.farlands);
+        // Commit the recovery copy before applying new terrain or allowing an autosave.
+        const backup = slot + '/before-farlands-v2';
+        if (localStorage.getItem(backup) !== raw) localStorage.setItem(backup,raw);
     }
     gameState.inventory = inventory;
     gameState.stats = stats;
@@ -9028,10 +9092,17 @@ const EternalBlissArt = (() => {
     // tile and door, and is drawn as a farmhouse with a silo instead of a keep; `regional` gives houses their region's walls
     // (Hearthmere keeps the stone it had) and Lanternreach houses a pair of door lanterns.
     const REGION_WALLS = {alder:0x9b7b5a, rime:0xd3d8d2, iron:0xa7a698, amber:0xe7dfcb, salt:0xd4ae78, reed:0xc2ae80, ember:0x9d8a76, lantern:0xd9cdb5};
+    const regionalExteriors = new Map();
     function building(kind, variant, footprint = null, region, authoredRest = false, style = null) {
         if(authoredRest && kind==='inn')return authoredInn(footprint);
         if(authoredRest && kind==='shop')return authoredExchange(footprint);
         if(authoredRest && kind==='temple')return authoredChapel(footprint);
+        const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
+        const key = style?.regional && [kind,region,across,deep,style.farmstead,style.hall,region?'':variant%3].join(':');
+        if(key && regionalExteriors.has(key)){
+            const model=regionalExteriors.get(key);
+            return {...model,group:model.group.clone(true)};
+        }
         const group = new T.Group();
         const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
             amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
@@ -9155,17 +9226,20 @@ const EternalBlissArt = (() => {
             castle:[1.56,1.46,1.92], temple:[1.31,1.42,1.63],
             inn:[1.41,1.06,1.33], shop:[1.41,1.06,1.33]
         }[kind === 'house' && (footprint?.w ?? 1) > 1 ? 'shop' : kind] ?? [1.11,1.06,1.33];
-        const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
+        const exterior=key?bakeArchitecture(group):group;
         if (across === 1 && deep === 1) {
             // Extend eaves within the clearance of adjacent walkable tile centers.
             const size = kind === 'house' ? 1.18 : 1.22;
-            group.scale.set(.98*size/width,size,.96*size/depth);
+            exterior.scale.set(.98*size/width,size,.96*size/depth);
         } else {
             // Over several tiles: the same eaves margin around the footprint, and height in proportion to the ground size.
             const sx = .98*(across+.22)/width, sz = .96*(deep+.22)/depth;
-            group.scale.set(sx,Math.sqrt(sx*sz)*(style?.hall ? .85 : 1),sz);
+            exterior.scale.set(sx,Math.sqrt(sx*sz)*(style?.hall ? .85 : 1),sz);
         }
-        return { group,height,width,depth };
+        const model={group:exterior,height,width,depth};
+        if(!key)return model;
+        regionalExteriors.set(key,model);
+        return {...model,group:exterior.clone(true)};
     }
 
     function landmark(kind, footprint = null) {
@@ -9200,6 +9274,18 @@ const EternalBlissArt = (() => {
             for (const x of [-.24,.24]) box(group,.09,.66,.14,wood,x,.39,.29);
             stone(group,.26,0x908976,.29,.76,-.18,1,.6,1.15);
             stone(group,.19,0x84796a,-.31,.19,.37,1,.7,1.14);
+        } else if (kind==='orchard-belfry') {
+            box(group,.76,.13,.68,stoneColor,0,.13);
+            for(const x of [-.29,.29])for(const z of [-.23,.23]){
+                box(group,.11,1.01,.11,wood,x,.69,z);
+                box(group,.15,.19,.15,stoneColor,x,.26,z);
+            }
+            box(group,.84,.10,.66,0x62412e,0,1.24);
+            roof(group,.94,.86,1.25,.26,0x984b38);
+            cylinder(group,.088,.16,.21,12,0xa57537,0,1.05);
+            cylinder(group,.17,.16,.04,12,0xc79b52,0,.94);
+            cylinder(group,.032,.032,.09,8,0x594032,0,.89);
+            height=1.53;
         } else if (kind==='wreck') {
             stone(group,.45,0x765c42,0,.30,0,.77,.45,1.08);
             box(group,.065,.80,.063,0x8c7658,0,.60,-.08).rotation.z=.28;
@@ -9574,6 +9660,7 @@ window.addEventListener('load', () => {
     const tileTop = .055;
     const seaLevel = -.19;
     const chunkSize = 8;
+    const terrainPatchSize = 24;
     const colors = {
         grass: 0x709650, forest: 0x557849, mountain: 0x848775,
         sand: 0xbcac78, road: 0xa39777, door: 0x77644c,
@@ -9688,17 +9775,19 @@ window.addEventListener('load', () => {
                 'varying vec2 surface;',
                 'void main(){',
                 '  vec2 p = surface;',
+                '  float horizonFade = eyeBlend*smoothstep(18.0,41.0,distance(surface,eyeOrigin));',
+                '  vec3 color = horizonColor;',
+                '  if(horizonFade < 1.0){',
                 '  float swell = sin(p.x*.58+p.y*.71-time*.48) * sin(p.y*.43-p.x*.20+time*.31);',
                 '  float detail = sin(p.x*4.8+p.y*2.6+sin(p.y*1.2+time*.6)*1.4-time*1.5);',
                 '  float crosswave = sin(p.y*2.2-p.x*2.1+sin(p.x*.72-time*.4)-time*.6);',
                 '  float glint = pow(max(0.0, detail*.54 + crosswave*.46), 10.0);',
-                '  vec3 color = mix(dark,pale,clamp(.43 + swell*.26 + detail*.028,0.,1.));',
+                '  color = mix(dark,pale,clamp(.43 + swell*.26 + detail*.028,0.,1.));',
                 '  color += vec3(.35,.31,.19)*glint*.28;',
                 // In FP, fade only distant ocean into the ACTUAL time-of-day sky.
                 // Near water, rivers and sailing remain unchanged.
-                '  float distanceFromEye = distance(surface,eyeOrigin);',
-                '  float horizonFade = eyeBlend*smoothstep(18.0,41.0,distanceFromEye);',
                 '  color = mix(color,horizonColor,horizonFade);',
+                '  }',
                 '  gl_FragColor = vec4(color,1.0);',
                 '  #include <tonemapping_fragment>',
                 '  #include <encodings_fragment>',
@@ -9708,6 +9797,8 @@ window.addEventListener('load', () => {
         const mesh = new T.Mesh(new T.PlaneGeometry(240, 240), shader);
         mesh.rotation.x = -Math.PI / 2;
         mesh.position.y = seaLevel;
+        // Draw opaque terrain first so land occludes water before its fragment shader runs.
+        mesh.renderOrder = 1;
         return mesh;
     }
 
@@ -9811,6 +9902,14 @@ window.addEventListener('load', () => {
                 block(.24,1.22,0,.56,.13,.04,0xd9c08a);
                 block(-.22,1.04,0,.50,.13,.04,0xcfb47c,.5);
                 block(.06,.86,.20,.50,.13,.04,0xd9c08a,-1.25);
+                if(prop.cloth!==undefined){
+                    block(.37,.92,.03,.17,.48,.04,prop.cloth);
+                    post(-.25,.10,.24,.18,.20,0x9a714d);
+                    if(prop.cloth===0xeee4c8){
+                        for(const [dx,dz] of [[-.31,.19],[-.19,.20],[-.24,.31]])
+                            round(dx,.23,dz,.075,.075,.075,0xa83e2f);
+                    }
+                }
                 round(0,.06,0,.17,.07,.17,0x8f8a78);
                 break;
             case 'lamp':
@@ -9912,6 +10011,10 @@ window.addEventListener('load', () => {
             this.eyeMode = false;
             this.mobile = matchMedia('(pointer: coarse), (max-width: 768px)').matches;
             this.renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: this.mobile ? 'default' : 'high-performance' });
+            const gl = this.renderer.getContext();
+            const debug = gl.fenceSync && gl.getExtension('WEBGL_debug_renderer_info');
+            this.swiftShader = Boolean(debug && /SwiftShader/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)));
+            this.frameFence = null;
             this.renderer.outputEncoding = T.sRGBEncoding;
             this.renderer.toneMapping = T.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.09;
@@ -9974,20 +10077,30 @@ window.addEventListener('load', () => {
 
             this.hero = art.humanoid('hero');
             this.ship = art.boat();
+            this.shipGhostParts = [];
+            this.ship.traverse(node=>{
+                if(!node.isMesh || !node.material)return;
+                const opaque=node.material;
+                const ghost=opaque.clone();
+                ghost.transparent=true;
+                ghost.opacity=.20;
+                ghost.depthWrite=false;
+                this.shipGhostParts.push({node,opaque,ghost});
+            });
             this.scene.add(this.hero.group, this.ship);
             // R15.32: disembarked vessel stays moored where the player left it.
             this.parkedShip = art.boat();
             this.parkedShip.visible = false;
             this.scene.add(this.parkedShip);
-            // R15.21: two dockside vessels in SOLO Farlands, visual only.
-            // Do not modify movement, collision, world tiles, persistence or MagicBlock.
-            this.harborVessels = ['amber','lantern','reed'].map((id,index)=>{
+            // Solo dockside boats share the sailing hull geometry, with extra scale per port.
+            this.harborVessels = ['amber','lantern','reed','settlement-lantern-0'].map((id,index)=>{
                 const station=Farlands.byId.get(id);
                 const model=art.boat();
-                model.scale.setScalar(index===0?1.35:index===1?1.15:.85);
+                const hullScale=[1.35,1.15,.85,.85][index];
+                model.scale.multiplyScalar(hullScale);
                 model.visible=false;
                 this.scene.add(model);
-                return {id,station,model,position:null};
+                return {id,station,model,hullScale,position:null};
             });
             // R15.28: deterministic shoreline moorings in streamed local cells.
             // No saved schema, random runtime churn, or full-world scan.
@@ -10085,7 +10198,13 @@ window.addEventListener('load', () => {
             this.resize();
             this.observer = new ResizeObserver(() => this.resize());
             this.observer.observe(world);
-            canvas.addEventListener('click', event => this.pick(event));
+            const soloGroundTouch=()=>this.active&&!this.eyeMode&&ebFarlands.surface()&&!sharedWorld.active();
+            groundTap(canvas,event=>{
+                if(soloGroundTouch())this.pick(event,true);
+            });
+            canvas.addEventListener('click',event=>{
+                if(event.pointerType!=='touch'||!soloGroundTouch())this.pick(event);
+            });
             canvas.addEventListener('pointermove', event => {
                 if (event.pointerType !== 'mouse') return;
                 const record = this.aim(event);
@@ -10153,26 +10272,137 @@ window.addEventListener('load', () => {
                 if (this.room) this.scene.add(this.roomDecor);
             }
             const radius = Math.max(this.eyeMode ? (this.mobile ? 48 : 60) : (this.mobile ? 17 : 25), this.visibleRadius() + 2);
-            const x0 = Math.floor(gameState.player.x / chunkSize) * chunkSize - radius;
-            const z0 = Math.floor(gameState.player.y / chunkSize) * chunkSize - radius;
             const width = gameState.world.width;
             const height = gameState.world.height;
+            if (ebFarlands.surface() && !sharedWorld.active() && !this.room) {
+                this.planTerrainPatches(radius, width, height);
+                return;
+            }
+
+            const x0 = Math.floor(gameState.player.x / chunkSize) * chunkSize - radius;
+            const z0 = Math.floor(gameState.player.y / chunkSize) * chunkSize - radius;
             const left = Math.max(0, x0);
             const top = Math.max(0, z0);
             const right = Math.min(width, x0 + radius * 2 + chunkSize);
             const bottom = Math.min(height, z0 + radius * 2 + chunkSize);
             const signature = [left, top, right, bottom, minimapTerrainRevision, buildingFootprintRevision, worldClimate.season, this.eyeMode].join(',');
-            if (signature === this.terrainSignature) return;
-
+            if (!this.terrainPatches && signature === this.terrainSignature) return;
+            this.terrainPatches = null;
+            this.terrainQueue = [];
             this.terrainSignature = signature;
+            this.replaceLand(this.buildTerrain(left, top, right, bottom));
+        }
+
+        disposeTerrainMesh(mesh) {
+            if (mesh.isInstancedMesh) mesh.dispose();
+            if (!mesh.isInstancedMesh || mesh.userData.terrainPrototype) mesh.geometry.dispose();
+        }
+
+        replaceLand(land) {
             if (this.land) {
                 this.scene.remove(this.land);
-                this.land.children.forEach(mesh => {
-                    if (mesh.isInstancedMesh) mesh.dispose();
-                    else mesh.geometry.dispose();
-                });
+                for (const mesh of this.land.children) this.disposeTerrainMesh(mesh);
             }
+            this.land = land;
+            this.scene.add(land);
+        }
 
+        planTerrainPatches(radius, width, height) {
+            const size = terrainPatchSize;
+            const {x, y} = gameState.player;
+            const signature = [minimapTerrainRevision, worldClimate.season].join(',');
+            const reset = !this.terrainPatches || this.terrainMap !== worldMap || this.terrainStyle !== signature;
+            if (reset) {
+                this.terrainMap = worldMap;
+                this.terrainStyle = signature;
+                this.terrainPatches = new Map();
+                this.replaceLand(new T.Group());
+            }
+            const keyAt = (x,z) => Math.floor(z/size)*width + Math.floor(x/size);
+            const wanted = new Map();
+            // Begin preparing the next patches outside the normal draw radius.
+            // Keep the previous rim until the new one is ready.
+            const margin = 8;
+            for (let z = Math.max(0, Math.floor((y-radius-margin)/size)*size); z < Math.min(height, y+radius+margin+1); z += size) {
+                for (let x0 = Math.max(0, Math.floor((x-radius-margin)/size)*size); x0 < Math.min(width, x+radius+margin+1); x0 += size) {
+                    const draw = x0 < x+radius+1 && x0+size > x-radius &&
+                        z < y+radius+1 && z+size > y-radius;
+                    wanted.set(keyAt(x0,z), {x:x0,z,draw});
+                }
+            }
+            const dirty = reset ? new Set() : this.dirtyTerrainPatches;
+            if (!reset && this.terrainFootprintRevision !== buildingFootprintRevision) {
+                for (const tile of this.terrainFootprints)
+                    if (!buildingFootprints.has(tile)) {
+                        const key=keyAt(tile % width, Math.floor(tile / width));
+                        if(this.terrainPatches.has(key))dirty.add(key);
+                    }
+                for (const tile of buildingFootprints)
+                    if (!this.terrainFootprints.has(tile)) {
+                        const key=keyAt(tile % width, Math.floor(tile / width));
+                        if(this.terrainPatches.has(key))dirty.add(key);
+                    }
+            }
+            this.terrainFootprintRevision = buildingFootprintRevision;
+            this.terrainFootprints = buildingFootprints;
+            const planned = [...wanted.entries()];
+            this.terrainSignature = signature + ':' + planned[0]?.[0] + ':' + planned.at(-1)?.[0];
+            this.terrainWanted = wanted;
+            this.dirtyTerrainPatches = dirty;
+            for (const [key, position] of wanted) {
+                if (position.draw) for (const mesh of this.terrainPatches.get(key) || []) mesh.visible = true;
+            }
+            this.terrainQueue = planned.filter(([key]) => !this.terrainPatches.has(key) || dirty.has(key))
+                .map(([key, position]) => ({key, ...position}))
+                .sort((a,b) => Number(b.draw)-Number(a.draw) ||
+                    Math.hypot(a.x+size/2-x,a.z+size/2-y) - Math.hypot(b.x+size/2-x,b.z+size/2-y));
+            // A new map or teleport needs a complete surface before its first frame.
+            const hasPlayer = this.terrainPatches.has(keyAt(x,y));
+            const widerView = radius > (this.terrainDrawRadius ?? 0);
+            this.terrainDrawRadius = radius;
+            if (reset || !hasPlayer || widerView) {
+                while (this.terrainQueue[0]?.draw) this.streamTerrain();
+            } else if (!this.terrainQueue.length) this.trimTerrainPatches();
+        }
+
+        streamTerrain() {
+            if (!this.terrainQueue?.length) return;
+            const {key,x,z} = this.terrainQueue.shift();
+            const {width,height} = gameState.world;
+            const patch = this.buildTerrain(x, z, Math.min(x+terrainPatchSize,width), Math.min(z+terrainPatchSize,height), true);
+            const meshes = [...patch.children];
+            for (const mesh of this.terrainPatches.get(key) || []) {
+                this.land.remove(mesh);
+                this.disposeTerrainMesh(mesh);
+            }
+            for (const mesh of meshes) {
+                mesh.visible = this.terrainWanted.get(key).draw;
+                this.land.add(mesh);
+            }
+            this.dirtyTerrainPatches.delete(key);
+            this.terrainPatches.set(key, meshes);
+            this.land.geometryRevision = (this.land.geometryRevision || 0) + 1;
+            if (!this.terrainQueue.length) this.trimTerrainPatches();
+        }
+
+        trimTerrainPatches() {
+            for (const [key, meshes] of this.terrainPatches) {
+                const position = this.terrainWanted.get(key);
+                if (position) {
+                    for (const mesh of meshes) mesh.visible = position.draw;
+                    continue;
+                }
+                for (const mesh of meshes) {
+                    this.land.remove(mesh);
+                    this.disposeTerrainMesh(mesh);
+                }
+                this.terrainPatches.delete(key);
+                this.dirtyTerrainPatches.delete(key);
+            }
+        }
+
+        buildTerrain(left, top, right, bottom, partitioned = false) {
+            const width = gameState.world.width;
             const positions = [], tints = [], uvs = [];
             const shorePositions = [], shoreTints = [], shoreUvs = [];
             const logs = [], leaves = [], canopies = [], stones = [], sprouts = [], lanterns = [], roomBlocks = [], glows = [];
@@ -10258,7 +10488,7 @@ window.addEventListener('load', () => {
                         ], surfColor, shorePositions, shoreTints, shoreUvs);
                     }
                     // R15.56: street furniture of an authored village, built from the same scenery pieces as the trees
-                    const prop = streamed && !this.room && (Farlands.propAt(x,z) || (!sharedWorld.active() && Farlands.villagePropAt(x,z)));
+                    const prop = streamed && !this.room && (Farlands.propAt(x,z,!sharedWorld.active()) || (!sharedWorld.active() && Farlands.villagePropAt(x,z)));
                     if (prop) { streetProp(prop, {logs, leaves, stones, sprouts, lanterns, roomBlocks, glows}, season, tileTop); continue; }
                     // A building's tiles keep only their ground: no tree, rock or lantern grows through its walls.
                     if (!this.room && buildingFootprints.has(z * width + x)) continue;
@@ -10356,21 +10586,41 @@ window.addEventListener('load', () => {
                 }
             }
 
-            this.land = new T.Group();
-            this.land.add(makeSurface(this.ground, positions, tints, uvs));
-            if (shorePositions.length) this.land.add(makeSurface(this.shallowsMaterial, shorePositions, shoreTints, shoreUvs));
+            const land = new T.Group();
+            if (positions.length) land.add(makeSurface(this.ground, positions, tints, uvs));
+            if (shorePositions.length) land.add(makeSurface(this.shallowsMaterial, shorePositions, shoreTints, shoreUvs));
             for (const [geometry, batch, shadow] of [
                 [this.trunk, logs, true], [this.crown, leaves, true], [this.canopy, canopies, true],
                 [this.rock, stones, true], [this.crown, sprouts, false], [this.roomBlock, roomBlocks, true]
             ]) {
-                const mesh = instanced(geometry, this.terrainMaterial, batch, shadow);
-                if (mesh) this.land.add(mesh);
+                if (!partitioned) {
+                    const mesh = instanced(geometry, this.terrainMaterial, batch, shadow);
+                    if (mesh) land.add(mesh);
+                    continue;
+                }
+                if (!batch.length) continue;
+                if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+                const primitive = geometry.boundingSphere;
+                const extent = primitive.radius + primitive.center.length();
+                const bounds = new T.Box3(), point = new T.Vector3();
+                for (const [x,y,z,sx,sy,sz] of batch) {
+                    const r = extent * Math.max(sx,sy,sz);
+                    bounds.expandByPoint(point.set(x-r,y-r,z-r));
+                    bounds.expandByPoint(point.set(x+r,y+r,z+r));
+                }
+                // The bundled Three.js uses geometry bounds for both camera and shadow frusta.
+                const patchGeometry = geometry.clone();
+                patchGeometry.boundingSphere = bounds.getBoundingSphere(new T.Sphere());
+                const mesh = instanced(patchGeometry, this.terrainMaterial, batch, shadow);
+                mesh.userData.terrainPrototype = geometry;
+                mesh.frustumCulled = true;
+                land.add(mesh);
             }
             const lamps = instanced(this.lanternGlass, this.lanternMaterial, lanterns, false);
-            if (lamps) this.land.add(lamps);
+            if (lamps) land.add(lamps);
             const pools = instanced(this.glowDisc, this.glowMaterial, glows, false);
-            if (pools) { pools.receiveShadow = false; pools.renderOrder = 2; this.land.add(pools); }
-            this.scene.add(this.land);
+            if (pools) { pools.receiveShadow = false; pools.renderOrder = 2; land.add(pools); }
+            return land;
         }
 
         actorTitle(record) {
@@ -10405,7 +10655,8 @@ window.addEventListener('load', () => {
                         // landmark flag (and its footprint); it is drawn as the farmhouse it is. Flag, footprint, collision
                         // and door are unchanged.
                         if (kind === 'building') model = data.realmId && data.landmark && !(/ Farmstead$/.test(data.name) && ebFarlands.surface() && !sharedWorld.active()) ?
-                            art.landmark(data.landmark, buildingFootprint(data)) :
+                            art.landmark(data.realmId==='orchard-structure' && ebFarlands.surface() && !sharedWorld.active()
+                                ? 'orchard-belfry' : data.landmark, buildingFootprint(data)) :
                             art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
                                 ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'||data.realmId==='rest-service-2'),
                                 ebFarlands.surface() && !sharedWorld.active() && data.realmId ? {farmstead:/ Farmstead$/.test(data.name), regional:true, hall:data.realmId==='rest-service-3'} : null);
@@ -10721,9 +10972,10 @@ window.addEventListener('load', () => {
         // copies of their materials). Both come back when the battle ends. Something in front reaches up over the
         // fighters on screen when it stands closer to the camera than about 1.13 times its height.
         clearCombatView(c,rest) {
-            if (c.land===this.land) return;
+            if (c.land===this.land && c.landRevision===this.land?.geometryRevision) return;
             this.restoreCombatView(c);
             c.land=this.land;
+            c.landRevision=this.land?.geometryRevision;
             const T=THREE, m=new T.Matrix4(), p=new T.Vector3(), none=new T.Matrix4().makeScale(0,0,0);
             const across=c.eye ? new T.Vector3(c.dir.z,0,-c.dir.x) : new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2);
             const toward=c.eye ? c.dir : new T.Vector3(Math.SQRT1_2,0,Math.SQRT1_2);
@@ -10747,7 +10999,8 @@ window.addEventListener('load', () => {
             }
             if (!this.land) return;
             for (const mesh of this.land.children) {
-                if (!mesh.isInstancedMesh || (mesh.geometry!==this.trunk && mesh.geometry!==this.crown && mesh.geometry!==this.canopy)) continue;
+                const geometry = mesh.userData.terrainPrototype || mesh.geometry;
+                if (!mesh.isInstancedMesh || (geometry!==this.trunk && geometry!==this.crown && geometry!==this.canopy)) continue;
                 let changed=false;
                 for (let i=0;i<mesh.count;i++) {
                     mesh.getMatrixAt(i,m);
@@ -10955,18 +11208,24 @@ window.addEventListener('load', () => {
             const kit = this.ebPropKit ??= (() => {
                 const mat = c => new T.MeshLambertMaterial({ color: c });
                 return { handle: new T.BoxGeometry(.026, .46, .026), blade: new T.BoxGeometry(.13, .035, .06), bundle: new T.BoxGeometry(.15, .1, .11),
+                    malletHead: new T.BoxGeometry(.17, .08, .08), malletGrip: new T.BoxGeometry(.026, .22, .026),
                     bucket: new T.CylinderGeometry(.055, .045, .095, 8), tray: new T.BoxGeometry(.3, .022, .19),
                     wood: mat(0x8a6240), iron: mat(0x7d8a88), cloth: mat(0xc9a96b), pail: mat(0x6f7f86), plate: mat(0xb08a5a) };
             })();
             const hand = model.arms[1] ?? model.arms[0];
             const hoe = new T.Group(), handle = new T.Mesh(kit.handle, kit.wood), blade = new T.Mesh(kit.blade, kit.iron);
             handle.position.y = -.12; blade.position.set(0, -.34, .05); hoe.add(handle, blade); hoe.position.set(.02, -.2, .02);
+            const mallet = new T.Group();
+            const grip = new T.Mesh(kit.malletGrip, kit.wood), head = new T.Mesh(kit.malletHead, kit.wood);
+            head.position.y = -.13;
+            mallet.add(grip, head);
+            mallet.position.set(.02, -.21, .03);
             const bundle = new T.Mesh(kit.bundle, kit.cloth); bundle.position.set(.02, -.25, .04);
             const bucket = new T.Mesh(kit.bucket, kit.pail); bucket.position.set(.02, -.27, 0);
             const tray = new T.Mesh(kit.tray, kit.plate); tray.position.set(0, .4, .2);
-            for (const prop of [hoe, bundle, bucket, tray]) prop.scale.setScalar(1.4); // readable at the normal zoom
-            hand.add(hoe, bundle, bucket); model.body.add(tray);
-            model.ebProps = { hoe, bundle, bucket, tray };
+            for (const prop of [hoe, mallet, bundle, bucket, tray]) prop.scale.setScalar(1.4); // readable at the normal zoom
+            hand.add(hoe, mallet, bundle, bucket); model.body.add(tray);
+            model.ebProps = { hoe, mallet, bundle, bucket, tray };
             for (const prop of Object.values(model.ebProps)) prop.visible = false;
             return model.ebProps;
         }
@@ -11001,7 +11260,7 @@ window.addEventListener('load', () => {
             const body = model.body, arms = model.arms;
             if (!body || !arms?.length) return;
             const holding = act && (data.walkingUntil ?? 0) < performance.now() ?
-                { work: 'hoe', trade: 'bundle', tend: 'bucket', serve: 'tray' }[act.kind] : null;
+                { work: 'hoe', repair: 'mallet', trade: 'bundle', tend: 'bucket', serve: 'tray', harvest: 'bucket', sortCatch: 'bundle' }[act.kind] : null;
             if (holding || model.ebProps) {
                 const props = this.activityProps(model);
                 for (const [name, prop] of Object.entries(props)) prop.visible = name === holding;
@@ -11019,6 +11278,9 @@ window.addEventListener('load', () => {
                 switch (act.kind) {
                     // R17: the whole body works, not only the arms: a stroke bends the back, herding is done stooped
                     case 'work':   set(-.9+wave(3.2,.55), -.9+wave(3.2,.55)); lean = .2+wave(3.2,.12,-.6); break;
+                    case 'repair': set(-.65, -.95+wave(4.8,.51)); lean = .22; break;
+                    case 'harvest': set(-.35+wave(1.8,.2), -.95+wave(1.8,.35)); lean = .28+wave(1.8,.1); break;
+                    case 'sortCatch': set(-.95+wave(2.4,.3), -.95+wave(2.4,.3,2.4)); lean = .16; break;
                     case 'tend':   set(-.75+wave(1.6,.2), -.65+wave(1.6,.2,.6)); lean = .38; break;
                     case 'trade':  set(-1.15+wave(1.4,.08), -.2); break;                           // goods held out
                     case 'browse': set(-.25, -.25); break;
@@ -11331,7 +11593,7 @@ window.addEventListener('load', () => {
 
         }
 
-        pick(event) {
+        pick(event, groundInput = event.pointerType!=='touch') {
             if(this.eyeMode){
                 if(performance.now()<(this.suppressEyeClickUntil||0))return;
                 this.useEyeTarget();
@@ -11375,7 +11637,7 @@ window.addEventListener('load', () => {
             const crowd = hit?.kind === 'npc' ? this.crowdAt(hit) : [];
             if (crowd.length > 1) ebChoosePerson(crowd);
             else if (hit) this.activate(hit);
-            else if (this.active && event.pointerType !== 'touch' && event.button === 0 &&
+            else if (this.active && groundInput && event.button === 0 &&
                 this.ray.ray.intersectPlane(this.walkPlane, this.groundHit)) {
                 walkTo(Math.round(this.groundHit.x), Math.round(this.groundHit.z));
             }
@@ -11468,6 +11730,7 @@ window.addEventListener('load', () => {
                 }
             }
 
+            this.streamTerrain();
             const player = gameState.player;
             const afloat = gameState.sailingMoves > 0;
             const bob = this.reduced ? 0 : Math.sin(time * 2.7) * .045;
@@ -11604,7 +11867,11 @@ window.addEventListener('load', () => {
                         // re-chosen near the player each time the cell came back into range, so a boat the player had
                         // taken reappeared at a new spot beside the one parked elsewhere.
                         if(!this.mooringSpots)this.mooringSpots=new Map();
-                        if(this.mooringSpots.has(id)){wanted.set(id,this.mooringSpots.get(id));continue;}
+                        if(this.mooringSpots.has(id)){
+                            const position=this.mooringSpots.get(id);
+                            if(position)wanted.set(id,position);
+                            continue;
+                        }
                         const startX=ax*80,startY=az*80;
                         let best=null,bestScore=Infinity;
                         for(let oy=2;oy<78;oy+=2)for(let ox=2;ox<78;ox+=2){
@@ -11620,9 +11887,10 @@ window.addEventListener('load', () => {
                             const score=(hash^Math.imul(ox*131+oy+7,2654435761))>>>0;
                             if(score>=bestScore)continue;
                             const heading=boatFitsWater(x,y,Farlands.sample);
-                            if(heading!==null){best={x,y,heading};bestScore=score;}
+                            if(heading!==null&&boatHasChannel(x,y,Farlands.sample)){best={x,y,heading};bestScore=score;}
                         }
-                        if(best){wanted.set(id,best);this.mooringSpots.set(id,best);}
+                        this.mooringSpots.set(id,best);
+                        if(best)wanted.set(id,best);
                     }
                     for(const [id,v] of this.coastalBoats)if(!wanted.has(id)){
                         this.scene.remove(v.model);this.coastalBoats.delete(id);
@@ -11650,11 +11918,17 @@ window.addEventListener('load', () => {
                 if(vessel.position===null){
                     // R15.58: the nearest water where the whole (scaled) hull floats, not just its centre tile.
                     let closest=null, distance=Infinity;
-                    for(let dy=-24;dy<=24;dy+=2) for(let dx=-24;dx<=24;dx+=2){
+                    const dock=Farlands.coastalDocks[vessel.id];
+                    if(dock){
+                        const [x,y]=dock.water;
+                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.hullScale);
+                        if(heading!==null)closest={x,y,heading};
+                    }
+                    for(let dy=-24;!dock&&dy<=24;dy+=2) for(let dx=-24;dx<=24;dx+=2){
                         const x=vessel.station.x+dx,y=vessel.station.y+dy;
                         const d=dx*dx+dy*dy;
                         if(d>=distance||Farlands.sample(x,y)!=='water')continue;
-                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.model.scale.x,[.35,.35+Math.PI/2,.35+Math.PI/4,.35-Math.PI/4]);
+                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.hullScale,[.35,.35+Math.PI/2,.35+Math.PI/4,.35-Math.PI/4]);
                         if(heading!==null){closest={x,y,heading};distance=d;}
                     }
                     vessel.position=closest||false; // searched once even when nothing fits
@@ -11853,30 +12127,33 @@ window.addEventListener('load', () => {
             // FP boat: retain the vessel/horse in the world but prevent near-field
             // sail/deck and horse from occupying the entire view.
             const boatEye=eyeEnabled&&afloat;
-            const boatParts=[];
-            if(boatEye){
-                this.ship.traverse(node=>{
-                    if(node.isMesh && node.material){
-                        boatParts.push([node,node.material,node.visible]);
-                        const mat=node.material.clone();
-                        mat.transparent=true;mat.opacity=.20;mat.depthWrite=false;
-                        node.material=mat;
-                    }
-                });
-                if(this.farlandsHorse.visible){
-                    this.farlandsHorse.visible=false;
-                    boatParts.push(['horse',true]);
-                }
-            }
+            const hideBoatHorse=boatEye&&this.farlandsHorse.visible;
+            if(boatEye)for(const {node,ghost} of this.shipGhostParts)node.material=ghost;
+            if(hideBoatHorse)this.farlandsHorse.visible=false;
             if(eyeEnabled){this.hero.group.visible=false;this.heroTag.hidden=true;}
-            this.renderer.render(this.scene,eyeEnabled?this.eyeCamera:this.camera);
-            if(boatEye)for(const part of boatParts){
-                if(part[0]==='horse'){this.farlandsHorse.visible=part[1];continue;}
-                part[0].material.dispose();part[0].material=part[1];part[0].visible=part[2];
-            }
+            this.renderFrame(eyeEnabled);
+            if(boatEye)for(const {node,opaque} of this.shipGhostParts)node.material=opaque;
+            if(hideBoatHorse)this.farlandsHorse.visible=true;
             if(eyeEnabled){this.hero.group.visible=heroWasVisible;this.heroTag.hidden=tagWasHidden;}
             if(mountedEye)this.farlandsHorse.visible=true;
             this.frame = requestAnimationFrame(next => this.draw(next));
+        }
+
+        renderFrame(eyeEnabled) {
+            const gl = this.renderer.getContext();
+            const paced = this.swiftShader && eyeEnabled && ebFarlands.inRealm() && !sharedWorld.active();
+            // Keep at most one first-person frame in flight on the software renderer.
+            // Camera, simulation, and input still advance even when a submission is deferred.
+            if (this.frameFence) {
+                if (paced && gl.clientWaitSync(this.frameFence, 0, 0) === gl.TIMEOUT_EXPIRED) return;
+                gl.deleteSync(this.frameFence);
+                this.frameFence = null;
+            }
+            this.renderer.render(this.scene, eyeEnabled ? this.eyeCamera : this.camera);
+            if (paced && !gl.isContextLost()) {
+                this.frameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+                if (this.frameFence) gl.flush();
+            }
         }
 
         setActive(active) {
@@ -11888,6 +12165,10 @@ window.addEventListener('load', () => {
                 this.resize();
                 this.draw(performance.now());
             } else {
+                if (this.frameFence) {
+                    this.renderer.getContext().deleteSync(this.frameFence);
+                    this.frameFence = null;
+                }
                 for (const effect of this.effects) effect.node.remove();
                 this.effects = [];
             }
@@ -13830,7 +14111,8 @@ const Farlands = (() => {
         const [dx,dy] = satelliteOffsets[j];
         return {id:'settlement-'+station.id+'-'+j,name,
             x:station.x+dx,y:station.y+dy,region:station.region,
-            story:name+' is a '+(j===0?'market town':j===1?'farming village':'rural hamlet')+
+            story:name==='Shellwick' ? 'Shellwick sorts the catch and trades shells from Pearl Banks. A short path from the market leads to the landing on the bay.' :
+                name+' is a '+(j===0?'market town':j===1?'farming village':'rural hamlet')+
                 ' where growers, herders and traders make their living.',
             services:[name+' Inn',name+' Market',name+' Gathering Hall',name+' Farmstead'],
             index:index*3+j,station:true,settlement:true,kind:j===0?'town':'village',radius:18};
@@ -13881,6 +14163,12 @@ const Farlands = (() => {
         {name:'Delta distributary',points:[[4990,6790],[4820,7160],[4636,7444],[4700,7630]],kind:'river'},
         {name:'Alderwash landings',points:[[2780,4538],[3340,4480],[3920,4480],[4590,4660],[5064,4864]],kind:'river'}
     ];
+    const coastalDocks = {
+        amber:{shore:[7653,3866],pier:[7654,3866],water:[7656,3866]},
+        lantern:{shore:[8496,8541],pier:[8496,8542],water:[8496,8544]},
+        'settlement-lantern-0':{shore:[8555,8581],pier:[8555,8582],water:[8555,8584]}
+    };
+    const pierTiles = new Set(Object.values(coastalDocks).map(({pier:[x,y]})=>y*size+x));
     const sites = [...stations,...landmarks,...settlements,...waterfrontSettlements];
     const byId = new Map(sites.map(site => [site.id,site]));
     const start = stations[0];
@@ -13943,7 +14231,25 @@ const Farlands = (() => {
     const alderwashY = x => 4500+110*Math.sin((x-2400)/570)-.11*(x-2425);
     const millCreekY = x => 4875+2.4*Math.sin((x-5064)/12);
     const deltaX = y => riverX(y)+(y-7140)*.35;
-    function natural(x,y) {
+    function coastalInlet(x,y) {
+        // A south-facing tidal bay on the Keys and a separate east-facing mainland ria.
+        // Both ellipses extend past the old shore. Their narrow heads leave the town cores dry.
+        if (x>8250 && x<9000 && y>8525 && y<9300) {
+            const along=y-.59*(x-8500);
+            const across=x-.40*(y-8550);
+            const westBank=8455+11*Math.sin((y-8560)/63);
+            return Math.min(ellipse(across,along,8500,8820,186,276)+.055*(noise(x,y,17,121)-.5),
+                (x-westBank)/45);
+        }
+        if (x>7639 && x<9650 && y>3400 && y<4520) {
+            const along=x-7650;
+            const across=y+.055*Math.min(along,100)-.15*Math.max(along-100,0)-21*Math.sin(along/240);
+            const width=Math.min(207,61+.175*along);
+            return ellipse(x,across,8575,3868,923,width)+.025*(noise(x,y,26,123)-.5);
+        }
+        return -1;
+    }
+    function natural(x,y,legacy=false) {
         const shoreNoise = .28*(noise(x,y,630,1)-.5)+.12*(noise(x,y,175,2)-.5)+.045*(noise(x,y,49,3)-.5);
         const land = Math.max(
             ellipse(x,y,4610,4710,4090,4170)-.10*Math.max(0,ellipse(x,y,8150,5740,1100,730)),
@@ -13954,7 +14260,8 @@ const Farlands = (() => {
             ellipse(x,y,8020,9230,340,225),
             ellipse(x,y,1000,7350,310,550)
         )+shoreNoise;
-        if (land<0) return 'water';
+        const inlet=legacy ? -1 : coastalInlet(x,y);
+        if (land<0 || inlet>0) return 'water';
         const river = riverX(y);
         const lake = Math.max(ellipse(x,y,5260,1770,210,170),ellipse(x,y,5570,4820,152,106),
             ellipse(x,y,2425,4500,205,140),ellipse(x,y,6700,6970,180,121));
@@ -13963,7 +14270,7 @@ const Farlands = (() => {
             (x>2425 && x<river && Math.abs(y-alderwashY(x))<12) ||
             (x>riverX(4875)-12 && x<5560 && Math.abs(y-millCreekY(x))<7) ||
             (y>7140 && y<8690 && Math.abs(x-deltaX(y))<13)) return 'water';
-        if (land<.047) return 'sand';
+        if (land<.047 || inlet>-.045) return 'sand';
         const region = regionAt(x,y);
         const stone = noise(x,y,215,6)*.75+noise(x,y,66,7)*.25;
         const growth = noise(x,y,128,8)*.62+noise(x,y,37,9)*.38;
@@ -14049,8 +14356,10 @@ const Farlands = (() => {
         const site = nearbySite(x,y);
         return Math.abs(x-site.x)<=11 && Math.abs(y-site.y)<=11;
     }
-    function baseSample(x,y) {
+    function baseSample(x,y,legacy=false) {
+        if (!legacy && pierTiles.has(y*size+x)) return 'road';
         if (trailAt(x,y)) return 'road';
+        if (!legacy && coastalInlet(x,y)>0) return 'water';
         if (farmlandAt(x,y)) return 'grass';
         const site = nearbySite(x,y);
         if (site) {
@@ -14061,7 +14370,7 @@ const Farlands = (() => {
             }
             if (!site.station && dx<=4 && dy<=3) return 'grass';
         }
-        return natural(x,y);
+        return natural(x,y,legacy);
     }
 
     // R15.56: Wayfarer's Rest is laid out by hand. The map's own generator gave every waystation the same template and
@@ -14081,8 +14390,8 @@ const Farlands = (() => {
     const restSquare = (dx,dy) => Math.abs(dx)<=3 && Math.abs(dy)<=2 &&
         !(dx===-3 && dy===-2) && !(dx===3 && dy===2) && !(dx===-3 && dy===2);
     const restTrees = new Set(['-8,-2','-8,2','8,2','7,-6','-8,-5','8,5']);
-    function sample(x,y) {
-        const base = baseSample(x,y);
+    function sample(x,y,legacy=false) {
+        const base = baseSample(x,y,legacy);
         const dx=x-rest.x, dy=y-rest.y;
         if (!villageAt(x,y)) return base;
         if (base==='water') return dy===8 && (dx===-5 || dx===-6) ? 'road' : base; // the landing's jetty: planks over water
@@ -14094,7 +14403,8 @@ const Farlands = (() => {
     const villageAt = (x,y) => Math.abs(x-rest.x)<=10 && y-rest.y>=-8 && y-rest.y<=9;
     // Street furniture: [dx, dy, kind, blocks the tile, turn, name, words when used]. Drawn by the 3D ground, shown as a
     // small glyph in the 2D view. Only named pieces can be used.
-    const restProps = new Map();
+    const creekPilotage = {board:[5044,4876], reach:[5041,4874], name:'Mill Creek sounding board'};
+    const authoredProps = new Map();
     for (const [dx,dy,kind,solid,turn,name,text] of [
         [0,-1,'well',true,0,'The square well','Cool water from under the square. Travellers fill their flasks here before taking the road.'],
         [-2,-1,'oak',true,0],
@@ -14109,15 +14419,25 @@ const Farlands = (() => {
         [7,-4,'garden',false,0],[8,-4,'garden',false,1],[7,-3,'garden',false,2],[8,-3,'garden',false,3],
         [-6,4,'shrine',true,0,'Wayside shrine','A worn stone for travellers who did not come back down the road. Someone still leaves flowers.'],
         [-6,5,'flowers',false,0],
-        [2,8,'crates',true,0],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
+        [2,8,'crates',true,0,'Ivo’s axle crate','Chalk on the lid reads: Millbend · two axle collars, one oak pin. The river seal is intact.'],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
         [-6,8,'mooring',false,0]
-    ]) restProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
-    const propAt = (x,y) => restProps.get(y*size+x);
-    function propNear(x,y) {
+    ]) authoredProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
+    for (const [x,y,name,text,cloth] of [
+        [...creekPilotage.board,creekPilotage.name,'Hale’s chalk marks the starting berth. From the moored boat, row three tiles west along the creek. Turn back by the causeway and give Hale the sounding.',0xa8c5c7],
+        [5038,4845,'North orchard tally','White cloth marks the trees ready for picking. Two baskets can go down to the stall before noon.',0xeee4c8],
+        [5042,4850,'South orchard tally','Red cloth marks the trees that need another day. Leave those branches for the next crew.',0xb64632],
+        [8556,8580,'Shellwick tide board','Shellfish baskets go out past the yellow sand at low tide. The mooring is just southwest. Lantern Quay lies northwest around the head of the bay.'],
+        [8559,8565,'Pearl Banks tally post','Collectors count the day’s shells here before taking them to the Shellwick market. Follow the bank southwest for the shared landing.']
+    ]) authoredProps.set(y*size+x,{x,y,kind:'signpost',solid:false,turn:0,name,text,cloth,soloOnly:cloth!==undefined});
+    function propAt(x,y,solo=true) {
+        const prop=authoredProps.get(y*size+x);
+        return !solo&&prop?.soloOnly?undefined:prop;
+    }
+    function propNear(x,y,solo=true) {
         let best=null, near=Infinity;
-        for (const prop of restProps.values()) {
+        for (const prop of authoredProps.values()) {
             const d=Math.max(Math.abs(prop.x-x),Math.abs(prop.y-y));
-            if (prop.text && d<=1 && d<near) { best=prop; near=d; }
+            if (prop.text && (solo || !prop.soloOnly) && d<=1 && d<near) { best=prop; near=d; }
         }
         return best;
     }
@@ -14705,8 +15025,8 @@ const Farlands = (() => {
         }
     }
 
-    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
-        sceneCell,remember,hash};
+    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,creekPilotage,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,authoredProps,propAt,propNear,plazaAt,villageAt,
+        coastalDocks,sceneCell,remember,hash};
 })();
 
 </script>
@@ -14744,11 +15064,39 @@ const ebFarlands = (() => {
                 Number.isInteger(entry[0]) && entry[0]>=0 && entry[0]<Farlands.size**2 && ['grass','road'].includes(entry[1]))),
             visited:new Set(list('visited').filter(id=>Farlands.byId.has(id))),
             spent:new Set(list('spent').filter(id=>typeof id==='string' && /^[a-z0-9-]{1,64}$/.test(id))),
-            station:Farlands.stations.some(site=>site.id===save?.station) ? save.station : Farlands.start.id,
+            station:Farlands.byId.get(save?.station)?.station ? save.station : Farlands.start.id,
             pin:Farlands.byId.has(save?.pin) ? save.pin : null,
             place:where, horseOwned:save?.horseOwned===true, horsePlace:save?.horsePlace && validTile(save.horsePlace.x) && validTile(save.horsePlace.y) ? {x:save.horsePlace.x,y:save.horsePlace.y} : null, cells:new Map(), scene:null
         };
     }
+    function migrateCoast(save) {
+        const journey=newJourney(save);
+        const terrain=journey.terrain;
+        const dry = (x,y) => {
+            const tile=terrain.edits.get(y*Farlands.size+x) ?? Farlands.sample(x,y);
+            return !['water','mountain','lava','door'].includes(tile);
+        };
+        function moveOffNewWater(point) {
+            if (!point || !Number.isInteger(point.x) || !Number.isInteger(point.y) ||
+                Farlands.sample(point.x,point.y,true)==='water' ||
+                terrain.tileAt(point.x,point.y)!=='water') return point;
+            const {x,y}=point;
+            // Search outward from the flooded tile. The old coordinates are in the recovery copy.
+            for (let radius=1;radius<=1024;radius++) {
+                for (let dy=-radius;dy<=radius;dy++) {
+                    for (let dx=-radius;dx<=radius;dx+=Math.abs(dy)===radius ? 1 : 2*radius) {
+                        const nx=x+dx,ny=y+dy;
+                        if (nx>=0&&ny>=0&&nx<Farlands.size&&ny<Farlands.size&&dry(nx,ny)) return {...point,x:nx,y:ny};
+                    }
+                }
+            }
+            throw new Error('Could not find nearby dry ground for the old Farlands position.');
+        }
+        const place=save.place?.sailing ? save.place : moveOffNewWater(save.place);
+        const aboard=save.place?.sailing && save.horsePlace?.x===save.place.x && save.horsePlace?.y===save.place.y;
+        return {...save,version:farlandsSaveVersion,place,horsePlace:aboard ? save.horsePlace : moveOffNewWater(save.horsePlace)};
+    }
+
     // R15.58: the boat the player took is kept with the save, so a reload neither brings it back to its mooring (a
     // second boat beside the one in use or parked) nor loses the parked one. Optional: older saves have no `boat`.
     function restoreBoat(save) {
@@ -14839,7 +15187,7 @@ const ebFarlands = (() => {
         if (!journey) return state;
         const active=state.map.terrain instanceof Farlands.Terrain ||
             buildingInterior?.outside.map.terrain instanceof Farlands.Terrain;
-        state.farlands={version:1,active,place:active ? recordLocation() : journey.place,
+        state.farlands={version:farlandsSaveVersion,active,place:active ? recordLocation() : journey.place,
             station:journey.station,pin:journey.pin,horseOwned:journey.horseOwned,horsePlace:journey.horsePlace,visited:[...journey.visited],spent:[...journey.spent],
             edits:[...journey.terrain.edits],boat:{taken:window.__ebTakenMooring||null,parked:window.__ebParkedBoat||null}};
         if (active && home) {
@@ -14852,7 +15200,8 @@ const ebFarlands = (() => {
     }
 
     function restore(save) {
-        if (save?.version!==1) return;
+        if (save?.version===1) save=migrateCoast(save);
+        if (save?.version!==farlandsSaveVersion) return;
         journey=newJourney(save);
         restoreBoat(save);
         if (save.active===true) enter(true);
@@ -14913,20 +15262,20 @@ const ebFarlands = (() => {
     // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
     function markRpgQuest(key) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||
-            !/^rq-(taken|step1|step2)-[abc]-[a-z0-9-]+$/.test(key)||journey.spent.has(key))return false;
+            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0|[efg]-rest)$/.test(key)||journey.spent.has(key))return false;
         journey.spent.add(key);saveNow();return true;
     }
     function completeRpgQuest(id,kind) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
-            !/^[a-z0-9-]+$/.test(id)||!['a','b','c'].includes(kind))return false;
+            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&!(['e','f','g'].includes(kind)&&id==='rest')))return false;
         const site=Farlands.byId.get(id),prefix='rq-';
         // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
         if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
         if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
             !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
             !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
-            (kind==='a'&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
-        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15];
+            (['a','d','e','f','g'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:kind==='f'?[22,28]:kind==='g'?[20,25]:[14,15];
         journey.spent.add(prefix+'done-'+kind+'-'+id);
         gameState.inventory.gold+=gold;gameState.player.xp+=xp;
         checkLevelUp();updateUI();saveNow();updateHint();return true;
@@ -14939,7 +15288,7 @@ const ebFarlands = (() => {
         const site=Farlands.nearbySite(x,y);
         if (site?.station) journey.station=site.id;
         if (site && !sharedWorld.active()) errandArrived(site);
-        if (site && !sharedWorld.active() && typeof ebRpgQuests!=='undefined') ebRpgQuests.onLocation(site);
+        if ((site || gameState.sailingMoves>0) && !sharedWorld.active() && typeof ebRpgQuests!=='undefined') ebRpgQuests.onLocation(site);
         if (site && !journey.visited.has(site.id)) {
             journey.visited.add(site.id);
             if (Farlands.survey.includes(site.id) && Farlands.survey.every(id=>journey.visited.has(id))) {
@@ -15441,10 +15790,10 @@ const ebFarlands = (() => {
         const travel=get('eb-farlands-travel');
         travel.disabled=!here?.station || !selected.station || here===selected;
         const waterLink=here?.station && selected.station && routeFor(here.id,selected.id);
-        travel.textContent=waterLink ? '⛵ Pilot boat' : selected.region==='lantern' || here?.region==='lantern' ? 'Ferry route unavailable' : 'Horse-drawn carriage';
+        travel.textContent=waterLink ? '⛵ Pilot passage boat' : selected.region==='lantern' || here?.region==='lantern' ? 'Ferry route unavailable' : 'Horse-drawn carriage';
         if(!waterLink && (selected.region==='lantern'||here?.region==='lantern')) travel.disabled=true;
         get('eb-farlands-travel-note').textContent=!selected.station ? 'Reach this landmark on foot. Pin it for a bearing.' :
-            here?.station ? 'Carriages provide station travel. Ferries connect the island quay. Select a linked river port to pilot a boat; other destinations use carriages.' :
+            here?.station ? 'Pilot a passage boat between linked stations in a separate sailing scene. Board boats at a shoreline for free sailing. Carriages serve overland destinations.' :
                 'Ports: Wayfarer’s Rest (Hearthmere), Aldercross, Reedhaven, Amberport and Lantern Quay. Walk to one and tap Routes from… for direct connections.';
         get('eb-farlands-pin').textContent=journey.pin===selected.id ? 'Clear pin' : 'Pin this place';
         get('eb-farlands-discovery').textContent=journey.visited.size+' / '+Farlands.sites.length+' places visited';
@@ -15485,7 +15834,9 @@ const ebFarlands = (() => {
         list.replaceChildren();
         const port=Farlands.waterwayPorts.find(p=>p.id===here.id);
         get('eb-transport-board-title').textContent=(port ? '⚓ '+port.name : '🚋 '+here.name+' Station');
-        get('eb-transport-board-hint').textContent=port ? 'Available boat passages and road connections:' : 'Available road connections from this station:';
+        get('eb-transport-board-hint').textContent=port
+            ? 'Passage boats use a separate sailing scene.'
+            : 'Available road connections from this station:';
         const links=Farlands.stations.filter(site=>site.id!==here.id).map(to=>({to,link:routeFor(here.id,to.id)}));
         // Water connections first. Other stations remain accessible by existing carriage service.
         links.sort((a,b)=>Number(!!b.link)-Number(!!a.link)||a.to.name.localeCompare(b.to.name));
@@ -15735,7 +16086,7 @@ const ebFarlands = (() => {
             if(link){voyageStart(here,there,link);return;}
             // Preserve the existing overland carriage service.
             if(here.region==='lantern' || there.region==='lantern') {
-                alert('No navigable waterway connects these ports yet. Select Amberport or Lantern Quay for the coastal passage.');
+                alert('No station passage serves this destination. Select Amberport or Lantern Quay for the coastal passage.');
                 return;
             }
             putPlayer(pointAt(there));
@@ -15791,7 +16142,7 @@ const ebFarlands = (() => {
     });
 
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
-    return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
+    return {migrateCoast,surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
         completeHerbLesson,storyFlag,markStory,markTalk,markRpgQuest,completeRpgQuest,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
@@ -16090,7 +16441,7 @@ const ebLife = (() => {
         'Ivo, the Millwright':{6:'work',11:'trade',17:'rest'},
         'Tamsin, the Herbalist':{18:'tend'},
         'Bram, the Storyteller':{8:'story',13:'story',18:'story'},
-        'Hale, the Wheelwright':{6:'work',12:'work',19:'rest'},
+        'Hale, the Wheelwright':{6:'repair',12:'repair',19:'rest'},
         'Wren, a Pilgrim':{6:'pray',10:'rest',16:'pray'}
     };
     const NAMED_LOOK = {'Ivo, the Millwright':'Mason','Hale, the Wheelwright':'Mason','Nessa, the Orchard Keeper':'Merchant',
@@ -16106,6 +16457,17 @@ const ebLife = (() => {
         return {kind,face:null};
     }
     const storyteller = now => roster.find(o => o.name === 'Bram, the Storyteller' && named(o,now)?.kind === 'speak');
+    // A work detail follows the resident's current stop, including the transition between stops.
+    function localWork(npc,now) {
+        if (!standing(npc,now)) return null;
+        const slot=npc.life?.slot;
+        if (!slot || Math.hypot(npc.x-slot.x,npc.y-slot.y)>.15) return null;
+        if (npc.ebSite==='settlement-rest-0' && npc.ebRole==='Farmer' && slot.where==='field')
+            return {kind:'harvest',note:'I gather the ripe crop a row at a time. The granary is east of the square, and the market takes what we can spare.'};
+        if (npc.ebSite==='settlement-lantern-0' && npc.ebRole==='Provisioner' && slot.where==='market')
+            return {kind:'sortCatch',landmark:'pearl',note:'I grade the shell baskets from Pearl Banks here. Follow the path to the tide board by the landing if you’re heading out on the bay.'};
+        return null;
+    }
     function activity(npc, now) {
         if (!npc.ebRole) return NAMED[npc.name] ? named(npc, now) : null;
         const life = npc.life, slot = life?.slot;
@@ -16130,6 +16492,8 @@ const ebLife = (() => {
         }
         const near = (r, pick) => roster.filter(o => o !== npc && standing(o,now) && Math.hypot(o.x-npc.x,o.y-npc.y) <= r && (!pick || pick(o)))
             .sort((a,b) => Math.hypot(a.x-npc.x,a.y-npc.y)-Math.hypot(b.x-npc.x,b.y-npc.y));
+        const work = localWork(npc,now);
+        if (work) return {kind:work.kind,face:null};
         const where = slot.where, role = npc.ebRole;
         if (where === 'market') {
             if (TRADERS.has(role)) {
@@ -16163,7 +16527,7 @@ const ebLife = (() => {
         }
         return null;
     }
-    return { enroll, tick, roster:() => roster, hour, activity, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
+    return { enroll, tick, roster:() => roster, hour, activity, localWork, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
         drawn:npc => Boolean(npc.ebRole || NAMED[npc.name]) };
 })();
 </script>
@@ -16541,7 +16905,13 @@ const ebRpgAccess=(()=>{
     function response(npc,topic){
         const region=Farlands.regions[Farlands.regionAt(npc.x,npc.y)];
         const site=Farlands.nearbySite(npc.x,npc.y);
-        if(topic==='work')return work[roleOf(npc)];
+        if(topic==='work'){
+            const current=ebLife.localWork(npc,performance.now());
+            if(current)return current.note;
+            if(npc.ebRole&&npc.life?.slot?.says&&!npc.indoors&&Math.hypot(npc.x-npc.life.slot.x,npc.y-npc.life.slot.y)<.15)
+                return npc.life.slot.says;
+            return work[roleOf(npc)];
+        }
         if(topic==='news'){
             if(ebFarlands.storyFlag('quest-vault-reward')&&site?.region==='hearth')
                 return 'The Harvest Bell has returned. Even the travelers keep time by it.';
@@ -16563,6 +16933,17 @@ const ebRpgAccess=(()=>{
         p.style.cssText='line-height:1.5;margin:0 0 8px';box.append(p);
         const choices=document.createElement('div');choices.style.cssText='display:flex;flex-direction:column;gap:8px';
         const add=(label,fn)=>{const b=button(label,fn);b.style.width='100%';choices.append(b);};
+        if(topic==='work'){
+            const job=ebLife.localWork(npc,performance.now());
+            const site=job?.landmark && Farlands.byId.get(job.landmark);
+            if(site)add('Mark '+site.name+' on the Atlas',()=>{
+                if(!active()||!inReach(npc)||ebLife.localWork(npc,performance.now())?.landmark!==site.id)return;
+                if(ebFarlands.pin(site.id)){
+                    chat=null;
+                    closeModal();
+                }
+            });
+        }
         if(topic)add('Ask something else',()=>display(npc));
         else{
             add('About your work',()=>display(npc,'work'));
@@ -16590,16 +16971,19 @@ const ebRpgAccess=(()=>{
 // C relays news to an actual waykeeper and then reports back to the actual provisioner.
 const ebRpgQuests=(()=>{
     const active=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior&&!gameState.inBattle;
-    const sites=()=>Farlands.sites.filter(s=>s.station);
+    const stations=Farlands.sites.filter(s=>s.station);
+    const shellwickId='settlement-lantern-0';
+    const orchardTallies=['North orchard tally','South orchard tally'];
+    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : site===Farlands.start ? ['a','b','c','e','g',...(ebFarlands.storyFlag('quest-vault-reward')?['f']:[])] : ['a','b','c'];
     // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
     // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
     const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
-    const stationAt=(x,y)=>sites().filter(s=>within(s,x,y)).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]??null;
+    const stationAt=(x,y)=>stations.filter(s=>within(s,x,y)).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]??null;
     const flag=(site,kind,part)=>ebFarlands.storyFlag('rq-'+part+'-'+kind+'-'+site.id);
     const mark=(site,kind,part)=>ebFarlands.markRpgQuest('rq-'+part+'-'+kind+'-'+site.id);
     const giverName=(site,kind)=>{
-        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':kind==='b'?'Nessa, the Orchard Keeper':'Ivo, the Millwright';
-        return site.name+(kind==='a'?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
+        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':['b','f'].includes(kind)?'Nessa, the Orchard Keeper':kind==='g'?'Hale, the Wheelwright':'Ivo, the Millwright';
+        return site.name+((kind==='a'||kind==='d')?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
     };
     const receiver=(site)=>giverName(site,'a');
     const shown=(site,kind)=>ebDisplayNameOf(giverName(site,kind)); // R17.12: the name the player sees
@@ -16609,8 +16993,48 @@ const ebRpgQuests=(()=>{
         entries.sort((a,b)=>Math.hypot(a.x-site.x,a.y-site.y)-Math.hypot(b.x-site.x,b.y-site.y));
         return entries[0]||null;
     };
+    const localStories={
+        rest:[
+            ['A lay of the roads','Mira wants to know what travellers hear before they set out from the square.'],
+            ['Millbend road survey','Nessa wants to know how the approach looks before the next orchard delivery.'],
+            ['A message from the mill','Ivo has news for a neighbouring waykeeper about the mill’s next shipment.']
+        ],
+        'settlement-hearth-0':[
+            ['The harvest rota','The waykeeper is arranging hands for the next load from the fields.'],
+            ['A route for the harvest carts','The warden wants a walker’s account before sending a laden cart out.'],
+            ['Word of the harvest','The provisioner wants a neighbour to know when the next grain shipment is ready.']
+        ],
+        'settlement-lantern-0':[
+            ['The shell traders’ rounds','The waykeeper is checking when the traders and wardens will be in the square.'],
+            ['A foot survey of Pearl Banks','The warden wants a report from the Pearl Banks marker before the collectors set out.'],
+            ['News from the shell market','The provisioner has market news for a neighbouring waykeeper.']
+        ]
+    };
     function plan(site,kind){
-        if(!site?.station||!['a','b','c'].includes(kind))return null;
+        if(!site?.station||!kinds(site).includes(kind))return null;
+        if(kind==='g')return {
+            site,target:site,kind,title:'Sounding Mill Creek',
+            description:'Read Hale’s sounding board by the southwest causeway. Board the moored boat and row three tiles west, then land and report to Hale.',
+            giver:giverName(site,kind),reward:[20,25]
+        };
+        if(kind==='f')return {
+            site,target:Farlands.byId.get('orchard'),kind,
+            title:'The first picking',
+            description:'The bell has brought Nessa’s pickers back. Read the north and south tally boards at Bell Orchard, then tell her which rows are ready.',
+            giver:giverName(site,kind),reward:[22,28]
+        };
+        if(kind==='e')return {
+            site,target:Farlands.byId.get('mill'),kind,
+            title:'The millwright’s tally',
+            description:'Inspect the axle crate on the south end of Wayfarer’s Rest. Carry its tally along the creek road to Millbend, then report back to Ivo.',
+            giver:giverName(site,kind),reward:[15,18]
+        };
+        if(kind==='d')return {
+            site,target:Farlands.byId.get('lantern'),kind,
+            title:'Sound the Lantern Channel',
+            description:'Take a boat from the Shellwick landing and follow the bay to Lantern Quay. Come within four tiles of the Quay’s moored boat while afloat, then report back to the Shellwick waykeeper.',
+            giver:giverName(site,kind),reward:[24,25]
+        };
         const target=kind==='a'?site:neighbor(site,kind==='c'?'station':'any');
         if(!target)return null;
         const heading=kind==='a'?'Meet the local team':kind==='b'?'Check the road to '+target.name:'Carry news to '+target.name;
@@ -16618,36 +17042,91 @@ const ebRpgQuests=(()=>{
             'Speak with '+shown(site,'c')+' and '+shown(site,'b')+', then tell '+shown(site,'a')+' what they said.':
             kind==='b'?'Reach '+target.name+' after accepting, then return and tell '+shown(site,'b')+' what you saw.':
             'Take road news to '+ebDisplayNameOf(receiver(target))+'. Speak directly with the recipient and relay it, then report to '+shown(site,'c')+'.';
-        return {site,target,kind,title:heading,description,giver:giverName(site,kind),reward:kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15]};
+        const story=localStories[site.id]?.['abc'.indexOf(kind)];
+        return {site,target,kind,title:story?.[0]??heading,description:story ? story[1]+' '+description : description,giver:giverName(site,kind),reward:kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15]};
     }
     const state=q=>flag(q.site,q.kind,'done')?'done':
         flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
-    const ready=q=>flag(q.site,q.kind,'step1')&&(q.kind!=='a'||flag(q.site,q.kind,'step2'));
+    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d','e','f','g'].includes(q.kind)||flag(q.site,q.kind,'step2'));
     function next(q){
-        if(q.kind==='a'){
+        if(q.kind==='g'){
+            if(!flag(q.site,'g','step1'))return {site:q.site,label:'Read the sounding board by the southwest causeway'};
+            if(!flag(q.site,'g','step2'))return {site:q.site,label:'Board at the causeway and row three tiles west'};
+        }else if(q.kind==='f'){
+            const remaining=orchardTallies.filter((_,i)=>!flag(q.site,'f','step'+(i+1)));
+            if(remaining.length)return {site:q.target,label:'Read '+remaining.join(' and ')};
+        }else if(q.kind==='e'){
+            if(!flag(q.site,'e','step1'))return {site:q.site,label:'Inspect the axle crate at the south landing'};
+            if(!flag(q.site,'e','step2'))return {site:q.target,label:'Carry the tally to Millbend'};
+        }else if(q.kind==='d'){
+            if(!flag(q.site,'d','step1'))return {site:q.site,label:'Board at the Shellwick landing'};
+            if(!flag(q.site,'d','step2'))return {site:q.target,label:'Sail to the Lantern Quay mooring'};
+        }else if(q.kind==='a'){
             if(!flag(q.site,'a','step1'))return {site:q.site,label:'Speak to '+shown(q.site,'c')};
             if(!flag(q.site,'a','step2'))return {site:q.site,label:'Speak to '+shown(q.site,'b')};
         }else if(!flag(q.site,q.kind,'step1'))
             return {site:q.target,label:q.kind==='c'?'Relay news to '+ebDisplayNameOf(receiver(q.target)):'Visit '+q.target.name};
         return {site:q.site,label:'Report to '+ebDisplayNameOf(q.giver)};
     }
-    const activePlans=()=>sites().flatMap(site=>['a','b','c'].map(k=>plan(site,k)).filter(Boolean))
-        .filter(q=>flag(q.site,q.kind,'taken')&&!flag(q.site,q.kind,'done'));
+    const activePlans=()=>stations.flatMap(site=>kinds(site)
+        .filter(kind=>flag(site,kind,'taken')&&!flag(site,kind,'done'))
+        .map(kind=>plan(site,kind)).filter(Boolean));
     function accept(q){
         if(!active()||!q||state(q)!=='new')return false;
         const ok=mark(q.site,q.kind,'taken');
-        if(ok)ebFarlands.pin(q.target.id);
+        if(ok)ebFarlands.pin(next(q).site.id);
         return ok;
     }
     function report(q,npc){
-        if(!active()||!q||state(q)!=='ready'||npc?.name!==q.giver||
+        if(!active()||!q||state(q)!=='ready'||npc?.name!==q.giver||(q.kind==='g'&&gameState.sailingMoves>0)||
             !npcs.includes(npc)||Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5)return false;
         return ebFarlands.completeRpgQuest(q.site.id,q.kind);
+    }
+    function onProp(prop){
+        const site=Farlands.start;
+        if(!active()||!prop||
+            Math.max(Math.abs(gameState.player.x-prop.x),Math.abs(gameState.player.y-prop.y))>1)return '';
+        if(prop.name===Farlands.creekPilotage.name&&flag(site,'g','taken')&&mark(site,'g','step1')){
+            ebFarlands.refreshStoryHint();
+            return 'Sounding started. Board the creek boat and row three tiles west.';
+        }
+        const tally=orchardTallies.indexOf(prop.name);
+        if(tally!==-1&&flag(site,'f','taken')&&mark(site,'f','step'+(tally+1))){
+            const complete=ready(plan(site,'f'));
+            if(complete)ebFarlands.pin(site.id);
+            ebFarlands.refreshStoryHint();
+            return complete?'Both tallies recorded. Return to Nessa.':'Tally recorded. Read the other board before returning.';
+        }
+        if(prop.name!=='Ivo’s axle crate'||!flag(site,'e','taken')||!mark(site,'e','step1'))return '';
+        ebFarlands.pin('mill');
+        return 'Tally recorded. Follow the creek road to Millbend.';
     }
     function onLocation(site){
         if(!active())return;
         for(const q of activePlans()){
-            if(q.kind==='b'&&within(q.target,gameState.player.x,gameState.player.y)&&!flag(q.site,'b','step1')){
+            if(q.kind==='g'&&gameState.sailingMoves>0&&flag(q.site,'g','step1')){
+                const [x,y]=Farlands.creekPilotage.reach;
+                const player=gameState.player;
+                if(player.x===x&&player.y===y&&mark(q.site,'g','step2')){
+                    ebFarlands.refreshStoryHint();
+                    showFloatingText('Sounding recorded · land and report to Hale',x*32+16,y*32-30,'#e9c987');
+                }
+            }
+            if(q.kind==='e'&&site?.id===q.target.id&&flag(q.site,'e','step1')&&mark(q.site,'e','step2')){
+                ebFarlands.pin(q.site.id);
+                showFloatingText('Tally delivered · return to Ivo',gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
+            }
+            if(q.kind==='d'&&gameState.sailingMoves>0){
+                const departed=flag(q.site,'d','step1');
+                const dock=Farlands.coastalDocks[departed?'lantern':shellwickId];
+                const [x,y]=dock.water, player=gameState.player;
+                if(Math.hypot(player.x-x,player.y-y)<=4&&mark(q.site,'d',departed?'step2':'step1')){
+                    ebFarlands.pin(departed?q.site.id:q.target.id);
+                    showFloatingText(departed?'Channel charted · return to Shellwick':'Underway · sail to Lantern Quay',
+                        player.x*32+16,player.y*32-30,'#e9c987');
+                }
+            }
+            if(q.kind==='b'&&site?.id===q.target.id&&!flag(q.site,'b','step1')){
                 if(mark(q.site,'b','step1')){
                     showFloatingText('Road checked · return to '+ebDisplayNameOf(q.giver),gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
                     ebFarlands.refreshStoryHint();
@@ -16688,9 +17167,16 @@ const ebRpgQuests=(()=>{
             if(v==='new')actions.append(button('Accept quest',()=>{
                 if(accept(q)){refresh();ebFarlands.refreshStoryHint();}
             }));
-            else if(v==='ready'&&npc?.name===q.giver)actions.append(button('Report back · collect '+q.reward[0]+' gold',()=>{
-                if(report(q,npc)){refresh();status.textContent='Quest completed · +'+q.reward[0]+' gold · +'+q.reward[1]+' XP';}
-            }));
+            else if(v==='ready'&&npc?.name===q.giver){
+                const pay=()=>{if(report(q,npc)){refresh();status.textContent='Quest completed · +'+q.reward[0]+' gold · +'+q.reward[1]+' XP';}};
+                if(q.kind==='f'){
+                    status.textContent='Nessa asks which rows are ready for the pickers.';
+                    status.setAttribute('aria-live','polite');
+                    actions.append(button('Pick the north rows',pay),button('Pick the south rows',()=>{
+                        status.textContent='The south tally asked for another day. Which rows carried the white cloth?';
+                    }));
+                }else actions.append(button('Report back · collect '+q.reward[0]+' gold',pay));
+            }
             else if(v!=='done')actions.append(button('Track next step',()=>{ebFarlands.pin(next(q).site.id);status.textContent='Tracking · '+next(q).label;}));
         };
         refresh();return box;
@@ -16700,7 +17186,7 @@ const ebRpgQuests=(()=>{
         const content=document.getElementById('modalContent');
         const here=stationAt(npc.x,npc.y);
         if(here){
-            for(const kind of ['a','b','c']){
+            for(const kind of kinds(here)){
                 const q=plan(here,kind);
                 if(q&&npc.name===q.giver){const c=card(q,npc);c.dataset.ebPane='quests';if(state(q)==='ready')c.dataset.ebReady='1';content.append(c);}
             }
@@ -16752,7 +17238,7 @@ const ebRpgQuests=(()=>{
         const content=document.getElementById('modalContent');content.replaceChildren();
         const intro=document.createElement('p');intro.textContent='Talk to local residents to follow these quests, or accept one here. Report to the actual giver for a reward.';
         content.append(intro);
-        for(const kind of ['a','b','c']){const q=plan(site,kind);if(q)content.append(card(q,null));}
+        for(const kind of kinds(site)){const q=plan(site,kind);if(q)content.append(card(q,null));}
         releaseMovement();document.getElementById('interactionModal').style.display='flex';
     }
     document.getElementById('eb-farlands-quests')?.addEventListener('click',board);
@@ -16763,17 +17249,20 @@ const ebRpgQuests=(()=>{
         const out=[];
         if(site.station){
             const done=k=>flag(site,k,'done')&&plan(site,k);
+            if(done('g'))out.push('Hale marked the safe reach from your sounding. The next timber boat can take the inside bend.');
+            if(done('f'))out.push('Nessa sent the first baskets down from Bell Orchard. Your tally kept the pickers on the right rows.');
+            if(done('d'))out.push('The route you charted keeps our shell boats clear of the banks.');
             if(done('c'))out.push('You carried our news to '+plan(site,'c').target.name+' and came back to tell us.');
             if(done('b'))out.push('You walked the road to '+plan(site,'b').target.name+' for our warden.');
             if(done('a'))out.push('You met our people here; the waykeeper speaks well of you.');
-            const from=sites().find(o=>o!==site&&plan(o,'c')?.target===site&&flag(o,'c','step1'));
+            const from=stations.find(o=>o!==site&&plan(o,'c')?.target===site&&flag(o,'c','step1'));
             if(from)out.push('You brought us word from '+from.name+'.');
             if(ebFarlands.storyFlag('errand-'+site.id))out.push('You did our provisioner’s errand on the road.');
         }
         if(site.region==='hearth'&&ebFarlands.storyFlag('quest-vault-reward'))out.push('The Harvest Bell rings again because of you.');
         return out;
     }
-    return {plan,accept,onTalk,onLocation,attach,board,journal,track,goal,deeds};
+    return {plan,accept,onTalk,onLocation,onProp,attach,board,journal,track,goal,deeds};
 })();
 </script>
 <script data-source="r14-adventure-journal.js">
@@ -16845,6 +17334,12 @@ const ebJournal = (() => {
         const local=typeof ebRpgQuests!=='undefined'?ebRpgQuests.goal():null;
         if(local)return {quest:{label:local.label},next:local.site,errand:true};
         if (!ebFarlands.surface()) return null;
+        const rest=Farlands.byId.get('rest'), hero=gameState.player;
+        if (quest?.done && !ebFarlands.storyFlag('rq-taken-f-rest') &&
+            Math.hypot(hero.x-rest.x,hero.y-rest.y)<=14)
+            return {quest:{label:'Ask Nessa about the first picking'},person:'Find Nessa'};
+        if (!quest && Math.hypot(hero.x-rest.x,hero.y-rest.y)<=14)
+            return {quest:{label:'Speak to Mira by the square'},person:'Meet Mira'};
         const visited=ebFarlands.discoveries();
         for (const chapter of chapters) {
             const sites=chapter.ids.map(id=>Farlands.byId.get(id)).filter(Boolean);
@@ -16858,6 +17353,16 @@ const ebJournal = (() => {
         if (!chip) return;
         const goal = visible ? nextGoal() : null;
         chip.hidden = !goal;
+        const people=document.getElementById('eb-people-quick');
+        if(people){
+            const label=goal?.person??'People nearby';
+            if(people.getAttribute('aria-label')!==label){
+                people.textContent=goal?.person??'👥';
+                people.setAttribute('aria-label',label);
+                people.title=label;
+                people.toggleAttribute('data-goal',Boolean(goal?.person));
+            }
+        }
         if (!goal) return;
         const text = goal.errand ? '📜 '+goal.quest.label : goal.quest ? (goal.next && ebFarlands.pinned()===goal.next.id ? '📍 ' : '🔔 ')+goal.quest.label
             : (ebFarlands.pinned()===goal.next.id ? '📍 ' : '📖 ')+goal.chapter.title.replace(/^The /,'')+' '+goal.done+'/'+goal.total+' · '+goal.next.name;
@@ -16876,6 +17381,7 @@ const ebJournal = (() => {
         event.stopPropagation();
         const goal = nextGoal();
         if (!goal) return;
+        if (goal.person) {ebRpgAccess.openNearby();return;}
         if (!goal.next || !ebFarlands.surface() || ebFarlands.pinned()===goal.next.id) open(); else ebFarlands.pin(goal.next.id);
         syncVisibility();
     });

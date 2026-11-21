@@ -1,0 +1,4 @@
+page.waitForFunction: Timeout 5000ms exceeded.
+    at /workspace/EternalBliss-RC/eternalbliss/tests/release/vehicles.cjs:45:10 {
+  name: 'TimeoutError'
+}
