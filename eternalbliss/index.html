@@ -9087,10 +9087,17 @@ const EternalBlissArt = (() => {
         if(authoredRest && kind==='inn')return authoredInn(footprint);
         if(authoredRest && kind==='shop')return authoredExchange(footprint);
         if(authoredRest && kind==='temple')return authoredChapel(footprint);
+    const regionalExteriors = new Map();
         const group = new T.Group();
         const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
             amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
         const slate = roofColors[region] ?? 0x294e50;
+        const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
+        const key = style?.regional && [kind,region,across,deep,style.farmstead,style.hall,region?'':variant%3].join(':');
+        if(key && regionalExteriors.has(key)){
+            const model=regionalExteriors.get(key);
+            return {...model,group:model.group.clone(true)};
+        }
         const brass = 0xc5a367;
         const limestone = region==='salt' ? 0xd4ae78 : region==='iron' || region==='rime' ? 0xb9b9aa : 0xc8b18a;
         const dark = 0x51463c;
@@ -9210,17 +9217,20 @@ const EternalBlissArt = (() => {
             castle:[1.56,1.46,1.92], temple:[1.31,1.42,1.63],
             inn:[1.41,1.06,1.33], shop:[1.41,1.06,1.33]
         }[kind === 'house' && (footprint?.w ?? 1) > 1 ? 'shop' : kind] ?? [1.11,1.06,1.33];
-        const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
+        const exterior=key?bakeArchitecture(group):group;
         if (across === 1 && deep === 1) {
             // Extend eaves within the clearance of adjacent walkable tile centers.
             const size = kind === 'house' ? 1.18 : 1.22;
-            group.scale.set(.98*size/width,size,.96*size/depth);
+            exterior.scale.set(.98*size/width,size,.96*size/depth);
         } else {
             // Over several tiles: the same eaves margin around the footprint, and height in proportion to the ground size.
             const sx = .98*(across+.22)/width, sz = .96*(deep+.22)/depth;
-            group.scale.set(sx,Math.sqrt(sx*sz)*(style?.hall ? .85 : 1),sz);
+            exterior.scale.set(sx,Math.sqrt(sx*sz)*(style?.hall ? .85 : 1),sz);
         }
-        return { group,height,width,depth };
+        const model={group:exterior,height,width,depth};
+        if(!key)return model;
+        regionalExteriors.set(key,model);
+        return {...model,group:exterior.clone(true)};
     }
 
     function landmark(kind, footprint = null) {
