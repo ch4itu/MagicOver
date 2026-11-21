@@ -72,8 +72,8 @@ jobs:
           npm install --prefix /tmp/eb-playwright --no-save --no-audit --no-fund playwright@1.56.1
           /tmp/eb-playwright/node_modules/.bin/playwright install --with-deps chromium
           echo "NODE_PATH=/tmp/eb-playwright/node_modules" >> "$GITHUB_ENV"
-          CHROME="$(find "$HOME/.cache/ms-playwright" -path '*/chrome-linux64/chrome' -type f -print -quit)"
-          test -n "$CHROME"
+          CHROME="$(NODE_PATH=/tmp/eb-playwright/node_modules node -p "require('playwright').chromium.executablePath()")"
+          test -x "$CHROME"
           echo "EB_CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
       - name: Start isolated local server
         run: |
