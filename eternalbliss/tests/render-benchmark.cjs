@@ -5,7 +5,8 @@ const cases = [
     {name:'rest-overhead',eye:false,coast:false},
     {name:'rest-first-person',eye:true,coast:false},
     {name:'quay-afloat-first-person',eye:true,coast:true},
-    {name:'bell-orchard-first-person',eye:true,orchard:true}
+    {name:'bell-orchard-first-person',eye:true,site:'orchard',offset:[1,4]},
+    {name:'shellwick-overhead',eye:false,site:'settlement-lantern-0',offset:[0,1]}
 ];
 
 (async () => {
@@ -29,7 +30,7 @@ const cases = [
         const suffix=(portrait?'-portrait':'')+diagnostic;
         const output=path.join(t.out,'render-'+t.sha.slice(0,8)+suffix+'.json');
         for (const scene of cases) {
-            if(selected ? !selected.split(',').includes(scene.name) : scene.orchard)continue;
+            if(selected ? !selected.split(',').includes(scene.name) : scene.site)continue;
             if (scene.eye!==await page.evaluate(()=>__view.eyeMode)) await page.tap('#eb-immersive-toggle');
             if (scene.coast) await page.evaluate(()=>{
                 const [x,y]=Farlands.coastalDocks.lantern.water;
@@ -37,13 +38,13 @@ const cases = [
                 applyAdventureMap(captureAdventureMap(),{...gameState.player,x,y,targetX:x,targetY:y});
                 __view.eyeYaw=__view.eyeRenderYaw=0;
             });
-            if (scene.orchard) await page.evaluate(()=>{
-                const site=Farlands.byId.get('orchard');
-                const x=site.x+2,y=site.y+3;
+            if (scene.site) await page.evaluate(({site,offset})=>{
+                const place=Farlands.byId.get(site);
+                const x=place.x+offset[0],y=place.y+offset[1];
                 gameState.sailingMoves=0;
                 applyAdventureMap(captureAdventureMap(),{...gameState.player,x,y,targetX:x,targetY:y});
                 __view.eyeYaw=__view.eyeRenderYaw=0;
-            });
+            }, scene);
             const result=await page.evaluate(({samples,warmup,skipSubmission,reuseShadow})=>new Promise((resolve,reject)=>{
                 const view=__view, renderer=view.renderer;
                 const original={draw:view.draw,render:renderer.render,terrain:view.updateTerrain,actors:view.syncActors,

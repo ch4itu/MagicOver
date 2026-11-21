@@ -16,6 +16,16 @@
 
 The working branch `automation/eternalbliss-release-candidate` was created from the remote automation head `2346b1f28d5baf6202685b3905bcf998dee97635`. It contains Claude’s baseline `76664bfa954062cf15de7b63d21edb26d44e7847` and the two mandate commits. Baseline HTML SHA-256 is `4c08d431fdd3119e96125b4fd15c86d95f1bca6ae4094455e88ee3a9edf86c55`. The working branch is a development checkpoint.
 
+## Consolidated PR 30 candidate
+
+The consolidated work starts from `12ecd8d07f0ef3d0b0627d01a8fc46edf6530a50`, including the intervening CI-monitor work. Gameplay commit `b04490efd68c73c0e0a2a6c390506de2f6f33143` has HTML SHA-256 `9cebdf7920b20d96e71b9604bf29173e6ad443098af796de2f9ed1590132d589`.
+
+- Regional exterior batching preserves material, placement and shadow groups while reducing static mesh counts. The Rest overhead main pass recorded 348 → 287 calls at the same triangle count. Long SwiftShader stalls remain, including higher overhead p95 in the matched run.
+- The solo Harvest Bell chapter now leads to The First Picking. Nessa sends the player to two working tally boards at a dressed Bell Orchard belfry. Reading both boards and choosing the right rows pays 22 gold and 28 XP once. Existing positions, quest IDs and save format remain compatible.
+- The exact candidate passed 18 checks. A fresh guest completed both chapters, took a first ride and reloaded in 5 min 11 s of automation at fixed noon. Portrait and landscape used native Chromium touch. Physical Android, a longer playtest with the clock advancing and real multiplayer remain open.
+
+[Acceptance, screenshots and performance](tests/pr30-evidence/consolidated/ACCEPTANCE.md) · [Exact replay and rollback](tests/pr30-evidence/consolidated/REPLAY.md)
+
 ## PR 30 final integration
 
 Gameplay commit `2ec2d67fa9cb6b5b92999f35470934e79c77a06f` has HTML SHA-256 `efd0588467394bbb5bd96271b7913ff0f5d7a02db7caa178a52c5f1f44b4f0bd`. This integration starts from `b07121cc4995d3107f1660ba53aaa90870b5cf67`.

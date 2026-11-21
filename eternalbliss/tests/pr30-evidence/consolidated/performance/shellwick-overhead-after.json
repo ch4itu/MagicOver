@@ -1,0 +1,63 @@
+{
+  "sha256": "9cebdf7920b20d96e71b9604bf29173e6ad443098af796de2f9ed1590132d589",
+  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "profile": "Chromium landscape viewport, 844 x 390",
+  "results": [
+    {
+      "name": "shellwick-overhead",
+      "eye": false,
+      "site": "settlement-lantern-0",
+      "offset": [
+        0,
+        1
+      ],
+      "skipSubmission": false,
+      "reuseShadow": false,
+      "samples": 60,
+      "warmup": 20,
+      "intervalMs": {
+        "median": 19,
+        "p90": 660,
+        "p95": 996,
+        "p99": 1481,
+        "max": 1481
+      },
+      "drawMs": {
+        "median": 8,
+        "p90": 12,
+        "p95": 22,
+        "p99": 36,
+        "max": 36
+      },
+      "submitMs": {
+        "median": 5,
+        "p90": 8,
+        "p95": 10,
+        "p99": 32,
+        "max": 32
+      },
+      "terrainMs": {
+        "median": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "actorMs": {
+        "median": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "materialClones": 0,
+      "calls": 347,
+      "triangles": 89780,
+      "shaderPrograms": {
+        "afterWarmup": 15,
+        "afterSamples": 15
+      },
+      "over100ms": 17
+    }
+  ]
+}
