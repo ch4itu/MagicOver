@@ -1,0 +1,16 @@
+phone false guard {
+  eye: true,
+  mode: true,
+  combatEye: true,
+  hand: true,
+  enemy: [ -1.12159604950496e-12, 0.01258706082968894, 0.9496564630689724 ],
+  camera: [ 5064, 1.135, 4869 ],
+  hero: [ 5064, 0.055, 4869 ],
+  hud: { top: 562.875, bottom: 740.875 },
+  canvas: { top: 0, height: 748.875 },
+  hp: 80,
+  mp: 50,
+  foe: 500,
+  potions: 2
+}
+PASS combat phone:false efd0588467394bbb5bd96271b7913ff0f5d7a02db7caa178a52c5f1f44b4f0bd

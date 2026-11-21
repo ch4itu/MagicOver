@@ -2,7 +2,15 @@
 
 The working branch `automation/eternalbliss-release-candidate` was created from the remote automation head `2346b1f28d5baf6202685b3905bcf998dee97635`. It contains Claude’s baseline `76664bfa954062cf15de7b63d21edb26d44e7847` and the two mandate commits. Baseline HTML SHA-256 is `4c08d431fdd3119e96125b4fd15c86d95f1bca6ae4094455e88ee3a9edf86c55`. The working branch is a development checkpoint.
 
-## PR 30 acceptance continuation
+## PR 30 final integration
+
+Gameplay commit `2ec2d67fa9cb6b5b92999f35470934e79c77a06f` has HTML SHA-256 `efd0588467394bbb5bd96271b7913ff0f5d7a02db7caa178a52c5f1f44b4f0bd`. This integration starts from `b07121cc4995d3107f1660ba53aaa90870b5cf67`.
+
+- `95a1626` partitions first-person solo ground and opaque decorations for camera and shadow frustum culling. In the 150-sample SwiftShader comparison the Rest and Quay first-person main passes submitted 48% and 41% fewer triangles. Long frame intervals remain. [Performance, before/after screenshots and raw measurements](tests/pr30-evidence/final-integration/PERFORMANCE.md)
+- `2ec2d67` links the opening objective to Mira through People, gives Hearthfield and Shellwick separate visible work cycles tied to existing shifts, and offers a Pearl Banks Atlas pin during the Shellwick provisioner’s work dialogue. The production save schema, terrain generator, NPC schedules and quest contracts remain byte-for-byte unchanged outside the four presentation and interaction scripts.
+- All 17 matrix jobs passed on the exact gameplay HTML. The fresh guest completed the Harvest Bell route and rode a purchased horse in 5 min 07 s. SwiftShader stalls, physical Android and live multiplayer remain open. [Verification, screenshots and rollback](tests/pr30-evidence/final-integration/ACCEPTANCE.md)
+
+## Earlier PR 30 acceptance continuation
 
 Gameplay commit `1d163690212dcc2057b5105d89a94cef08b782a2` has HTML SHA-256 `c1b17de53b6b0683856fd8e57655f5d63df9f96ba8ca5e84035f76301e02c0bc`. The integrated matrix started on `6afa95ca2a709945f2c8c7d5a250bf3e3b0b3ab3` with HTML SHA-256 `a9c2af01a5bfeb48f45430ce440eafecc696c518884bd2dca56e88b1e75d327e`. This continuation starts from `7268e30e775d6eb3972a5bb72fd62533b8c661aa`.
 

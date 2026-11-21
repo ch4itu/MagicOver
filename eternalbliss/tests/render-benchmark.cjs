@@ -19,6 +19,10 @@ const cases = [
         const results=[];
         const selected=process.env.EB_RENDER_SCENE;
         const skipSubmission=process.env.EB_RENDER_SKIP_SUBMIT==='1';
+        const reuseShadow=process.env.EB_RENDER_REUSE_SHADOW==='1';
+        const diagnostic=skipSubmission?'-no-submit':reuseShadow?'-reuse-shadow':'';
+        const report={sha256:t.sha,renderer,profile:'Chromium landscape viewport, 844 x 390',results};
+        const output=path.join(t.out,'render-'+t.sha.slice(0,8)+diagnostic+'.json');
         for (const scene of cases) {
             if(selected && scene.name!==selected)continue;
             if (scene.eye!==await page.evaluate(()=>__view.eyeMode)) await page.tap('#eb-immersive-toggle');
@@ -28,13 +32,13 @@ const cases = [
                 applyAdventureMap(captureAdventureMap(),{...gameState.player,x,y,targetX:x,targetY:y});
                 __view.eyeYaw=__view.eyeRenderYaw=0;
             });
-            const result=await page.evaluate(({samples,warmup,skipSubmission})=>new Promise((resolve,reject)=>{
+            const result=await page.evaluate(({samples,warmup,skipSubmission,reuseShadow})=>new Promise((resolve,reject)=>{
                 const view=__view, renderer=view.renderer;
                 const original={draw:view.draw,render:renderer.render,terrain:view.updateTerrain,actors:view.syncActors,
-                    clone:THREE.Material.prototype.clone};
+                    clone:THREE.Material.prototype.clone,shadowUpdates:renderer.shadowMap.autoUpdate};
                 const intervals=[],drawMs=[],submitMs=[],terrainMs=[],actorMs=[];
                 let last, frame=0, clones=0;
-                let start, submitted, terrain, actors, frameClones;
+                let submitted, terrain, actors, frameClones, warmPrograms;
                 const elapsed=(start)=>performance.now()-start;
                 const summary=values=>{
                     const sorted=[...values].sort((a,b)=>a-b);
@@ -44,11 +48,13 @@ const cases = [
                 const restore=()=>{
                     view.draw=original.draw;view.updateTerrain=original.terrain;view.syncActors=original.actors;
                     renderer.render=original.render;THREE.Material.prototype.clone=original.clone;
+                    renderer.shadowMap.autoUpdate=original.shadowUpdates;
                 };
-                const timeout=setTimeout(()=>{restore();reject(new Error('Render benchmark timed out'));},150000);
+                const timeout=setTimeout(()=>{restore();reject(new Error('Render benchmark timed out'));},300000);
                 THREE.Material.prototype.clone=function(){frameClones++;return original.clone.call(this);};
                 renderer.render=function(...args){
                     if(skipSubmission && frame>=warmup)return;
+                    if(reuseShadow && frame===warmup)renderer.shadowMap.autoUpdate=false;
                     const time=performance.now();
                     try{return original.render.apply(this,args);}finally{submitted+=elapsed(time);}
                 };
@@ -64,6 +70,7 @@ const cases = [
                     const time=performance.now();
                     submitted=terrain=actors=frameClones=0;
                     original.draw.call(this,now);
+                    if(frame===warmup-1)warmPrograms=renderer.info.programs.length;
                     if (frame++>=warmup && last!==undefined) {
                         intervals.push(time-last);drawMs.push(elapsed(time));submitMs.push(submitted);
                         terrainMs.push(terrain);actorMs.push(actors);clones+=frameClones;
@@ -74,17 +81,17 @@ const cases = [
                         resolve({samples,warmup,intervalMs:summary(intervals),drawMs:summary(drawMs),
                             submitMs:summary(submitMs),terrainMs:summary(terrainMs),actorMs:summary(actorMs),materialClones:clones,
                             calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,
+                            shaderPrograms:{afterWarmup:warmPrograms,afterSamples:renderer.info.programs.length},
                             over100ms:intervals.filter(ms=>ms>100).length});
                     }
                 };
-            }),{samples:Number(process.env.EB_RENDER_SAMPLES||90),warmup:20,skipSubmission});
-            results.push({...scene,skipSubmission,...result});
+            }),{samples:Number(process.env.EB_RENDER_SAMPLES||90),warmup:20,skipSubmission,reuseShadow});
+            results.push({...scene,skipSubmission,reuseShadow,...result});
             console.log(JSON.stringify({renderer,...results.at(-1)}));
-            await t.shot(page,'benchmark-'+scene.name+'-'+t.sha.slice(0,8));
+            fs.writeFileSync(output,JSON.stringify(report,null,2)+'\n');
+            await t.shot(page,'benchmark-'+scene.name+'-'+t.sha.slice(0,8)+diagnostic);
         }
         t.assert.deepEqual(page.errors,[]);
-        const report={sha256:t.sha,renderer,profile:'Chromium landscape viewport, 844 x 390',results};
-        fs.writeFileSync(path.join(t.out,'render-'+t.sha.slice(0,8)+(skipSubmission?'-no-submit':'')+'.json'),JSON.stringify(report,null,2)+'\n');
         t.record('Warmed rendering benchmark',report);
     } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

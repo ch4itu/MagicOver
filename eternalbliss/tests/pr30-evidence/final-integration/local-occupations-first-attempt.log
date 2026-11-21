@@ -1,0 +1,7 @@
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for getByRole('tab', { name: 'Talk', exact: true })
+
+    at /workspace/EternalBliss-RC/eternalbliss/tests/local-occupations.cjs:37:93 {
+  name: 'TimeoutError'
+}
