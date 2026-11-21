@@ -39,6 +39,16 @@ const profiles = {
             });
             await page.waitForFunction(()=>__view.harborVessels.find(v=>v.id==='lantern').model.visible);
             await use('#eb-immersive-toggle');
+            if (name==='landscape') {
+                const before=await page.evaluate(()=>__view.eyeYaw);
+                await use('#eb-look-left');
+                t.assert.notEqual(await page.evaluate(()=>__view.eyeYaw),before);
+                const obstructed=await page.evaluate(()=>['eb-look-left','eb-look-right','eb-eye-use'].filter(id=>{
+                    const button=document.getElementById(id), r=button.getBoundingClientRect();
+                    return !button.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+                }));
+                t.assert.deepEqual(obstructed,[]);
+            }
             const aim=await page.evaluate(()=>{
                 const v=__view, boat=v.harborVessels.find(v=>v.id==='lantern').model;
                 boat.updateWorldMatrix(true,true);

@@ -2041,7 +2041,8 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
  [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
 }
 @media (max-height:450px) and (pointer:coarse) {
- [data-eb-immersive="first"] #eb-eye-actions{right:120px;bottom:82px}
+ [data-eb-immersive="first"] #eb-eye-actions{right:190px;bottom:55px}
+ [data-eb-immersive="first"] #eb-immersive-look{bottom:55px}
 }
 /* D-pad stays usable while filming. */
 /* PR #2: keep desktop controls hidden by default; retain touch movement at every size, including hybrids. */
@@ -14931,6 +14932,7 @@ const ebFarlands = (() => {
     }
 
     function restore(save) {
+        if (save?.version===1) save=migrateCoast(save);
         if (save?.version!==farlandsSaveVersion) return;
         journey=newJourney(save);
         restoreBoat(save);
