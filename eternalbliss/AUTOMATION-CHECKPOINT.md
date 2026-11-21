@@ -1,5 +1,13 @@
 # EternalBliss automation checkpoint
 
+## CI monitor verification — 2026-11-21
+
+- GitHub Actions [run #12](https://github.com/ch4itu/MagicOver/actions/runs/44891705752) completed successfully for commit `3ad22ed0c96d28f9f37319cde602e15be7410646`. Both **Source and regression contracts** and **Chromium browser smoke** passed on GitHub-hosted Ubuntu 24.04. This is smoke coverage, **not** a rerun of the 17-check release matrix.
+- The earlier runner failures were fixed by full-history checkout, pinned Ubuntu 24.04, and Playwright's own Chromium executable lookup. The successful run's report job was skipped because the workflow excluded pull-request events.
+- Commit `adeb1e47fe5d4c873c9d7ac6b9c24df42abc4739` changes the report job to produce run summaries for PR events too, while keeping failure comments restricted to non-PR runs. **This final change has not yet been observed passing on GitHub.**
+- No gameplay HTML or blockchain program was changed. Physical Android, live multiplayer and rendering stalls remain unresolved. No merge or deployment.
+
+
 The working branch `automation/eternalbliss-release-candidate` was created from the remote automation head `2346b1f28d5baf6202685b3905bcf998dee97635`. It contains Claude’s baseline `76664bfa954062cf15de7b63d21edb26d44e7847` and the two mandate commits. Baseline HTML SHA-256 is `4c08d431fdd3119e96125b4fd15c86d95f1bca6ae4094455e88ee3a9edf86c55`. The working branch is a development checkpoint.
 
 ## PR 30 final integration
