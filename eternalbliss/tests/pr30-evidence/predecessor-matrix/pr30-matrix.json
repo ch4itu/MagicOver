@@ -1,0 +1,177 @@
+{
+  "source": "a9c2af01a5bfeb48f45430ce440eafecc696c518884bd2dca56e88b1e75d327e",
+  "jobs": {
+    "geography": {
+      "status": "PASS",
+      "fingerprint": "ec9fcabaa22849976fb5d012d22d72ac36c9a770ea74d5a422407afbafaa0a04",
+      "log": "geography-1795248963784.log",
+      "started": "2026-11-21T08:16:03.784Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:16:05.893Z"
+    },
+    "quest-contract": {
+      "status": "PASS",
+      "fingerprint": "3f4aed293071a36fa867715c15df2c7846a8d975cd1e8ba86be35a72829dc1ff",
+      "log": "quest-contract-1795248965907.log",
+      "started": "2026-11-21T08:16:05.907Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:16:06.300Z"
+    },
+    "shared-source-boundary": {
+      "status": "PASS",
+      "fingerprint": "7c646d27cd358b50fcfe51f13db76186c485a1aa4877c71d4d6b187d39987bc5",
+      "log": "shared-source-boundary-1795248966313.log",
+      "started": "2026-11-21T08:16:06.313Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:16:06.513Z"
+    },
+    "mobile-touch": {
+      "status": "FAIL",
+      "fingerprint": "ddb3152c49e1a01e84c87e245a20b0b48b3cd72ad5cb9fc2888c978c1377d058",
+      "log": "mobile-touch-1795249839795.log",
+      "started": "2026-11-21T08:30:39.795Z",
+      "previous": {
+        "status": "FAIL",
+        "fingerprint": "31dd9fb0a46cbe950f28b1d25779a3ecb3bd76511f297f4292adc2806666f4b8",
+        "log": "mobile-touch-1795248966518.log",
+        "started": "2026-11-21T08:16:06.518Z",
+        "code": 1,
+        "signal": null,
+        "finished": "2026-11-21T08:16:46.637Z"
+      },
+      "code": 1,
+      "signal": null,
+      "finished": "2026-11-21T08:30:58.445Z"
+    },
+    "generated-mooring-desktop": {
+      "status": "PASS",
+      "fingerprint": "a24d4c1a1cde533287773ffcdb07eb4839d54f6705e2f414bb049c04e6fe0d09",
+      "log": "generated-mooring-desktop-1795249006642.log",
+      "started": "2026-11-21T08:16:46.642Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:17:25.978Z"
+    },
+    "generated-mooring-portrait": {
+      "status": "PASS",
+      "fingerprint": "0813d3f1fa82d1947f768f8debb9d5680525a44e80495f6cab51880bc87fd49a",
+      "log": "generated-mooring-portrait-1795249045983.log",
+      "started": "2026-11-21T08:17:25.983Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:18:03.913Z"
+    },
+    "generated-mooring-landscape": {
+      "status": "PASS",
+      "fingerprint": "7ed4cf3163247bd779a4c57b7dc186e91dc264bbb62bdd16fd5f9e1a4112d38e",
+      "log": "generated-mooring-landscape-1795249083920.log",
+      "started": "2026-11-21T08:18:03.920Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:19:30.958Z"
+    },
+    "fresh-first-visit": {
+      "status": "PASS",
+      "fingerprint": "ca9b00c635676c61e24db55725ac621ec6125dba068deadd96593c16d4a21b22",
+      "log": "fresh-first-visit-1795249170968.log",
+      "started": "2026-11-21T08:19:30.969Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:20:17.007Z"
+    },
+    "save-and-rollback": {
+      "status": "PASS",
+      "fingerprint": "43ad38e2bf4fef3d44dc45c7de9020eb2113e01b206d12649cfb4b3a72f62c35",
+      "log": "save-and-rollback-1795249858463.log",
+      "started": "2026-11-21T08:30:58.463Z",
+      "previous": {
+        "status": "FAIL",
+        "fingerprint": "576d2438e02b0424fb7b25a72c6f84f7011636e32630544a42ca66fab703e0c8",
+        "log": "save-and-rollback-1795249217021.log",
+        "started": "2026-11-21T08:20:17.022Z",
+        "code": 1,
+        "signal": null,
+        "finished": "2026-11-21T08:21:07.747Z"
+      },
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:31:52.153Z"
+    },
+    "authored-coastal-transport": {
+      "status": "PASS",
+      "fingerprint": "9e7d01124e91fbfec5d56b3fc82a2d34b62b09ade6d2df649f1cc448febfc300",
+      "log": "authored-coastal-transport-1795249267752.log",
+      "started": "2026-11-21T08:21:07.752Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:22:43.459Z"
+    },
+    "shellwick-quest": {
+      "status": "PASS",
+      "fingerprint": "c3057fc44c43a7b8b7fbb6882b773e6fd28b556e09ff736ab8c0cad99ead9a74",
+      "log": "shellwick-quest-1795249363471.log",
+      "started": "2026-11-21T08:22:43.471Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:23:02.252Z"
+    },
+    "portrait-combat": {
+      "status": "PASS",
+      "fingerprint": "950c45fe8fbbb9b338e4a9e33eb7a73aebf0985792ea88140a985d403c160bc3",
+      "log": "portrait-combat-1795249382263.log",
+      "started": "2026-11-21T08:23:02.263Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:24:00.332Z"
+    },
+    "landscape-combat": {
+      "status": "PASS",
+      "fingerprint": "e5ad19527b785325523533c371202cbc2ec271f8cf9d94deeb9630cd5a09e2c1",
+      "log": "landscape-combat-1795249440342.log",
+      "started": "2026-11-21T08:24:00.342Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:25:11.970Z"
+    },
+    "startup-modes": {
+      "status": "PASS",
+      "fingerprint": "d6a9d7a6fe66e9e5324a2da0025d2a50c671baf48dd3b203b840d74d9ccb6781",
+      "log": "startup-modes-1795249512020.log",
+      "started": "2026-11-21T08:25:12.031Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:26:15.663Z"
+    },
+    "shared-active-save-guard": {
+      "status": "PASS",
+      "fingerprint": "4e0e4d4a6c74fd3e980b263ff9e00f7b4187fc26ad584f79e59096052ebbd779",
+      "log": "shared-active-save-guard-1795249575671.log",
+      "started": "2026-11-21T08:26:15.671Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:26:35.796Z"
+    },
+    "natural-harvest": {
+      "status": "FAIL",
+      "fingerprint": "6cdd168ffb5b9980622536f816b89ca7eb8c4fb075ecb480d21646976c840044",
+      "log": "natural-harvest-1795249951667.log",
+      "started": "2026-11-21T08:32:31.668Z",
+      "previous": {
+        "status": "FAIL",
+        "fingerprint": "1d4018968cc95a3ecec3781828de353882c36fc4fec8ae83a3500d3ec6675782",
+        "log": "natural-harvest-1795249595801.log",
+        "started": "2026-11-21T08:26:35.801Z",
+        "code": 1,
+        "signal": null,
+        "error": "spawnSync /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node ETIMEDOUT",
+        "finished": "2026-11-21T08:30:36.098Z"
+      },
+      "code": 1,
+      "signal": null,
+      "finished": "2026-11-21T08:32:54.423Z"
+    }
+  }
+}

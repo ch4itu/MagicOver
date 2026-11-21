@@ -2,9 +2,39 @@
 
 The working branch `automation/eternalbliss-release-candidate` was created from the remote automation head `2346b1f28d5baf6202685b3905bcf998dee97635`. It contains Claude’s baseline `76664bfa954062cf15de7b63d21edb26d44e7847` and the two mandate commits. Baseline HTML SHA-256 is `4c08d431fdd3119e96125b4fd15c86d95f1bca6ae4094455e88ee3a9edf86c55`. The working branch is a development checkpoint.
 
-## Coastal continuation
+## PR 30 acceptance continuation
 
-The latest gameplay commit is `75cb6f0c399a6dac1df96b3455a3afcbcd835737`. Its HTML SHA-256 is `f3d1b298955756bab42eaa340bab2f44cc3e01c1dcd4e03c8fb90b720933a5e8`. The older evidence below remains tied to the previous checkpoint.
+Gameplay commit `1d163690212dcc2057b5105d89a94cef08b782a2` has HTML SHA-256 `c1b17de53b6b0683856fd8e57655f5d63df9f96ba8ca5e84035f76301e02c0bc`. The integrated matrix started on `6afa95ca2a709945f2c8c7d5a250bf3e3b0b3ab3` with HTML SHA-256 `a9c2af01a5bfeb48f45430ce440eafecc696c518884bd2dca56e88b1e75d327e`. This continuation starts from `7268e30e775d6eb3972a5bb72fd62533b8c661aa`.
+
+- `c3b8963` cuts first-person afloat frame allocations by caching ship materials and avoids hidden water shading. The warmed benchmark covered 270 frames across the Rest overhead and first-person scenes and the Quay afloat scene. The details separate JavaScript and render submission costs from frame delivery. [Rendering methods, data and before/after screenshots](tests/pr30-evidence/RENDERING.md)
+- `c8864ed` requires generated moorings to connect to a local channel and caches cells that have no suitable mooring. The old bank-adjacency fixture was too strict, and the Millbend pocket contained a real trapped boat. The revised browser test verifies the pocket is empty, a rendered ray hits the connected boat, and the player can board, sail, reload afloat and disembark. Portrait and landscape use Chromium touch events for the vehicle buttons.
+- `97bc946` and `1d16369` enable stationary, single-touch ground taps in solo Farlands in 2D and overhead 3D. D-pad swipes, first-person interactions and the shared-world movement path retain their separate behavior. The stationary tap is handled at native pointer release, including when Chromium suppresses the compatibility click after a swipe. The mobile suite uses Chromium touch input for both ground modes, the D-pad and Atlas. The combat suite uses touch for the combat controls in mobile profiles.
+- `6afa95c` adds Ivo’s millwright tally, with an inspectable crate, a trip to Millbend and a one-time reward. The fresh guest fixture plays the route from the default spawn, walks using keys, uses the named crate and Ivo’s normal dialogue, then reloads the earned progress. It fixes the clock at noon and does not stand in for fifteen minutes of varied play, denser settlement populations or changing resident schedules.
+
+[Verification record and final screenshots](tests/pr30-evidence/VERIFICATION.md) describe the integrated predecessor and the focused final checks. Fourteen matrix jobs passed on the predecessor. The remaining touch failure was repaired and passed on the final HTML. The Harvest Bell route completed after resuming the real guest save on the final HTML, including Mira’s reward and reload. The complete matrix on the final hash, physical-device performance and wider living-world acceptance remain open.
+
+### Run and rollback
+
+Run the PR 30 matrix in a fresh evidence directory. When resuming, keep the same evidence directory to retain exact passing fingerprints and add `EB_RC_ONLY` with the names of the failed or unfinished jobs.
+
+```bash
+git show 7268e30e775d6eb3972a5bb72fd62533b8c661aa:eternalbliss/index.html >/tmp/eb-pr30-scope.html
+git show 047b3c91d0c433c0615d4b319367be8566a96d5d:eternalbliss/index.html >/tmp/eb-pr30-v1.html
+git show 76664bfa954062cf15de7b63d21edb26d44e7847:eternalbliss/index.html >/tmp/eb-pr30-quests.html
+export NODE_PATH=/workspace/.magic-over-setup/browser/node_modules
+export EB_EVIDENCE=/workspace/EternalBliss-RC-evidence/acceptance/final-matrix
+export EB_RC_CANDIDATE=c1b17de53b6b0683856fd8e57655f5d63df9f96ba8ca5e84035f76301e02c0bc
+export EB_SCOPE_BASELINE=/tmp/eb-pr30-scope.html
+export EB_ROLLBACK_SOURCE=/tmp/eb-pr30-v1.html
+export EB_QUEST_BASELINE=/tmp/eb-pr30-quests.html
+node eternalbliss/tests/release/pr30-matrix.cjs
+```
+
+To revert only this continuation, load the standalone HTML from `7268e30` on the same origin after exporting the current save. That build reads terrain v2 saves. The older v1 rollback uses the archived raw save as described below, and must use the pre-coast HTML. The first matrix invocation fed the v2 continuation baseline to the v1 rollback fixture. Those are now separate harness inputs.
+
+## Coastal continuation (previous checkpoint)
+
+The coastal gameplay commit was `75cb6f0c399a6dac1df96b3455a3afcbcd835737`. Its HTML SHA-256 is `f3d1b298955756bab42eaa340bab2f44cc3e01c1dcd4e03c8fb90b720933a5e8`. The older evidence below remains tied to the previous checkpoint.
 
 - `7b96892` adds a south-facing bay in the Lantern Keys and a separate east-facing inlet at Amberport. Lantern Quay and Shellwick have moorings and jetties. Pearl Banks shares the Shellwick landing. The existing station and landmark coordinates are unchanged. The automated geography test checks existing road centerlines, dry settlement cores, the exact rendered-hull clearance calculation and a connected five-tile fairway to open sea.
 - `49ffab4` keeps the station boats' model proportions consistent with terrain clearance and moves Use clear of the landscape minimap. `75cb6f0` also separates Use from the Look controls in short touch layouts and keeps the direct v1 restore caller compatible.
@@ -66,7 +96,7 @@ Solo Farlands has procedural terrain, sparse local edits, saved quests and disco
 
 The desktop vehicle suite passed the horse purchase, mount, first-person movement, dismount and reload assertions before stopping at the boat fixture. The original fixture required water beside walkable land. The first repair searched for a visible boat within boarding range and a connected water path to a legal landing. That reached the Use action but did not open Embark. The second repair aimed the actual rendered camera at the boat hull and failed the ray intersection check. The failed harness changes were removed, and the three logs are in the evidence directory. The result leaves real first-person boarding and free-sailing acceptance open. The next diagnostic should record the boat mesh bounds and transforms, the camera ray, higher-priority actor hits and the player's actual distance at Use before deciding whether to fix fixture setup or picking behavior.
 
-## Remaining work in priority order
+## Earlier backlog (historical)
 
 1. Design a connected coastline for Lantern Quay, Shellwick and Pearl Banks using actual terrain contours. Map walkable approaches, route intersections, docks and boat clearances before editing. Treat Amberport separately. The priority sites are far enough inland that a small local depression would create an isolated pond.
 2. Pair any geometry change with a reversible save version. Preserve the exact old save and test old land and water coordinates, mounted and parked horses, moorings, occupied boats, edits, interior exits, pins, visited sites and quest flags. Check coastline differences against existing building footprints and generated actor or item positions. Maintain the prior terrain for recovery until the migration and rollback both pass.
@@ -74,7 +104,7 @@ The desktop vehicle suite passed the horse purchase, mount, first-person movemen
 4. Verify portrait and landscape D-pad, touch movement, tap-to-move, minimap, Atlas, camera and first-person controls. Complete combat, transport and save/reload checks and measure rendered frame timings on available profiles. Record emulation and device evidence separately.
 5. Prepare a portable final regression run once the integrated work is frozen. The older PR #24 driver includes private scratch paths and source expectations specific to that PR. Provide the draft PR with the final hash, matching visual evidence, remaining device and shared-world limits, and rollback instructions.
 
-## Resume
+## Earlier commands (historical)
 
 ```bash
 git fetch origin automation/eternalbliss-codex automation/eternalbliss-release-candidate

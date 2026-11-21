@@ -1,0 +1,4 @@
+RESUME recorded natural local save {"x":12,"y":3,"hp":85,"mp":14,"gold":161,"xp":75,"keys":0,"room":true,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",true],["reward",false]],"discoveries":["rest","mill","toll"]}
+Error: turn did not settle
+    at face (/workspace/EternalBliss-RC/eternalbliss/tests/natural-harvest.cjs:14:274)
+    at async /workspace/EternalBliss-RC/eternalbliss/tests/natural-harvest.cjs:30:62

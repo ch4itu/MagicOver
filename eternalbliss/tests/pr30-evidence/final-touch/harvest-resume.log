@@ -1,0 +1,4 @@
+RESUME recorded natural local save {"x":12,"y":3,"hp":85,"mp":14,"gold":161,"xp":75,"keys":0,"room":true,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",true],["reward",false]],"discoveries":["rest","mill","toll"]}
+archive-exit {"x":5096,"y":4847,"hp":85,"mp":14,"gold":161,"xp":75,"keys":0,"room":false,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",true],["reward",false]],"discoveries":["rest","mill","toll"]}
+mira-reward {"x":5063,"y":4866,"hp":124,"mp":61,"gold":226,"xp":60,"keys":0,"room":false,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",true],["reward",true]],"discoveries":["rest","mill","toll"]}
+complete-reloaded {"x":5063,"y":4866,"hp":124,"mp":61,"gold":226,"xp":60,"keys":0,"room":false,"flags":[["met",true],["key",true],["gate",true],["guardian",true],["relic",true],["reward",true]],"discoveries":["rest","mill","toll"]}

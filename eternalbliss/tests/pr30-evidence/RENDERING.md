@@ -15,3 +15,17 @@ Terrain sync and actor sync reached at most 1 ms per recorded frame across these
 - [Baseline samples and source hash](render-f3d1b298.json)
 - [Optimized samples and source hash](render-7a5a19d7.json)
 - [Before afloat screenshot](benchmark-quay-afloat-first-person-f3d1b298.png) and [after afloat screenshot](benchmark-quay-afloat-first-person-7a5a19d7.png)
+
+A separate diagnostic on the integrated predecessor `a9c2af01…` warmed the same Rest first-person camera and then withheld WebGL submissions for ninety frames while keeping the game draw loop and terrain and actor synchronization running. Frame p95 was 16 ms with zero intervals above 100 ms. This supports investigating the WebGL render path and software frame delivery before changing terrain generation or NPC schedules. It is a diagnostic control with no sampled WebGL output, and leaves GPU completion, queueing and browser scheduling costs unresolved.
+
+To reproduce the comparison, use the same Chromium binary and Playwright setup recorded in the ledger. Keep the browser suites sequential.
+
+```bash
+git show 7268e30:eternalbliss/index.html >/tmp/eb-perf-before.html
+git show c3b8963:eternalbliss/index.html >/tmp/eb-perf-after.html
+export NODE_PATH=/workspace/.magic-over-setup/browser/node_modules
+unset EB_RC_CANDIDATE
+export EB_EVIDENCE=/workspace/EternalBliss-RC-evidence/render-replay
+EB_SOURCE=/tmp/eb-perf-before.html node eternalbliss/tests/render-benchmark.cjs
+EB_SOURCE=/tmp/eb-perf-after.html node eternalbliss/tests/render-benchmark.cjs
+```
