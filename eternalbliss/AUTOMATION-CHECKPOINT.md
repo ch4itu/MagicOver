@@ -28,6 +28,8 @@ EB_DPAD_CASE=tap node eternalbliss/tests/tablet-dpad.cjs
 EB_COMBAT_CASE=landscape:false node eternalbliss/tests/combat.cjs
 ```
 
+Landscape first-person combat and the normal and clean-view D-pad controls passed on the final HTML. The existing tap-to-move probe found that emulated touch input is excluded in both view modes and mouse clicks move the player. Touch tap-to-move therefore remains an open acceptance item. All 32 inline scripts parsed. The separate shared-world and authentication scripts matched the previous checkpoint byte-for-byte.
+
 The original Wayfarer's Rest generated-mooring test remains a separate regression from the new authored-jetty path. It previously failed in fixture selection and aim intersection. The new test positions a hero at a real Lantern Quay jetty, inspects the rendered hull and camera ray, then activates the actual Use button and confirms the boarding dialog. The older full-suite driver still needs portability work, including its private scratch paths. Remaining release gates also include broader resident schedules and early progression, natural first-15-minute gameplay, expanded coastal validation beyond these priority sites, physical device performance and the integrated regression campaign.
 
 ## Implementation
