@@ -812,6 +812,7 @@ class RelicAccess {
     Object.assign(this, { engine, config, connect, say, fetchImpl, recheckMs, freshMs, readTimeoutMs, now, setTimer, clearTimer, setTimeoutFn, clearTimeoutFn, kindNames, commitment });
     this.gate = new RelicGate({ rpcUrl: config.rpcUrl, programId: config.programId, origin: config.origin, fetchImpl, commitment });
     this.state = STATE.NONE;
+    this.sessionVersion = 0;
     this.lastSlot = 0;
     this.holder = null;
     this.relicId = null;
@@ -873,6 +874,7 @@ class RelicAccess {
       return { granted: this.entitled(), reason: r };
     }
     this.busy = true;
+    const version = this.sessionVersion;
     try {
       const player = await this.connect();
       const ledger = await this.ledger();
@@ -891,6 +893,7 @@ class RelicAccess {
       const ch = this.gate.challenge(relic.id);
       const signature = await player.signMessage(ch.message);
       const res = await this.gate.check({ relicId: relic.id, nonce: ch.nonce, signature, publicKey: player.publicKey, minSlot: this.lastSlot });
+      if (version !== this.sessionVersion) return { granted: false, reason: "SIGNED_OUT" };
       if (!res.granted) { this.say("Access refused: " + res.reason); return res; }
       this.lastSlot = res.slot;
       this.holder = player.publicKey;
@@ -924,8 +927,10 @@ class RelicAccess {
     if (!this.holder) return "IDLE";
     if (this.rechecking) return "BUSY";
     this.rechecking = true;
+    const version = this.sessionVersion;
     try {
       const ledger = await this.ledger();
+      if (version !== this.sessionVersion) return "IDLE";
       if (ledger.status !== "OK" || !ledger.complete || !Number.isSafeInteger(ledger.slot) || ledger.slot < this.lastSlot) {
         this.expire(); return "UNREADABLE";
       }
@@ -942,6 +947,16 @@ class RelicAccess {
       this.lose();
       return "LOST";
     } finally { this.rechecking = false; }
+  }
+
+  reset() {
+    this.sessionVersion++;
+    hideMonument(this.engine);
+    if (this.timer) this.clearTimer(this.timer);
+    this.timer = null;
+    this.holder = this.relicId = null;
+    this.verifiedAt = 0;
+    this.state = STATE.NONE;
   }
 
   lose() {
@@ -961,6 +976,7 @@ class RelicAccess {
 
 function installSmaranCity({ engine, config, doc, global, toast, spriteUrl }) {
   installAsset(engine, spriteUrl);
+  if (config.identityUrl) return installCityIdentity({ engine, config, doc, global, toast });
   // Load Smaran Connect ahead of the tap, so the sign-in window opens straight from the player's tap and is not blocked.
   let loaded = null;
   const loadConnect = () => (loaded ??= new Promise((ok, no) => {
@@ -988,8 +1004,114 @@ function installSmaranCity({ engine, config, doc, global, toast, spriteUrl }) {
   return access;
 }
 
+function installCityIdentity({ engine, config, doc, global, toast }) {
+  const panel = doc.createElement("section");
+  panel.setAttribute("aria-label", "Smaran player");
+  panel.style.cssText = "position:fixed;top:max(8px,env(safe-area-inset-top));right:8px;z-index:30;display:grid;justify-items:end;gap:4px;max-width:calc(100% - 16px)";
+  panel.innerHTML = `
+    <button type="button" data-account>Sign in / Create player</button>
+    <button type="button" data-relic hidden>Your collectibles</button>
+    <p role="status" hidden></p>
+    <dialog aria-labelledby="city-account-title" style="max-width:min(24rem,calc(100vw - 32px));color:#f9edc8;background:#252137;border:2px solid #a97845;border-radius:8px;padding:16px">
+      <h2 id="city-account-title">Sign in to Smaran</h2>
+      <form style="display:grid;gap:10px">
+        <label>Player name <input name="name" required autocomplete="username"></label>
+        <label>Passphrase <input name="passphrase" required type="password" autocomplete="current-password"></label>
+        <button type="submit">Sign in</button>
+        <button type="button" data-mode>Create player instead</button>
+        <button type="button" data-close>Keep playing</button>
+        <p role="status"></p>
+      </form>
+    </dialog>`;
+  doc.body.append(panel);
+  const account = panel.querySelector("[data-account]");
+  const relic = panel.querySelector("[data-relic]");
+  const status = panel.querySelector("p");
+  const dialog = panel.querySelector("dialog");
+  const form = dialog.querySelector("form");
+  const submit = form.querySelector("[type=submit]");
+  const mode = form.querySelector("[data-mode]");
+  const alert = form.querySelector("p");
+  const name = form.elements.namedItem("name");
+  const password = form.elements.namedItem("passphrase");
+  let player = null, loading, creating = false, version = 0;
+  const access = new RelicAccess({ engine, config: { ...config, origin: global.location.origin },
+    connect: async () => {
+      if (!player) throw new Error("Sign in to check your collectibles.");
+      const current = player;
+      return { name: current.name, publicKey: current.publicKey, signMessage: (message) => current.sign(message) };
+    },
+    say: (message) => { if (player) { status.hidden = false; status.textContent = message; toast(message); } },
+    kindNames: config.kindNames });
+  function setMode(value) {
+    creating = value;
+    dialog.querySelector("h2").textContent = value ? "Create a Smaran player" : "Sign in to Smaran";
+    submit.textContent = value ? "Create player" : "Sign in";
+    mode.textContent = value ? "Sign in instead" : "Create player instead";
+    password.autocomplete = value ? "new-password" : "current-password";
+  }
+  function load() {
+    if (global.Smaran) return Promise.resolve(global.Smaran);
+    loading ||= new Promise((resolve, reject) => {
+      const script = doc.createElement("script");
+      script.src = config.identityUrl;
+      script.onload = () => global.Smaran ? resolve(global.Smaran) : reject(new Error("Smaran could not start."));
+      script.onerror = () => { script.remove(); reject(new Error("Smaran could not load. Check your connection and retry.")); };
+      doc.head.append(script);
+    }).catch((error) => { loading = undefined; throw error; });
+    return loading;
+  }
+  function signOut() {
+    version++;
+    access.reset();
+    player?.forget();
+    player = null;
+    status.hidden = relic.hidden = true;
+    status.textContent = "";
+    account.textContent = "Sign in / Create player";
+    account.removeAttribute("title");
+  }
+  account.onclick = () => {
+    if (player) { signOut(); return; }
+    setMode(false);
+    alert.textContent = "";
+    dialog.showModal();
+  };
+  mode.onclick = () => setMode(!creating);
+  form.querySelector("[data-close]").onclick = () => dialog.close();
+  dialog.addEventListener("close", () => { version++; password.value = ""; submit.disabled = mode.disabled = false; });
+  global.addEventListener("pagehide", signOut);
+  relic.onclick = () => { if (player) void access.unlock(); };
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const current = ++version;
+    const credentials = { name: name.value, passphrase: password.value };
+    password.value = "";
+    submit.disabled = mode.disabled = true;
+    alert.textContent = creating ? "Creating your player…" : "Signing in…";
+    try {
+      const smaran = await load();
+      if (current !== version) return;
+      const signed = creating ? await smaran.signUp(credentials) : await smaran.signIn(credentials);
+      if (current !== version) { signed.forget(); return; }
+      player = signed;
+      account.textContent = "Sign out · " + player.name;
+      relic.hidden = false;
+      status.hidden = false;
+      status.textContent = "Welcome back, " + player.name + ".";
+      account.title = player.name;
+      dialog.close();
+    } catch (error) {
+      if (current === version) alert.textContent = error instanceof Error ? error.message : "Could not sign in. Try again.";
+    } finally {
+      if (current === version) submit.disabled = mode.disabled = false;
+    }
+  };
+  return access;
+}
+
 const SPRITE="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAACACAYAAAD03Gy6AAAC40lEQVR4nOzYsUrEQBDG8XsVH8LGl9FaO7FTsBQEWwWxEKxsbezFXitfwMrON4hEWAlH3Owm2Z2Znf8H095lv18md2SzIYQQQgghhBBCCCGEEEJILN9vh93r7W5HS0IBQLh8AJQA8BgCwOfdP9wAtgAAf3f/9gawBQD4uvvZAGGA7uv+d3gMVQYIxW8PvwOFy/+v+DGIktfiMh+Pe8kAdyc7AJQACBMrPszqF+A9Q4BtiGHxAFQE6GesfDYAgPbCBgDgN//d/bHfAH4HAGgnbAAAvsMGAOA7bAAAvsMGAOA7bAAAvsMGAOA7bIDS8qdeR/NKGgD7YQMA8B02AADfYQMA8B02AADfYQMA8B02AAC/mbr7U96G8kYUALthAwDwHTYAAN+Z2oDzz3f+BUkB9OWH4W9oZYBh+SkIpa6v+aSWP4UgfQ6zAUAhAI8gBQD8CCsA4G+oAgDehhbK88vTZPE5AP30n1nqeptJX1KYEgBhpM+pLsNyagAAESm+JoBbiFgZEgBuIFJKkARoFiLn8BoAmoGYc+hchFLlm4ZYeuAciJLFm4NY+8ApEDWKVw9R+sAxiJrFq4Q4vTirfvAhhETxYW4erjsVAGGkipAoPoxo+Ve3l3/le4AYFh+m70Ck+DBjAK1BjBU/BAhTtfgUAOsQseLHAIpBjH1JDoA1iJTiYwCrQcQ+fA6Adoic4lMAZkOkfOgSAG0Qc4rPAciC2D86yPrQpQiSEEuKzy2/n5Pz4y4JIEyrEBLFh8kCaA1CsvhFANYhNBS/CoA1CE3FrwqgHUJj8UUAtEFoLr4ogDSEheKrAEhAWCm+KkBNCCvFJwOsjVAawkrxyeVbg2iyeEsQTRdvAcJF8ZohXBWvEcJl8dog3BZvBaL54rVCuCteC4T74qUgKF5oIyhe8NHk+hm/NFoANt4jBSB9bnWpBSB9TvUpBSB9LnNZC0D6HOYzF0D6upvLfiKA9HXm5AcAAP//AwB0L88LCshWcgAAAABJRU5ErkJggg==";
-const CONFIG={"programId":"3Nuw244n383T7CF8bTVaQqAw8Yt3aPnjgAGf68QRbhk4","rpcUrl":"https://api.devnet.solana.com","connectUrl":"https://ch4itu.github.io/MagicOver/smaran/connect.js","kindNames":{"1":"Ember","2":"Compass","3":"Bell","4":"Crest"}};
+const CONFIG={"identityUrl":"../smaran/smaran.js","programId":"3Nuw244n383T7CF8bTVaQqAw8Yt3aPnjgAGf68QRbhk4","rpcUrl":"https://api.devnet.solana.com","connectUrl":"https://ch4itu.github.io/MagicOver/smaran/connect.js","kindNames":{"1":"Ember","2":"Compass","3":"Bell","4":"Crest"}};
 installSmaranCity({engine,config:CONFIG,doc:document,global:window,toast:(t)=>showToast(t),spriteUrl:SPRITE});
 })();
 </script></body></html>
