@@ -2,6 +2,7 @@ const t = require('./browser.cjs');
 const {writeFileSync} = require('node:fs');
 const path = require('node:path');
 const base=process.env.EB_LIFE_BASELINE==='1';
+const harborOnly=process.env.EB_LIFE_HARBOR==='1';
 const noon=(1767225600+4*480+240)*1000;
 const phone={viewport:{width:390,height:844},isMobile:true,hasTouch:true};
 const siteAt=async(page,id)=>page.evaluate(id=>{
@@ -140,10 +141,19 @@ async function verify(browser){
 }
 
 async function render(browser){
-    const p=await t.page(browser,phone,noon);
+    const p=await t.page(browser,phone,noon+(harborOnly?80*1000:0));
     await siteAt(p,'lantern');
     await p.tap('#eb-immersive-toggle');
     await p.waitForFunction(()=>__view.eyeActive());
+    if(harborOnly)await p.evaluate(()=>{
+        const [x,y]=Farlands.coastalDocks.lantern.shore;
+        const marker=[0,-1,-2].map(dx=>[x+dx,y-3]).find(([x,y])=>canEntityMoveTo(x,y));
+        if(!marker)throw Error('No walkable harbor benchmark approach');
+        Object.assign(gameState.player,{x:marker[0],y:marker[1],targetX:marker[0],targetY:marker[1]});
+        const yaw=Math.atan2(marker[0]-x,marker[1]-y);
+        __view.eyeYaw=__view.eyeRenderYaw=yaw;
+        renderWorld();
+    });
     const result=await p.evaluate(async()=>{
         const frames=[];
         let last=performance.now(),draw=__view.renderer.info.render.frame;
@@ -170,10 +180,40 @@ async function render(browser){
     await p.close();
 }
 
+async function nightInn(browser){
+    const page=await t.page(browser,undefined,new Date(noon+11*20*1000));
+    await siteAt(page,'lantern');
+    await page.evaluate(()=>openBuildingInterior(buildings.find(b=>b.realmId==='lantern-service-0')));
+    await page.click('#eb-immersive-toggle');
+    await page.waitForFunction(()=>__view.room&&__view.eyeActive());
+    const frame=await page.evaluate(()=>__view.renderer.info.render.frame);
+    await page.waitForFunction(frame=>__view.renderer.info.render.frame>=frame+4,frame);
+    await t.shot(page,'phase2-lantern-inn-first-person-'+t.sha.slice(0,8));
+    const visit=await page.evaluate(()=>{
+        const guest=npcs.find(n=>n.realmId&&!n.roomHost);
+        if(guest){
+            Object.assign(gameState.player,{x:guest.x,y:guest.y});
+            useWorldActor('npc',guest);
+        }
+        return {patrons:npcs.filter(n=>n.realmId).length,name:guest?.name,dialogue:guest?.dialogue};
+    });
+    if(!base){
+        t.assert(visit.patrons>=1&&visit.patrons<=2);
+        t.assert(visit.dialogue);
+        await page.locator('#interactionModal').waitFor({state:'visible'});
+        t.assert.equal(await page.locator('#modalTitle').textContent(),visit.name);
+        t.assert((await page.locator('#modalContent').textContent()).includes(visit.dialogue));
+        t.record('Night inn patron dialogue',visit);
+    }
+    t.assert.deepEqual(page.errors,[]);
+    await page.close();
+}
+
 (async()=>{
     const browser=await t.launch();
     try{
-        if(!base)await verify(browser);
-        await render(browser);
+        if(!base&&!harborOnly)await verify(browser);
+        if(process.env.EB_LIFE_INN_ONLY!=='1')await render(browser);
+        if(harborOnly)await nightInn(browser);
     }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
