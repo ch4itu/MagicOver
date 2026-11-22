@@ -10672,6 +10672,11 @@ window.addEventListener('load', () => {
         syncActors() {
             const player = gameState.player;
             const radius = this.eyeMode ? Math.max(48,this.visibleRadius()) : this.visibleRadius();
+            const socialRange = this.mobile ? 9 : 14;
+            this.socialActors = ebFarlands.surface() && !sharedWorld.active() ?
+                new Set(npcs.filter(n=>ebLife.drawn(n) && Math.hypot(n.x-player.x,n.y-player.y)<=socialRange)
+                    .sort((a,b)=>Math.hypot(a.x-player.x,a.y-player.y)-Math.hypot(b.x-player.x,b.y-player.y))
+                    .slice(0,this.mobile?6:12)) : null;
             const visible = new Set();
             this.targets = [];
             for (const [kind, group] of [
@@ -11318,6 +11323,8 @@ window.addEventListener('load', () => {
                     case 'tend':   set(-.75+wave(1.6,.2), -.65+wave(1.6,.2,.6)); lean = .38; break;
                     case 'trade':  set(-1.15+wave(1.4,.08), -.2); break;                           // goods held out
                     case 'browse': set(-.25, -.25); break;
+                    case 'pack': set(-.62+wave(2.6,.26),-.84+wave(2.6,.33,1.1)); lean=.34; break;
+                    case 'carry':  set(-1.2, -1.2); lean=.12; break;
                     case 'serve':  set(-1.05, -1.05); break;                                       // a tray in both hands
                     case 'rest':   set(.05, .05); lean = -.05; break;
                     case 'pray':   set(-1.45, -1.45); lean = .3; break;
@@ -12086,7 +12093,7 @@ window.addEventListener('load', () => {
                 // within 14 tiles of the hero; the rest of the world is not animated).
                 if(kind==='npc' && !model.ebDressed && ebFarlands.surface() && !sharedWorld.active() && ebLife.look(data))
                     this.dressRole(model,ebLife.look(data));
-                if(kind==='npc' && contextual && ebLife.drawn(data) && Math.hypot(data.x-here.x,data.y-here.z)<=14)
+                if(kind==='npc' && this.socialActors?.has(data) && !buildingInterior)
                     this.poseActivity(model,ebLife.activity(data,performance.now()),time,dt,data);
                 // R15.59: Mira and Nessa at work, at their real scheduled places (pose and facing only).
                 if(kind==='npc' && model.arms?.length && model.body) ebLivingRest.pose(data,model,time,dt,this.reduced,now);
@@ -14007,6 +14014,14 @@ function openBuildingInterior(building, position) {
                 dialogue:'The road can wait until morning. There’s a warm seat if you want one.'});
         }
     }
+    if (building.realmId && building.realmId!=='rest-service-0' && ebFarlands.surface() && !sharedWorld.active()) {
+        const seats = building.type==='inn' ? [[3,5],[9,5]] : building.type==='shop' ? [[4,5],[8,5]] : [];
+        if (seats.length) for (const [i,patron] of ebLife.roomPatrons(building.realmId).entries()) {
+            const [x,y]=seats[i];
+            map.npcs.push({name:patron.name,class:patron.class,realmId:patron.realmId,x,y,
+                dialogue:patron.life.slot.says ?? 'I’ll stay here tonight. The road will still be there in the morning.'});
+        }
+    }
     setInteriorState({ building, outside, door, service, furniture, decorTiles });
     applyAdventureMap(map,{ ...gameState.player, ...(start && start !== '#' ? position : door) });
     return true;
@@ -14476,7 +14491,7 @@ const Farlands = (() => {
         [5042,4850,'South orchard tally','Red cloth marks the trees that need another day. Leave those branches for the next crew.',0xb64632],
         [rest.x+6,rest.y+2,'Exchange order slate','Chalk orders for the inn: six rye loaves, a dozen eggs, and no more than one of Fen’s stories.',0xc6a477],
         [rest.x-3,rest.y-7,'Inn’s supper docket','Three benches laid. Spare bread goes to the north road watch after supper.',0x9dba9f],
-        [8556,8580,'Shellwick tide board','Shellfish baskets go out past the yellow sand at low tide. The mooring is just southwest. Lantern Quay lies northwest around the head of the bay.'],
+        [8556,8580,'Shellwick tide board','Shellfish baskets go out past the yellow sand at low tide. The mooring is just southwest. Lantern Quay lies northwest around the head of the bay. Ask the waykeeper about dry space for the shell baskets.'],
         [8559,8565,'Pearl Banks tally post','Collectors count the day’s shells here before taking them to the Shellwick market. Follow the bank southwest for the shared landing.']
     ]) authoredProps.set(y*size+x,{x,y,kind:'signpost',solid:false,turn:0,name,text,cloth,soloOnly:cloth!==undefined});
     function propAt(x,y,solo=true) {
@@ -14743,13 +14758,24 @@ const Farlands = (() => {
         'Woodcutter':[[6,'wild','Cutting wood at the edge of the village.'],[12,'work','Stacking timber by the workshop.'],[14,'wild','Back to the woods for another load.'],[19,'home']],
         'Caretaker':[[7,'temple','Sweeping the hall steps.'],[11,'centre','Tidying the square.'],[15,'temple','Tending the hall garden.'],[20,'home']]
     };
+    const fishingDays = {
+        Fisher:[[5.5,'landing','The early catch goes to the market. The rest goes into the inn’s pot.'],
+            [10,'market','The fish are fresh. The prices are between you and the stallholder.'],
+            [14,'landing','I mend the small holes first. The big ones never ask to be found.'],[19,'inn','At last, a chair rather than a wet plank.'],[21,'home']],
+        Dockworker:[[6,'landing','Mind the coils. If a boat pulls, that rope will jump.'],
+            [11,'work','I’m putting the loose tools away before someone calls them salvage.'],
+            [14,'landing','Stack the empty baskets on top. A full one can sit wherever it likes.'],[20,'inn','A bowl of stew, and no one asking me to move it.'],[22,'home']],
+        'Market Buyer':[[7,'market','I promised to buy a loaf. Somehow I’m being offered three kinds of jam.'],
+            [12,'inn','The cook claims the smaller bowl is the same size. We have agreed to disagree.'],
+            [16,'market','I’m waiting for the seed merchant. She always comes just after I’ve given up.'],[20,'home']]
+    };
     function villageLife(site,actors) {
         const {x,y} = site, taken = new Set();
         // Authored places stay clear: the resident tiles of Wayfarer's Rest's own people, and three tiles around Mira, so
         // Space beside her still reaches her (see restLife).
         const authored = actors.npcs.filter(n => n.routine).flatMap(n => n.routine.filter(e => !e.home).map(e => [e.x,e.y]))
             .concat(actors.npcs.filter(n => !n.fauna && !n.movable && !n.routine &&
-                !(n.name.startsWith(site.name+' ') && villageDay[n.name.slice(site.name.length+1)])).map(n => [n.x,n.y]));
+                !(n.name.startsWith(site.name+' ') && (villageDay[n.name.slice(site.name.length+1)] || fishingDays[n.name.slice(site.name.length+1)]))).map(n => [n.x,n.y]));
         const blocked = (tx,ty) => ['water','mountain','lava'].includes(sample(tx,ty)) || (site===start && propAt(tx,ty)?.solid) ||
             actors.buildings.some(b => (b.x===tx && b.y===ty) || (b.fixed && tx>=b.fixed[0] && tx<b.fixed[0]+b.fixed[2] && ty>=b.fixed[1] && ty<b.fixed[1]+b.fixed[3])) ||
             authored.some(([ax,ay]) => Math.hypot(ax-tx,ay-ty) < 2) || (site===start && Math.hypot(tx-(x-1),ty-(y+1)) <= 3);
@@ -14776,9 +14802,12 @@ const Farlands = (() => {
         const roadA = roads[0] ?? {x:x-9,y}, roadB = roads.find(t => Math.abs(((t.a-(roads[0]?.a??0))+16)%16-8)<=3) ?? {x:x+9,y};
         const wild = ring(9,12,(tx,ty) => !trailAt(tx,ty) && ['grass','forest','snow','sand'].includes(sample(tx,ty)))[0] ?? roadB;
         const services = site.services ?? [];
+        const landing = coastalDocks[site.id]?.shore;
+        const shore = landing ? {x:landing[0],y:landing[1]} :
+            site.waterfront ? ring(4,13,(tx,ty) => [[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>sample(tx+dx,ty+dy)==='water'))[0] : null;
         const place = {
             inn:front(named(services[0])), market:front(named(services[1])), temple:front(named(services[2])), work:front(named(services[3])),
-            centre:{x,y:y+1}, roadA, roadB, wild,
+            centre:{x,y:y+1}, roadA, roadB, wild, landing:shore,
             field:ring(6,11,(tx,ty) => farmlandAt(tx,ty))[0] ?? wild,
             garden:front(named('Farmhouse')) ?? wild, pasture:{x:x+9,y:y+6}, barn:front(named('Granary')) ?? front(named('Barn')) ?? wild
         };
@@ -14787,15 +14816,20 @@ const Farlands = (() => {
             front(named(services[0])) ?? {x,y:y+2};
         actors.npcs.forEach((npc,k) => {
             if (npc.routine || npc.fauna || !npc.name.startsWith(site.name+' ')) return;
-            const role = npc.name.slice(site.name.length+1), day = villageDay[role];
+            const role = npc.name.slice(site.name.length+1), day = villageDay[role] ?? fishingDays[role];
             if (!day) return;
             const late = Math.floor(hash(x+k,y,301)*4)/8;       // up to 45 minutes, so the village does not move in step
-            const door = homeOf(role);
+            const sleepsAtInn = role==='Fisher'||role==='Dockworker'||role==='Market Buyer';
+            const door = sleepsAtInn ? place.inn ?? homeOf(role) : homeOf(role);
             // R17: each place keeps what it is (market, field, road...), which decides what the resident does there;
             // a guard on the road also has a second post three tiles further out, and walks between the two.
             const guard = role==='Trail Warden' || role==='Caravan Guard';
             const slotAt = (where,from) => {
-                const at = place[where]??place.centre, slot = {from:from+late,...fit(at.x,at.y,from),where,fit:true};
+                const destination = where==='landing'&&!shore ? 'work' : where;
+                const at = place[destination]??place.centre;
+                const room = destination==='inn' && site!==start && role!=='Provisioner' && role!=='Trail Warden' ? site.id+'-service-0' :
+                    destination==='market'&&role==='Market Buyer' ? site.id+'-service-1' : undefined;
+                const slot = {from:from+late,...(room ? at : fit(at.x,at.y,from)),where:destination,fit:true,room};
                 if (guard && (where==='roadA' || where==='roadB')) {
                     const d = Math.hypot(at.x-x,at.y-y) || 1;
                     slot.beat = {...fit(Math.round(at.x+(at.x-x)/d*3),Math.round(at.y+(at.y-y)/d*3),from+'b'),fit:true};
@@ -14803,7 +14837,8 @@ const Farlands = (() => {
                 return slot;
             };
             Object.assign(npc,{movable:false,homeDoor:fit(door.x,door.y,'door'),ebRole:role,ebSite:site.id,
-                routine:day.map(([from,where,says]) => where==='home' ? {from:from+late,home:true} :
+                routine:day.map(([from,where,says]) => where==='home' ? {from:from+late,home:true,
+                    room:sleepsAtInn ? site.id+'-service-0' : undefined} :
                     {...slotAt(where,from),says})});
             delete npc.patrol;
         });
@@ -14920,6 +14955,10 @@ const Farlands = (() => {
                         x:ax,y:ay,dialogue:words+' '+site.story,realmId:site.id+'-r16-'+i,movable:i===1||i===5});
                     added++;
                 }
+                const specialists = site===start ? [] : site.waterfront || Object.hasOwn(coastalDocks,id) ?
+                    ['Fisher','Dockworker'] : !site.settlement ? ['Market Buyer'] : [];
+                for (const role of specialists) actors.npcs.push({name:name+' '+role,class:'villager',x,y,
+                    realmId:id+'-'+role.toLowerCase().replace(' ','-'),dialogue:fishingDays[role][0][2]});
                 villageLife(site,actors); // R17: a working day for the generated residents
                 if (site===start) actors.items.push({x:x+2,y,type:'health_potion',value:1,realmId:'rest-welcome'});
             } else {
@@ -14980,7 +15019,7 @@ const Farlands = (() => {
                             actors.npcs.some(n=>Math.hypot(n.x-sx,n.y-sy)<3)||
                             actors.enemies.some(n=>Math.hypot(n.x-sx,n.y-sy)<3)||
                             actors.buildings.some(n=>Math.hypot(n.x-sx,n.y-sy)<3))continue;
-                        point={x:sx,y:sy};break;
+                        point={x:sx,y:sy,trailX:tx,trailY:ty};break;
                     }
                     if(point)break;
                 }
@@ -14994,8 +15033,22 @@ const Farlands = (() => {
                     Peddler:'Small villages need needles, salt and other goods as much as the towns do.',
                     Surveyor:'I mark water crossings and changes to the trail so the next traveler can find them.'
                 };
+                const roadStops=[];
+                for(let dy=-8;dy<=8;dy++)for(let dx=-8;dx<=8;dx++){
+                    const x=point.trailX+dx,y=point.trailY+dy;
+                    if(Math.max(Math.abs(dx),Math.abs(dy))<5||nearbySite(x,y)||!trailAt(x,y)||
+                        sample(x,y)!=='road'||Math.floor(x/cellSize)!==cx||Math.floor(y/cellSize)!==cy)continue;
+                    roadStops.push({x,y});
+                }
+                const first=roadStops[0], last=roadStops.at(-1), offset=Math.floor(hash(cx,cy,200)*3);
+                const routine=first&&last ? [
+                    {from:0,home:true},{from:7+offset,...first,fit:true,where:'roadA',says:words[role]},
+                    {from:12+offset,x:point.x,y:point.y,fit:true,where:'rest',says:words[role]},
+                    {from:15+offset,...last,fit:true,where:'roadB',says:words[role]},{from:21,home:true}
+                ] : null;
                 actors.npcs.push({name:regions[region].name+' '+role,class:role==='Caravan Guard'?'guard':role==='Peddler'?'merchant':'villager',
-                    x:point.x,y:point.y,dialogue:words[role],realmId:'road-r16-'+cx+'-'+cy,movable:false});
+                    x:point.x,y:point.y,dialogue:words[role],realmId:'road-r16-'+cx+'-'+cy,movable:false,
+                    homeDoor:{x:point.x,y:point.y},routine,ebRole:routine?role:undefined});
             }
         }
         // R15.54: use the original authored waystations, 27 named villages,
@@ -15333,12 +15386,13 @@ const ebFarlands = (() => {
     // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
     function markRpgQuest(key) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||
-            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0|[efghi]-rest)$/.test(key)||journey.spent.has(key))return false;
+            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|[dj]-settlement-lantern-0|j-lantern|[efghi]-rest)$/.test(key)||journey.spent.has(key))return false;
         journey.spent.add(key);saveNow();return true;
     }
     function completeRpgQuest(id,kind) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
-            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&!(['e','f','g','h','i'].includes(kind)&&id==='rest')))return false;
+            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&
+            !(kind==='j'&&['settlement-lantern-0','lantern'].includes(id))&&!(['e','f','g','h','i'].includes(kind)&&id==='rest')))return false;
         const site=Farlands.byId.get(id),prefix='rq-';
         // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
         if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
@@ -15346,7 +15400,7 @@ const ebFarlands = (() => {
             !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
             !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
             (['a','d','e','f','g','h','i'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
-        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:kind==='f'?[22,28]:kind==='g'?[20,25]:kind==='h'?[8,9]:kind==='i'?[10,12]:[14,15];
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:kind==='f'?[22,28]:kind==='g'?[20,25]:kind==='h'?[8,9]:kind==='i'?[10,12]:kind==='j'?[12,16]:[14,15];
         journey.spent.add(prefix+'done-'+kind+'-'+id);
         gameState.inventory.gold+=gold;gameState.player.xp+=xp;
         checkLevelUp();updateUI();saveNow();updateHint();return true;
@@ -16371,16 +16425,17 @@ const ebStory = (() => {
 // moment for a hero standing close, and goes indoors for the night. One position serves drawing, talking and blocking.
 const ebLife = (() => {
     const pace = .85;                    // tiles per second: an unhurried walk, the same on a slow or a fast device
-    let roster = [], lastTick = 0;
+    let roster = [], lastTick = 0, localHour = 0;
     const hour = () => { const [h,m] = worldClimate.time.split(':').map(Number); return h + m/60; };
-    function slotOf(npc) {
-        const now = hour();
+    function slotOf(npc, now = hour()) {
         let slot = npc.routine[npc.routine.length-1];
         for (const entry of npc.routine) if (entry.from <= now) slot = entry;
         return slot;
     }
     const goalOf = (npc,slot) => slot.home ? npc.homeDoor : slot;
     const restPatrons = () => roster.filter(npc => npc.restHome==='inn' && npc.indoors);
+    const roomPatrons = id => roster.filter(npc => npc.ebSite!=='rest' && npc.life?.slot.room===id &&
+        (npc.indoors || Math.hypot(npc.x-npc.life.slot.x,npc.y-npc.life.slot.y)<.1)).slice(0,2);
     // R17: a generated resident's place is chosen before the scene's structures are known; the first time it is used
     // with the scene loaded, a place inside a structure moves to the nearest walkable tile (Rest's authored places do not).
     function usable(npc,slot) {
@@ -16426,9 +16481,9 @@ const ebLife = (() => {
         roster = all.filter(npc => npc.routine);
         // first sight of a resident: they are simply where the hour says, not marching in from somewhere
         for (const npc of roster) if (!npc.life) {
-            const slot = slotOf(npc), goal = npc.restNeighbour ? usable(npc,slot) : goalOf(npc,slot);
+            const slot = slotOf(npc), goal = npc.restNeighbour || slot.room || npc.realmId?.startsWith('road-r16-') || ['Fisher','Dockworker','Market Buyer'].includes(npc.ebRole) ? usable(npc,slot) : goalOf(npc,slot);
             npc.life = {slot,path:null,retry:0};
-            npc.indoors = !!slot.home;
+            npc.indoors = !!(slot.home || slot.room);
             npc.x = goal.x; npc.y = goal.y;
         }
         speak();
@@ -16445,26 +16500,28 @@ const ebLife = (() => {
         if (!roster.length || !ebFarlands.surface() || sharedWorld.active()) return;
         let listChanged = false;
         const hero = gameState.player;
+        const clock=localHour=hour();
+        const alternatePost=Math.floor(clock*2)%2;
         const stride = pace*Math.min(.5,Math.max(0,(now-lastTick)/1000));
         lastTick = now;
         for (const npc of roster) {
             if (npc === hold) continue;                      // R17: the person in conversation stays as they were
-            const life = npc.life, slot = slotOf(npc);
+            const life = npc.life, slot = slotOf(npc,clock);
             if (life.slot !== slot) {
                 life.slot = slot; life.path = null; life.retry = 0;
-                if (npc.indoors && !slot.home) {            // morning: out of the door
-                    npc.indoors = false; npc.x = npc.homeDoor.x; npc.y = npc.homeDoor.y;
+                if (npc.indoors && !slot.home) {            // out of the same door used to enter
+                    npc.indoors = false;
                     if (!npcs.includes(npc)) { npcs.push(npc); listChanged = true; }
                 }
             }
             if (npc.indoors) continue;
             // R17: a guard's road post alternates with the post beyond it every half hour (both deterministic)
-            const goal = slot.beat && Math.floor(hour()*2)%2 ? usable(npc,slot.beat) : usable(npc,slot);
+            const goal = slot.beat && alternatePost ? usable(npc,slot.beat) : usable(npc,slot);
             if (Math.hypot(hero.x-npc.x,hero.y-npc.y) > DISTANT && (npc.x!==goal.x || npc.y!==goal.y)) {
                 npc.x = goal.x; npc.y = goal.y; life.path = null;
             }
             if (npc.x===goal.x && npc.y===goal.y) {
-                if (slot.home) {                             // night: in at the door
+                if (slot.home || slot.room) {                // arrived at this room's door
                     npc.indoors = true;
                     const at = npcs.indexOf(npc);
                     if (at>=0) { npcs.splice(at,1); listChanged = true; }
@@ -16549,19 +16606,27 @@ const ebLife = (() => {
         const life = npc.life, slot = life?.slot;
         if (!slot || slot.home || npc.indoors) return null;
         const hero = gameState.player;
+        const role=npc.ebRole;
         // guards turn to face a hostile within nine tiles, wherever they are
         if (GUARDS.has(npc.ebRole)) {
             const foe = enemies.find(e => Math.hypot(e.x-npc.x,e.y-npc.y) <= 9);
             if (foe) return {kind:'alert',face:[foe.x,foe.y]};
         }
+        const close= Math.hypot(hero.x-npc.x,hero.y-npc.y)<=2.5;
+        if (!close) life.nearHero=false;
+        if (close && !life.nearHero && GUARDS.has(role) && now>(life.nextGreeting ?? 0)) {
+            life.nearHero=true; life.nextGreeting=now+18000; life.waveUntil=now+1100;
+        }
         // people who know what you have done here wave once when you come close
         if (life.waveUntil > now) return {kind:'wave',face:[hero.x,hero.y]};
-        if (!life.greeted && Math.hypot(hero.x-npc.x,hero.y-npc.y) <= 2.5 && typeof ebRpgQuests !== 'undefined' &&
+        if (!life.greeted && npc.ebSite && close && now>(life.checkDeeds ?? 0) && typeof ebRpgQuests !== 'undefined' &&
             typeof ebRpgQuests.deeds === 'function' && ebRpgQuests.deeds(Farlands.byId.get(npc.ebSite)).length) {
             life.greeted = true; life.waveUntil = now + 2200;
             return {kind:'wave',face:[hero.x,hero.y]};
         }
+        if (close && !life.greeted && now>(life.checkDeeds ?? 0)) life.checkDeeds=now+1500;
         if (!standing(npc,now)) {
+            if (role==='Farmer' && slot.where==='barn') return {kind:'carry',face:null};
             // two residents passing on the road nod to each other
             const other = roster.find(o => o !== npc && !o.indoors && Math.hypot(o.x-npc.x,o.y-npc.y) < 1.3);
             return other ? {kind:'nod',face:[other.x,other.y]} : null;
@@ -16570,9 +16635,15 @@ const ebLife = (() => {
             .sort((a,b) => Math.hypot(a.x-npc.x,a.y-npc.y)-Math.hypot(b.x-npc.x,b.y-npc.y));
         const work = localWork(npc,now);
         if (work) return {kind:work.kind,face:null};
-        const where = slot.where, role = npc.ebRole;
+        const where = slot.where;
+        if (where==='landing') return {kind:role==='Fisher'?'sortCatch':'carry',face:null};
+        if (where==='field') return {kind:'harvest',face:null};
+        if (where==='rest') return {kind:'rest',face:null};
         if (where === 'market') {
             if (TRADERS.has(role)) {
+                const next=npc.routine[npc.routine.indexOf(slot)+1];
+                if (npc.ebSite!=='rest' && next && (next.home||next.where==='inn') &&
+                    next.from-localHour<=.4) return {kind:'pack',face:null};
                 const buyer = Math.hypot(hero.x-npc.x,hero.y-npc.y) <= 3 ? hero : near(3, o => !TRADERS.has(o.ebRole))[0];
                 return {kind:'trade',face:buyer ? [buyer.x,buyer.y] : null};
             }
@@ -16589,7 +16660,8 @@ const ebLife = (() => {
             return {kind:'rest',face:cook ? [cook.x,cook.y] : null};
         }
         if (where === 'temple') return {kind:'pray',face:null};
-        if (where === 'work' || where === 'field' || where === 'garden') return {kind:'work',face:null};
+        if (where === 'work') return {kind:['Mason','Craftsperson','Dockworker'].includes(role)?'repair':'work',face:null};
+        if (where === 'garden') return {kind:'tend',face:null};
         if (where === 'pasture' || where === 'barn') return {kind:'tend',face:null};
         if ((where === 'roadA' || where === 'roadB') && GUARDS.has(role)) return {kind:'watch',face:null};
         // Bram telling a story close by: those standing within three tiles turn to listen
@@ -16603,7 +16675,7 @@ const ebLife = (() => {
         }
         return null;
     }
-    return { restPatrons, enroll, tick, roster:() => roster, hour, activity, localWork, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
+    return { restPatrons, roomPatrons, enroll, tick, roster:() => roster, hour, activity, localWork, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
         drawn:npc => Boolean(npc.ebRole || NAMED[npc.name]) };
 })();
 </script>
@@ -16989,6 +17061,16 @@ const ebRpgAccess=(()=>{
             return work[roleOf(npc)];
         }
         if(topic==='news'){
+            if (npc.ebRole && npc.ebSite && npc.ebSite!=='rest') {
+                const late=ebLife.hour()>=18;
+                if (npc.ebRole==='Fisher') return late?'The fish went to the inn hours ago. The gulls are still lodging complaints.':
+                    'The morning tide is fickle here. Ask a dockworker before you trust an empty berth.';
+                if (npc.ebRole==='Dockworker') return worldClimate.season==='winter'?
+                    'Wet rope freezes stiff. The chandlery swears theirs won’t. I’d ask to see it tomorrow morning.':
+                    'The market calls every late crate urgent. Funny how none of them are here to unload one.';
+                if (npc.ebRole==='Market Buyer') return late?'The stalls are winding down. Anything unsold will be in the inn pot.':
+                    'The baker says the ends of the loaves are free. The provisioner says they’re a delicacy.';
+            }
             if(ebFarlands.storyFlag('quest-vault-reward')&&site?.region==='hearth')
                 return 'The Harvest Bell has returned. Even the travelers keep time by it.';
             return region.name+': '+region.note+' The road changes with the season; the waykeeper may know more.';
@@ -17058,7 +17140,12 @@ const ebRpgQuests=(()=>{
             prop:'Inn’s supper docket',reward:[10,12],
             description:'Read the supper docket behind the inn. Tell Osric the watch has a share, then report to Fen.'}
     };
-    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : site===Farlands.start ? ['a','b','c','e','g','h',...(flag(site,'h','done')?['i']:[]),...(ebFarlands.storyFlag('quest-vault-reward')?['f']:[])] : ['a','b','c'];
+    const coastOrders = {
+        [shellwickId]:{target:'lantern',title:'A place at the quay',description:'Shellwick’s shell sellers need dry space for their baskets. Ask the Lantern Quay waykeeper where they can unload, then report to the Shellwick waykeeper.'},
+        lantern:{target:shellwickId,title:'A dry load home',description:'The quay has made room. Carry the quay’s loading instructions to the Shellwick waykeeper, then return to Lantern Quay.'}
+    };
+    const kinds=site=>site.id===shellwickId ? ['a','b','c','d','j'] :
+        site.id==='lantern' && flag(Farlands.byId.get(shellwickId),'j','done') ? ['a','b','c','j'] : site===Farlands.start ? ['a','b','c','e','g','h',...(flag(site,'h','done')?['i']:[]),...(ebFarlands.storyFlag('quest-vault-reward')?['f']:[])] : ['a','b','c'];
     // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
     // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
     const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
@@ -17097,6 +17184,10 @@ const ebRpgQuests=(()=>{
     function plan(site,kind){
         if(!site?.station||!kinds(site).includes(kind))return null;
         if(site===Farlands.start&&Object.hasOwn(restOrders,kind))return {site,target:site,kind,...restOrders[kind]};
+        if(kind==='j'){
+            const order=coastOrders[site.id],target=Farlands.byId.get(order.target);
+            return {site,target,kind,title:order.title,description:order.description,giver:receiver(site),reward:[12,16]};
+        }
         if(kind==='g')return {
             site,target:site,kind,title:'Sounding Mill Creek',
             description:'Read Hale’s sounding board by the southwest causeway. Board the moored boat and row three tiles west, then land and report to Hale.',
@@ -17139,6 +17230,7 @@ const ebRpgQuests=(()=>{
             if(!flag(q.site,q.kind,'step2'))return {site:q.site,label:'Speak to '+q.receiver};
             return {site:q.site,label:'Report to '+q.giver};
         }
+        if(q.kind==='j'&&!flag(q.site,'j','step1'))return {site:q.target,label:'Speak to '+ebDisplayNameOf(receiver(q.target))};
         if(q.kind==='g'){
             if(!flag(q.site,'g','step1'))return {site:q.site,label:'Read the sounding board by the southwest causeway'};
             if(!flag(q.site,'g','step2'))return {site:q.site,label:'Board at the causeway and row three tiles west'};
@@ -17295,13 +17387,17 @@ const ebRpgQuests=(()=>{
         }
         // A courier message requires a deliberate handover to the destination's actual waykeeper.
         for(const q of activePlans()){
-            if(q.kind!=='c'||q.target.id!==here?.id||flag(q.site,'c','step1')||npc.name!==receiver(q.target))continue;
+            if(!['c','j'].includes(q.kind)||q.target.id!==here?.id||flag(q.site,q.kind,'step1')||npc.name!==receiver(q.target))continue;
             const box=document.createElement('section');box.dataset.ebPane='quests';box.dataset.ebReady='1';box.style.cssText='margin-top:12px;text-align:left;padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px';
-            const p=document.createElement('p');p.textContent='News from '+q.site.name+' for '+ebDisplayName(npc)+'.';
-            box.append(p,button('Relay the road news',()=>{
+            const p=document.createElement('p');p.textContent=q.kind==='j' ? q.title+' · a message from '+q.site.name :
+                'News from '+q.site.name+' for '+ebDisplayName(npc)+'.';
+            box.append(p,button(q.kind==='j'?'Discuss the loading arrangements':'Relay the road news',()=>{
                 if(!active()||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return;
-                if(mark(q.site,'c','step1')){
-                    p.textContent='Message received. Return to '+ebDisplayNameOf(q.giver)+' at '+q.site.name+'.';
+                if(mark(q.site,q.kind,'step1')){
+                    const reply=q.kind!=='j'?'Message received.':q.site.id===shellwickId?
+                        'Use the sheltered berth after the midday ferry. I’ll mark it for the shell baskets.':
+                        'We’ll lash the baskets before departure. Tell the quay we’ll wait for the ferry to clear.';
+                    p.textContent=reply+' Return to '+ebDisplayNameOf(q.giver)+' at '+q.site.name+'.';
                     box.querySelector('button')?.remove();ebFarlands.pin(q.site.id);
                     ebFarlands.refreshStoryHint();
                 }

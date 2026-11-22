@@ -10,9 +10,10 @@ const before=read(process.argv[2]);
 const after=read(candidate);
 assert.equal(after.size,before.size);
 const expected=new Set(['gui.js','farlands-map.js','farlands.js','rpg-local-quests.js','farlands-life.js']);
-if(process.env.EB_SCOPE_LIVING_REST==='1'){
+if(['1','2'].includes(process.env.EB_SCOPE_LIVING_REST)){
     for(const name of ['world.js','gui-models.js','interiors.js'])expected.add(name);
 }
+if(process.env.EB_SCOPE_LIVING_REST==='2')expected.add('rpg-access.js');
 for(const [name,body] of after){
     new vm.Script(body,{filename:String(name)});
     if(!expected.has(name))assert.ok(body===before.get(name),name+' must match the previous verified checkpoint');
