@@ -3170,6 +3170,7 @@ function renderAllEntities() {
 
     player.title = `${gameState.player.name} (Level ${gameState.player.level})`;
     worldGrid.appendChild(player);
+    if (ebHorseMounted) ebFarlands.updateVisibleHorse(player);
 
     renderClassicBoat();
 }
@@ -6837,7 +6838,8 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 <style id="eb-r147-real-horse">
 #eb-horse-presence{position:absolute!important;display:block;pointer-events:none;z-index:14;width:64px;height:60px;transform:none!important;font-size:initial!important;filter:none!important;transition:left .09s linear,top .09s linear}
 #eb-horse-presence[hidden]{display:none!important}
-#eb-horse-presence.mounted{z-index:14}
+/* The horse shares its rider's interpolated world position, including camera motion. */
+.main-player-avatar > #eb-horse-presence.mounted{left:-19px;top:-18px;z-index:-1;transition:none}
 .main-player-avatar.eb-riding-horse{z-index:16!important;transform:translateY(-13px)!important;box-shadow:none!important;background:transparent!important}
 </style>
 <style id="eb-r146-style">
@@ -10271,7 +10273,8 @@ window.addEventListener('load', () => {
             const budget = this.mobile ? 850000 : 2400000;
             const ratio = Math.min(devicePixelRatio || 1, this.mobile ? 1.5 : 1.55,
                 Math.sqrt(budget / (this.width * this.height)));
-            this.renderer.setPixelRatio(ratio);
+            this.fullPixelRatio = ratio;
+            this.updateRideResolution();
             this.renderer.setSize(this.width, this.height, false);
             const aspect = this.width / this.height;
             this.eyeCamera.aspect = aspect;
@@ -11236,6 +11239,9 @@ window.addEventListener('load', () => {
                 else position.set(position.x + dx / distance * travel, y, position.z + dz / distance * travel);
             }
             }
+            if (localHero && ebHorseMounted) {
+                this.mountedTravel = jump || this.reduced ? 0 : (walkDistance ?? Math.hypot(position.x-beforeX, position.z-beforeZ));
+            }
             if (!model.body) return;
             // Solo hero/residents advance a stride only by their real rendered travel, not global time/tile phase.
             // This changes joint poses only; authoritative locations and the movement interpolation above stay intact.
@@ -11849,7 +11855,7 @@ window.addEventListener('load', () => {
                 if (ebHorseMounted) {
                     if (this.horseLastX !== null) {
                         const dx = hx - this.horseLastX, dz = hz - this.horseLastZ;
-                        if (Math.hypot(dx,dz) > .045 && Math.hypot(dx,dz) < 3) {
+                        if (this.mountedTravel > .0005 && Math.hypot(dx,dz) > .0005) {
                             this.horseHeading = Math.atan2(-dx,-dz);
                             this.horseLastTime = now;
                         }
@@ -11873,11 +11879,15 @@ window.addEventListener('load', () => {
                     Math.hypot(hx - this.horsePrevX, hz - this.horsePrevZ);
                 this.horsePrevX = hx;
                 this.horsePrevZ = hz;
-                const moving = moved > .0005 && moved < .8;
+                const moving = ebHorseMounted ? this.mountedTravel > .0005 : moved > .0005 && moved < .8;
                 const desired = moving ? 1 : 0;
                 this.horseGaitAmount += (desired - this.horseGaitAmount) *
                     (1 - Math.exp(-Math.min(dt,.05) * (moving ? 12 : 18)));
-                if (moving) this.horseGaitPhase += Math.min(moved,.12) * 7.5;
+                if (moving) {
+                    // Six tiles per mounted stride. Frame rate changes how much of the stride we see.
+                    const advance = ebHorseMounted ? this.mountedTravel * Math.PI / 3 : Math.min(moved,.12) * 7.5;
+                    this.horseGaitPhase += advance;
+                }
                 const gait = this.reduced ? 0 : this.horseGaitAmount;
                 // Diagonal pairs move together (trot); pivots keep feet attached to legs.
                 this.horseLegs.forEach((leg,i)=>{
@@ -12203,7 +12213,17 @@ window.addEventListener('load', () => {
             this.frame = requestAnimationFrame(next => this.draw(next));
         }
 
+        updateRideResolution() {
+            // The software rasterizer misses mounted input deadlines at full resolution.
+            // Keep HUD text at native resolution and restore the scene buffer off horseback.
+            const softwareRide = this.swiftShader && ebHorseMounted && ebFarlands.surface() &&
+                !sharedWorld.active() && !buildingInterior && !gameState.inBattle && !gameState.sailingMoves;
+            const ratio = this.fullPixelRatio * (softwareRide ? .65 : 1);
+            if (this.renderer.getPixelRatio() !== ratio) this.renderer.setPixelRatio(ratio);
+        }
+
         renderFrame(eyeEnabled) {
+            if (this.swiftShader) this.updateRideResolution();
             const gl = this.renderer.getContext();
             const paced = this.swiftShader && ((ebFarlands.inRealm() && !sharedWorld.active()) ||
                 (eyeEnabled && sharedWorld.active()));
@@ -14693,16 +14713,13 @@ const Farlands = (() => {
             const key = bucketKey(x,y,chunkSize);
             let chunk = this.chunks.get(key);
             if (!chunk) {
-                const left = x-x%chunkSize, top = y-y%chunkSize;
-                chunk = new Uint8Array(chunkSize*chunkSize);
-                for (let dy=0;dy<chunkSize;dy++) {
-                    for (let dx=0;dx<chunkSize;dx++) {
-                        chunk[dy*chunkSize+dx] = tileIds[sample(left+dx,top+dy)];
-                    }
-                }
-                remember(this.chunks,key,chunk,80);
+                // A rider can touch several new chunks in one frame. Generate each
+                // requested tile once, instead of sampling all 1,024 on the first read.
+                chunk = remember(this.chunks,key,new Uint8Array(chunkSize*chunkSize).fill(255),80);
             }
-            return tileNames[chunk[(y%chunkSize)*chunkSize+x%chunkSize]];
+            const index=(y%chunkSize)*chunkSize+x%chunkSize;
+            if(chunk[index]===255) chunk[index]=tileIds[sample(x,y)];
+            return tileNames[chunk[index]];
         }
         setTile(x,y,tile) {
             if (this.tileAt(x,y)) this.edits.set(y*size+x,tile);
@@ -15181,6 +15198,7 @@ const ebFarlands = (() => {
     const get = id => document.getElementById(id);
     let journey = null;
     let home = null;
+    let horsePresence;
     let chart = null;
     let localChart = null;
     const chartSize = 448;
@@ -16106,7 +16124,7 @@ const ebFarlands = (() => {
             get('eb-transport-board').close();openAtlas();
         });
         // Horse is a world-space actor, not a fixed HUD icon.
-        const horsePresence=document.createElement('div');
+        horsePresence=document.createElement('div');
         horsePresence.id='eb-horse-presence';
         horsePresence.setAttribute('aria-label','Your horse');
         horsePresence.innerHTML=`<svg viewBox="0 0 64 60" width="64" height="60" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -16121,19 +16139,6 @@ const ebFarlands = (() => {
           <path d="M20 19 Q31 9 39 20" fill="none" stroke="#f1ce87" stroke-width="2"/>
         </svg>`;
         document.getElementById('worldGrid')?.append(horsePresence);
-        function updateVisibleHorse(){
-            const show=surface() && !sharedWorld.active() && !buildingInterior && gameState.sailingMoves<=0 && !!journey?.horseOwned && classicView();
-            const grid=document.getElementById('worldGrid');
-            if (grid && horsePresence.parentElement!==grid) grid.append(horsePresence);
-            horsePresence.hidden=!show;
-            document.querySelector('.main-player-avatar')?.classList.toggle('eb-riding-horse',Boolean(show && ebHorseMounted));
-            if (!show) return;
-            const x=ebHorseMounted?gameState.player.x:(journey.horsePlace?.x ?? gameState.player.x+1);
-            const y=ebHorseMounted?gameState.player.y:(journey.horsePlace?.y ?? gameState.player.y);
-            horsePresence.style.left=(x*32-16)+'px';
-            horsePresence.style.top=(y*32-28)+'px';
-            horsePresence.classList.toggle('mounted',ebHorseMounted);
-        }
         setInterval(updateVisibleHorse,80);
         const horseButton=get('eb-farlands-horse');
         let horseActionConfirmed=false;
@@ -16287,8 +16292,28 @@ const ebFarlands = (() => {
         updateControls();
     });
 
+    function updateVisibleHorse(rider = document.querySelector('.main-player-avatar')) {
+        if (!horsePresence) return;
+        const show = surface() && !sharedWorld.active() && !buildingInterior &&
+            gameState.sailingMoves <= 0 && journey?.horseOwned && classicView();
+        const mounted = Boolean(show && ebHorseMounted && rider);
+        const parent = mounted ? rider : get('worldGrid');
+        if (parent && horsePresence.parentElement !== parent) parent.append(horsePresence);
+        horsePresence.hidden = !show;
+        horsePresence.classList.toggle('mounted', mounted);
+        rider?.classList.toggle('eb-riding-horse', mounted);
+        if (mounted) {
+            horsePresence.style.removeProperty('left');
+            horsePresence.style.removeProperty('top');
+        } else if (show) {
+            const x = journey.horsePlace?.x ?? gameState.player.x + 1;
+            const y = journey.horsePlace?.y ?? gameState.player.y;
+            horsePresence.style.left = (x * 32 - 16) + 'px';
+            horsePresence.style.top = (y * 32 - 28) + 'px';
+        }
+    }
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
-    return {migrateCoast,surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
+    return {migrateCoast,updateVisibleHorse,surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
         completeHerbLesson,storyFlag,markStory,markTalk,markRpgQuest,completeRpgQuest,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 

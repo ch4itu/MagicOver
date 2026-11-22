@@ -30,6 +30,7 @@ const mobile=process.env.EB_RIDE_VIEW==='first';
         });
         t.assert(route.owned&&route.mounted);
         await p.waitForTimeout(900);
+        const ratio=await p.evaluate(()=>__view.renderer.getPixelRatio());
         await p.evaluate(({trial,classic})=>{
             const v=__view;
             window.ride={frames:[],steps:[],patches:[]};
@@ -54,8 +55,10 @@ const mobile=process.env.EB_RIDE_VIEW==='first';
                 const f={t:performance.now(),x:gameState.player.x};
                 if(classic){
                     const rider=document.querySelector('.main-player-avatar'),mount=document.querySelector('#eb-horse-presence');
-                    const css=node=>parseFloat(getComputedStyle(node).left);
-                    if(rider && !mount.hidden)f.seatOffset=css(rider)-css(mount)-16;
+                    if(rider && mount && !mount.hidden){
+                        const r=rider.getBoundingClientRect(),h=mount.getBoundingClientRect();
+                        f.seatOffset=r.left-h.left-16;f.seatY=r.top-h.top-15;
+                    }
                 }else{
                     f.horse=v.farlandsHorse.position.x;f.rider=v.hero.group.position.x;
                     f.camera=eyeCameraX();f.phase=v.horseGaitPhase;f.draws=submitted;
@@ -89,8 +92,25 @@ const mobile=process.env.EB_RIDE_VIEW==='first';
         t.assert(data.mounted);t.assert(data.steps.length>=48);t.assert.equal(data.routeEnd[1],route.y);
         t.assert(data.frames.every(f=>f.covered!==false));
         if(!classic)t.assert(data.frames.every(f=>Math.abs(f.horse-f.rider)<.001));
+        if(process.env.EB_RIDE_EXPECT_FIX==='1'){
+            if(classic){
+                const samples=data.frames.filter(f=>f.seatOffset!==undefined);
+                t.assert(samples.length>20);
+                t.assert(samples.every(f=>Math.abs(f.seatOffset)<1 && Math.abs(f.seatY)<1),'mounted sprite stays under rider');
+            }else{
+                for(let i=1;i<data.frames.length;i++){
+                    const last=data.frames[i-1],next=data.frames[i];
+                    if(next.rider-last.rider>.02)t.assert(next.phase>last.phase,'horse advances stride with travel');
+                }
+            }
+        }
         await t.shot(p,name);await showHorse();await horse.click();await p.click('#eb-vehicle-accept');
         t.assert(await p.evaluate(()=>!ebHorseMounted&&ebFarlands.horseState().owned));
+        if(process.env.EB_RIDE_EXPECT_FIX==='1' && !classic && data.software){
+            await p.waitForFunction(()=>__view.fullPixelRatio===__view.renderer.getPixelRatio());
+            const full=await p.evaluate(()=>__view.fullPixelRatio);
+            t.assert(Math.abs(ratio-.65*full)<.001,'software ride budget restored after dismount');
+        }
         t.assert.deepEqual(p.errors,[]);console.log('PASS',name,data.steps.length,data.frames.length);
     }finally{await b.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
