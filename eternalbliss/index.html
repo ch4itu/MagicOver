@@ -2006,6 +2006,12 @@ body.eb-shared-movement #worldGrid { transition: none !important; }
 #eb-capture-toggle { position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:10020;
   border:1px solid #a4aa90;border-radius:8px;background:rgba(17,28,28,.88);color:#f4e7c9;
   padding:7px 12px;min-height:34px;font:600 12px system-ui;cursor:pointer;pointer-events:auto; }
+#eb-clean-room-exit { display:none; }
+[data-eb-interior] body.eb-capture-clean:not(.eb-in-battle) #eb-clean-room-exit {
+    display:block;position:fixed;z-index:999;
+    top:max(8px, env(safe-area-inset-top));left:max(8px, env(safe-area-inset-left));
+    min-height:44px;padding:6px 10px;font:600 13px system-ui;touch-action:manipulation;
+}
 body.eb-capture-clean .location-info,
 body.eb-capture-clean .minimap,
 body.eb-capture-clean .left-panel,
@@ -6620,6 +6626,9 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
    The stats bar drops its headings. */
 @media (max-height: 450px) and (pointer: coarse) {
     #eb-capture-toggle { left: auto; right: 136px; transform: none; } /* beside Menu, clear of the card */
+    [data-eb-interior] body.eb-capture-clean:not(.eb-in-battle) #eb-clean-room-exit {
+        left:auto;right:max(8px, env(safe-area-inset-right));
+    }
     html[data-eb-farlands] .location-info:not(.eb-capture-location-closed) { display: flex; flex-wrap: wrap;
         align-items: center; gap: 4px 10px; max-width: calc(100% - 255px); }
     html[data-eb-farlands] .location-info > .eb-mobile-title { display: none; }
@@ -6929,6 +6938,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 
         <div class="main-game">
         <button type="button" id="eb-capture-toggle" aria-pressed="false" title="Hide interface for recording; tap again to restore">◱ Clean view</button>
+        <button type="button" class="eb-panel-button" id="eb-clean-room-exit">Exit building</button>
         <button type="button" class="eb-panel-button" id="eb-hero-open" aria-controls="eb-hero-panel" aria-expanded="false">Hero</button>
             <button type="button" class="eb-panel-button" id="eb-menu-open" aria-haspopup="dialog">Menu</button>
 
@@ -14004,12 +14014,16 @@ async function exitBuilding() {
     if (button.disabled) return;
     closeModal();
     if (!sharedWorld.active()) { closeBuildingInterior(); return; }
-    button.disabled = true;
+    const cleanButton = document.getElementById('eb-clean-room-exit');
+    button.disabled = cleanButton.disabled = true;
     try { await sharedWorld.toggleRoom(buildingInterior.building); }
-    finally { button.disabled = false; }
+    finally { button.disabled = cleanButton.disabled = false; }
 }
 
-window.addEventListener('load', () => document.getElementById('eb-room-exit').addEventListener('click',exitBuilding));
+window.addEventListener('load', () => {
+    for (const id of ['eb-room-exit', 'eb-clean-room-exit'])
+        document.getElementById(id).addEventListener('click', exitBuilding);
+});
 
 </script>
 <script data-source="farlands-map.js">
