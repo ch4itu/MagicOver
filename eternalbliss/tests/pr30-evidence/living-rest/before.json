@@ -1,0 +1,170 @@
+{
+  "sha": "d7cb38eb889c2327c9b1bc1b5a543609004bd8d15af57afb55048c9eef38d6c8",
+  "results": [
+    {
+      "clock": "09:00",
+      "actors": [
+        "Mira, the Cartographer",
+        "Ivo, the Millwright",
+        "Nessa, the Orchard Keeper",
+        "Tamsin, the Herbalist",
+        "Bram, the Storyteller",
+        "Hale, the Wheelwright",
+        "Wren, a Pilgrim",
+        "Wayfarer’s Rest Cook",
+        "Wayfarer’s Rest Courier",
+        "Wayfarer’s Rest Weaver",
+        "Wayfarer’s Rest Mason",
+        "Wayfarer’s Rest Caravan Guard"
+      ],
+      "drawCalls": 385,
+      "frames": [
+        18,
+        18,
+        17,
+        13,
+        15,
+        19,
+        9,
+        16,
+        706,
+        18,
+        12,
+        20,
+        12,
+        20,
+        16,
+        12
+      ],
+      "p50": 16,
+      "p95": 706
+    },
+    {
+      "clock": "14:00",
+      "actors": [
+        "Mira, the Cartographer",
+        "Ivo, the Millwright",
+        "Nessa, the Orchard Keeper",
+        "Tamsin, the Herbalist",
+        "Bram, the Storyteller",
+        "Hale, the Wheelwright",
+        "Wren, a Pilgrim",
+        "Wayfarer’s Rest Cook",
+        "Wayfarer’s Rest Courier",
+        "Wayfarer’s Rest Weaver",
+        "Wayfarer’s Rest Mason",
+        "Wayfarer’s Rest Caravan Guard"
+      ],
+      "drawCalls": 383,
+      "frames": [
+        705,
+        26,
+        11,
+        10,
+        20,
+        12,
+        19,
+        17,
+        12,
+        19,
+        20,
+        12,
+        13,
+        19,
+        13,
+        1830
+      ],
+      "p50": 17,
+      "p95": 1830
+    },
+    {
+      "clock": "19:00",
+      "actors": [
+        "Mira, the Cartographer",
+        "Ivo, the Millwright",
+        "Nessa, the Orchard Keeper",
+        "Tamsin, the Herbalist",
+        "Bram, the Storyteller",
+        "Hale, the Wheelwright",
+        "Wren, a Pilgrim",
+        "Wayfarer’s Rest Cook",
+        "Wayfarer’s Rest Courier",
+        "Wayfarer’s Rest Weaver",
+        "Wayfarer’s Rest Mason",
+        "Wayfarer’s Rest Caravan Guard"
+      ],
+      "drawCalls": 381,
+      "frames": [
+        728,
+        3,
+        18,
+        16,
+        18,
+        12,
+        16,
+        16,
+        17,
+        15,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16
+      ],
+      "p50": 16,
+      "p95": 728
+    },
+    {
+      "clock": "23:00",
+      "actors": [
+        "Mira, the Cartographer"
+      ],
+      "drawCalls": 197,
+      "frames": [
+        16,
+        20,
+        12,
+        16,
+        20,
+        12,
+        16,
+        20,
+        13,
+        16,
+        15,
+        17,
+        15,
+        21,
+        11,
+        20
+      ],
+      "p50": 16,
+      "p95": 21
+    },
+    {
+      "mode": "emulated portrait first person",
+      "frames": [
+        20,
+        12,
+        17,
+        15,
+        21,
+        11,
+        16,
+        16,
+        16,
+        16,
+        13,
+        19,
+        16,
+        17,
+        13,
+        16
+      ],
+      "drawCalls": 58,
+      "p50": 16,
+      "p95": 21
+    }
+  ]
+}
