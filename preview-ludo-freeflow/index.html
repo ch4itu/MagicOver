@@ -125,7 +125,9 @@ document.getElementById('roll').onclick=()=>{if(online)return online.roll();if(w
       if (!O.player || O.player.publicKey !== tx.feePayer.toBase58()) throw new Error('Your account changed. Sign in again.');
       tx.addSignature(tx.feePayer, O.player.sign(tx.serializeMessage()));
     } else tx.sign(O.session);
-    const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true });
+    const fee = await conn.getFeeForMessage(tx.compileMessage(), 'confirmed');
+    if (fee.value !== 0) throw new Error('Free play is temporarily unavailable. Try again shortly.');
+    const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed' });
     for (let n = 0; n < 100; n++) {
       const st = (await conn.getSignatureStatuses([sig])).value[0];
       if (st) {
@@ -354,7 +356,7 @@ document.getElementById('roll').onclick=()=>{if(online)return online.roll();if(w
       O.busy = false;
       enterOnlineAs(now);
       say('Match created. Invite code ' + now.idx + '-' + now.match + '.');
-    } catch (e) { O.busy = false; O.session = null; say(e.code === 'rejected' ? 'Not approved in the Smaran window.' : e.message || String(e), true); }
+    } catch (e) { O.busy = false; O.session = null; say(e.code === 'rejected' ? 'The action was cancelled.' : e.message || String(e), true); }
   }
   async function join(code) {
     const m = /^\s*(\d)\s*[-:/ ]\s*(\d+)\s*$/.exec(code || '');
@@ -372,7 +374,7 @@ document.getElementById('roll').onclick=()=>{if(online)return online.roll();if(w
       O.busy = false;
       enterOnlineAs(await readOne(idx));
       say('Joined. Anyone seated can start once two or more have joined.');
-    } catch (e) { O.busy = false; O.session = null; say(e.code === 'rejected' ? 'Not approved in the Smaran window.' : e.message || String(e), true); }
+    } catch (e) { O.busy = false; O.session = null; say(e.code === 'rejected' ? 'The action was cancelled.' : e.message || String(e), true); }
   }
   // another device (or a page that lost its session key): the Smaran key names a new session key for the seat
   async function resume(idx) {
@@ -388,7 +390,7 @@ document.getElementById('roll').onclick=()=>{if(online)return online.roll();if(w
       O.busy = false;
       enterOnlineAs(await readOne(idx));
       say('Continuing here. Your other device can no longer move for you.');
-    } catch (e) { O.busy = false; O.session = null; say(e.code === 'rejected' ? 'Not approved in the Smaran window.' : e.message || String(e), true); }
+    } catch (e) { O.busy = false; O.session = null; say(e.code === 'rejected' ? 'The action was cancelled.' : e.message || String(e), true); }
   }
   function enterOnlineAs(t) {
     const seat = t.seats.findIndex(s => s.seated && s.session === O.session.publicKey.toBase58());
