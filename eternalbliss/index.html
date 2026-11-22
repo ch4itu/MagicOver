@@ -2860,7 +2860,7 @@ function updateBuildingFootprints() {
         }
     }
     // R15.56: street furniture of the Farlands (a well, a lamp post) blocks its tile like a wall.
-    if (ebFarlands.surface()) for (const prop of Farlands.authoredProps.values()) if (prop.solid) buildingFootprints.add(prop.y*width+prop.x);
+    if (ebFarlands.surface()) for (const prop of Farlands.authoredProps.values()) if (prop.solid && (!prop.soloOnly || !sharedWorld.active())) buildingFootprints.add(prop.y*width+prop.x);
     if (before.size !== buildingFootprints.size || [...buildingFootprints].some(tile => !before.has(tile))) buildingFootprintRevision++;
 }
 
@@ -3816,7 +3816,7 @@ function interact() {
     }
     showFloatingText('Nothing nearby', gameState.player.x * 32 + 16, gameState.player.y * 32 - 20, '#94a3b8');
 }
-const streetPropIcons = {well:'⛲',oak:'🌳',bench:'🪑',stall:'🍎',barrel:'🛢️',signpost:'🪧',lamp:'🏮',flowers:'🌼',garden:'🥬',shrine:'🪦',crates:'📦',mooring:'⚓'};
+const streetPropIcons = {well:'⛲',oak:'🌳',bench:'🪑',stall:'🍎',barrel:'🛢️',signpost:'🪧',lamp:'🏮',flowers:'🌼',garden:'🥬',shrine:'🪦',crates:'📦',cart:'🛒',mooring:'⚓'};
 
 function escapeMapText(value) {
     const span = document.createElement('span');
@@ -9520,6 +9520,20 @@ const EternalBlissArt = (() => {
     }
 
     function fauna(name) {
+        if (name==='Ida’s Hen') {
+            const group=new T.Group(), body=new T.Group(), legs=[];
+            group.add(body);
+            stone(body,.20,0xb77a48,0,.27,0,.77,.76,1.12);
+            stone(body,.106,0xd4a16a,0,.41,.14);
+            box(body,.06,.05,.10,0xd6a24d,0,.40,.24);
+            box(body,.045,.07,.055,0xa64e34,0,.51,.14);
+            for (const x of [-.06,.06]) {
+                const leg=makeLimb(body,x,.20,0);
+                box(leg,.03,.17,.03,0xca9b57,0,-.09);
+                legs.push(leg);
+            }
+            return {group,body,legs,arms:[],height:.56,width:.35};
+        }
         const group=new T.Group(), body=new T.Group();
         group.add(body);
         const hare=/hare|marmot|badger/i.test(name);
@@ -9957,6 +9971,16 @@ window.addEventListener('load', () => {
                 break;
             }
             // R17.16: farm pieces, from the same blocks and posts as the rest
+            case 'cart':
+                block(0,.30,0,.60,.10,.66,oak);
+                for (const side of [-1,1]) {
+                    block(.31*side,.44,0,.065,.23,.67,oak);
+                    block(.20*side,.27,.39,.05,.05,.20,dark);
+                    block(.35*side,.23,0,.09,.40,.40,dark);
+                    block(.40*side,.23,0,.035,.12,.12,iron);
+                }
+                block(0,.49,-.07,.40,.27,.36,0xc8a466);
+                break;
             case 'hay':
                 block(0,.17,0,.66,.34,.44,0xd8b65a); block(.04,.46,.02,.58,.24,.38,0xcfac52);
                 block(0,.17,.225,.68,.05,.02,0xa8873e); block(0,.17,-.225,.68,.05,.02,0xa8873e);
@@ -13975,6 +13999,14 @@ function openBuildingInterior(building, position) {
     };
     const start = layout[position?.y]?.[position?.x];
     const decorTiles = new Set(props.map(([,x,y]) => y*width+x));
+    if (building.realmId === 'rest-service-0' && ebFarlands.surface() && !sharedWorld.active()) {
+        const seats = [[3,5],[9,5],[10,6]];
+        for (const [i,patron] of ebLife.restPatrons().entries()) {
+            const [x,y] = seats[i];
+            map.npcs.push({name:patron.name,class:patron.class,realmId:patron.realmId,x,y,
+                dialogue:'The road can wait until morning. There’s a warm seat if you want one.'});
+        }
+    }
     setInteriorState({ building, outside, door, service, furniture, decorTiles });
     applyAdventureMap(map,{ ...gameState.player, ...(start && start !== '#' ? position : door) });
     return true;
@@ -14436,10 +14468,14 @@ const Farlands = (() => {
         [2,8,'crates',true,0,'Ivo’s axle crate','Chalk on the lid reads: Millbend · two axle collars, one oak pin. The river seal is intact.'],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
         [-6,8,'mooring',false,0]
     ]) authoredProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
+    authoredProps.set((rest.y+1)*size+rest.x+7,{x:rest.x+7,y:rest.y+1,kind:'cart',turn:0,
+        solid:true,soloOnly:true,name:'Fen’s bread cart',text:'Deep wheel ruts stop here. The cart smells of rye and sawdust.'});
     for (const [x,y,name,text,cloth] of [
         [...creekPilotage.board,creekPilotage.name,'Hale’s chalk marks the starting berth. From the moored boat, row three tiles west along the creek. Turn back by the causeway and give Hale the sounding.',0xa8c5c7],
         [5038,4845,'North orchard tally','White cloth marks the trees ready for picking. Two baskets can go down to the stall before noon.',0xeee4c8],
         [5042,4850,'South orchard tally','Red cloth marks the trees that need another day. Leave those branches for the next crew.',0xb64632],
+        [rest.x+6,rest.y+1,'Exchange order slate','Chalk orders for the inn: six rye loaves, a dozen eggs, and no more than one of Fen’s stories.',0xc6a477],
+        [rest.x-3,rest.y-6,'Inn’s supper docket','Three benches laid. Spare bread goes to the north road watch after supper.',0x9dba9f],
         [8556,8580,'Shellwick tide board','Shellfish baskets go out past the yellow sand at low tide. The mooring is just southwest. Lantern Quay lies northwest around the head of the bay.'],
         [8559,8565,'Pearl Banks tally post','Collectors count the day’s shells here before taking them to the Shellwick market. Follow the bank southwest for the shared landing.']
     ]) authoredProps.set(y*size+x,{x,y,kind:'signpost',solid:false,turn:0,name,text,cloth,soloOnly:cloth!==undefined});
@@ -14542,6 +14578,22 @@ const Farlands = (() => {
     // dx, dy, what they say there] or [from hour] for home. Two lines mean before and after the Harvest Bell is back.
     // No one's place is within three tiles of Mira, so Space beside her always reaches her.
     const restDoors = {inn:[-5,-3],chapel:[-4,3],cottage:[9,-2]};
+    // Fixed residents, staggered shifts and paired stops. Positions remain owned by the normal resident simulation.
+    const restNeighbours = [
+        ['nell','Nell, the Baker','merchant','Baker','inn',[[6.5,5,-1,'market','Hot rye, cold butter. Best argument for getting up before dawn.'],[13,6,-1,'market','The Exchange gets the crusty loaves. The inn gets the soft ones. They both think they won.'],[18.5,-2,-6,'square','I have flour in both boots and a whole evening to complain about it.'],[21]]],
+        ['fen','Fen, the Market Carter','villager','Courier','inn',[[7,2,-3,'market','I came for bread, but Nessa has put the pears where I can see them. Cunning woman.'],[12,5,0,'market','A small loaf, please. Last time I bought a big one the cart smelled of bread all the way to Millbend.'],[18,-1,-5,'square','Bram swears this next story is shorter. He swore that yesterday, too.'],[22]]],
+        ['ida','Ida, the Smallholder','villager','Farmer','cottage',[[6,8,-4,'garden','That’s the mint bed. The hens know to leave it alone, which makes them wiser than my brother.'],[10.5,4,0,'square','I have eggs enough for the inn and two left to barter. Know anyone with a little salt?'],[16,5,-1,'market','Nell and I trade before supper. A good loaf weighs about as much as a bad excuse.'],[20]]],
+        ['osric','Osric, the Watchman','guard','Trail Warden','chapel',[[0,1,-5,'roadA','Quiet since midnight. Even the owls have given up arguing.'],[7.5,0,6,'roadB','I keep the causeway clear for the carts. Put a wheel in that ditch and you’ll meet Hale soon enough.'],[14.5,1,-6,'roadA','Count the wagons, check the lamp oil, try not to count the hours.'],[21,0,-4,'roadA','Mind the step by the inn. The lamp goes out before the stories do.']]],
+        ['piper','Piper, a Road Fiddler','villager','Pilgrim','inn',[[8,-1,-3,'square','I play for my supper. This morning I played for breakfast too, and that may have been pushing it.'],[14,1,6,'square','Bram knows a story for every bend in the road. I only know three tunes, but I play them faster.'],[18.25,-1,-4,'square','Let Bram finish. I’ll get my tune in while he takes a breath.'],[20.5]]]
+    ];
+    function restNeighbour([id,name,role,occupation,home,day]) {
+        const [hx,hy]=restDoors[home];
+        return {realmId:'rest-neighbour-'+id,name,class:role,ebRole:occupation,ebSite:'rest',
+            restHome:home,restNeighbour:id,movable:false,x:rest.x+hx,y:rest.y+hy,
+            homeDoor:{x:rest.x+hx,y:rest.y+hy,checked:true},
+            routine:day.map(([from,dx,dy,where,says])=>dx===undefined ? {from,home:true} :
+                {from,x:rest.x+dx,y:rest.y+dy,where,says,fit:true})};
+    }
     const restLife = {
         ivo:{name:'Ivo, the Millwright',home:'inn',day:[
             [6,-3,8,'The mill at Millbend takes its timber by river. I count what lands here before it goes up the creek.'],
@@ -14800,6 +14852,11 @@ const Farlands = (() => {
                     if (['water','mountain','lava'].includes(sample(x+dx,y+dy))) continue;
                     const resident={name:name+' '+role,class:'villager',x:x+dx,y:y+dy,dialogue,realmId:id+'-resident-'+i};
                     actors.npcs.push(site===start ? restResident(resident,i) : resident);
+                }
+                if (site===start) {
+                    actors.npcs.push(...restNeighbours.map(restNeighbour),
+                        {name:'Ida’s Hen',realmId:'rest-livestock-0',glyph:'🐓',fauna:true,class:'villager',x:x+8,y:y-6,
+                            dialogue:'The hen pecks at the loose straw beside the herb beds.'});
                 }
                 if (site.settlement) {
                     const residents = [
@@ -15161,10 +15218,10 @@ const ebFarlands = (() => {
                 items.push(...cell.items.filter(item=>!journey.spent.has(item.realmId)));
             }
         }
+        updateBuildingFootprints();
         npcs.push(...ebLife.enroll(residents));
         enemies.forEach(actor=>addPatrol(actor,true));
         npcs.forEach(actor=>addPatrol(actor,false));
-        updateBuildingFootprints();
         return true;
     }
 
@@ -15276,20 +15333,20 @@ const ebFarlands = (() => {
     // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
     function markRpgQuest(key) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||
-            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0|[efg]-rest)$/.test(key)||journey.spent.has(key))return false;
+            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|d-settlement-lantern-0|[efghi]-rest)$/.test(key)||journey.spent.has(key))return false;
         journey.spent.add(key);saveNow();return true;
     }
     function completeRpgQuest(id,kind) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
-            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&!(['e','f','g'].includes(kind)&&id==='rest')))return false;
+            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&!(['e','f','g','h','i'].includes(kind)&&id==='rest')))return false;
         const site=Farlands.byId.get(id),prefix='rq-';
         // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
         if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
         if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
             !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
             !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
-            (['a','d','e','f','g'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
-        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:kind==='f'?[22,28]:kind==='g'?[20,25]:[14,15];
+            (['a','d','e','f','g','h','i'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:kind==='f'?[22,28]:kind==='g'?[20,25]:kind==='h'?[8,9]:kind==='i'?[10,12]:[14,15];
         journey.spent.add(prefix+'done-'+kind+'-'+id);
         gameState.inventory.gold+=gold;gameState.player.xp+=xp;
         checkLevelUp();updateUI();saveNow();updateHint();return true;
@@ -16323,6 +16380,7 @@ const ebLife = (() => {
         return slot;
     }
     const goalOf = (npc,slot) => slot.home ? npc.homeDoor : slot;
+    const restPatrons = () => roster.filter(npc => npc.restHome==='inn' && npc.indoors);
     // R17: a generated resident's place is chosen before the scene's structures are known; the first time it is used
     // with the scene loaded, a place inside a structure moves to the nearest walkable tile (Rest's authored places do not).
     function usable(npc,slot) {
@@ -16368,7 +16426,7 @@ const ebLife = (() => {
         roster = all.filter(npc => npc.routine);
         // first sight of a resident: they are simply where the hour says, not marching in from somewhere
         for (const npc of roster) if (!npc.life) {
-            const slot = slotOf(npc), goal = goalOf(npc,slot);
+            const slot = slotOf(npc), goal = npc.restNeighbour ? usable(npc,slot) : goalOf(npc,slot);
             npc.life = {slot,path:null,retry:0};
             npc.indoors = !!slot.home;
             npc.x = goal.x; npc.y = goal.y;
@@ -16467,7 +16525,11 @@ const ebLife = (() => {
         const kind = plan[Math.floor(slot.from)];
         if (!kind) return null;
         if (kind === 'trade') return {kind,face:Math.hypot(hero.x-npc.x,hero.y-npc.y) <= 3 ? [hero.x,hero.y] : null};
-        if (kind === 'story') return {kind:'speak',face:null};
+        if (kind === 'story') {
+            const listener=roster.find(other=>other.restNeighbour && standing(other,now) &&
+                Math.hypot(other.x-npc.x,other.y-npc.y)<=2.6);
+            return {kind:'speak',face:listener ? [listener.x,listener.y] : null};
+        }
         return {kind,face:null};
     }
     const storyteller = now => roster.find(o => o.name === 'Bram, the Storyteller' && named(o,now)?.kind === 'speak');
@@ -16541,7 +16603,7 @@ const ebLife = (() => {
         }
         return null;
     }
-    return { enroll, tick, roster:() => roster, hour, activity, localWork, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
+    return { restPatrons, enroll, tick, roster:() => roster, hour, activity, localWork, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
         drawn:npc => Boolean(npc.ebRole || NAMED[npc.name]) };
 })();
 </script>
@@ -16988,7 +17050,15 @@ const ebRpgQuests=(()=>{
     const stations=Farlands.sites.filter(s=>s.station);
     const shellwickId='settlement-lantern-0';
     const orchardTallies=['North orchard tally','South orchard tally'];
-    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : site===Farlands.start ? ['a','b','c','e','g',...(ebFarlands.storyFlag('quest-vault-reward')?['f']:[])] : ['a','b','c'];
+    const restOrders = {
+        h:{title:'Bread for the common room',giver:'Nell, the Baker',receiver:'Fen, the Market Carter',
+            prop:'Exchange order slate',reward:[8,9],
+            description:'Read the Exchange order slate by the market. Tell Fen how many loaves the inn ordered, then report to Nell.'},
+        i:{title:'A share for the watch',giver:'Fen, the Market Carter',receiver:'Osric, the Watchman',
+            prop:'Inn’s supper docket',reward:[10,12],
+            description:'Read the supper docket behind the inn. Tell Osric the watch has a share, then report to Fen.'}
+    };
+    const kinds=site=>site.id===shellwickId ? ['a','b','c','d'] : site===Farlands.start ? ['a','b','c','e','g','h',...(flag(site,'h','done')?['i']:[]),...(ebFarlands.storyFlag('quest-vault-reward')?['f']:[])] : ['a','b','c'];
     // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
     // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
     const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
@@ -17026,6 +17096,7 @@ const ebRpgQuests=(()=>{
     };
     function plan(site,kind){
         if(!site?.station||!kinds(site).includes(kind))return null;
+        if(site===Farlands.start&&Object.hasOwn(restOrders,kind))return {site,target:site,kind,...restOrders[kind]};
         if(kind==='g')return {
             site,target:site,kind,title:'Sounding Mill Creek',
             description:'Read Hale’s sounding board by the southwest causeway. Board the moored boat and row three tiles west, then land and report to Hale.',
@@ -17061,8 +17132,13 @@ const ebRpgQuests=(()=>{
     }
     const state=q=>flag(q.site,q.kind,'done')?'done':
         flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
-    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d','e','f','g'].includes(q.kind)||flag(q.site,q.kind,'step2'));
+    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d','e','f','g','h','i'].includes(q.kind)||flag(q.site,q.kind,'step2'));
     function next(q){
+        if(Object.hasOwn(restOrders,q.kind)){
+            if(!flag(q.site,q.kind,'step1'))return {site:q.site,label:'Read the '+q.prop};
+            if(!flag(q.site,q.kind,'step2'))return {site:q.site,label:'Speak to '+q.receiver};
+            return {site:q.site,label:'Report to '+q.giver};
+        }
         if(q.kind==='g'){
             if(!flag(q.site,'g','step1'))return {site:q.site,label:'Read the sounding board by the southwest causeway'};
             if(!flag(q.site,'g','step2'))return {site:q.site,label:'Board at the causeway and row three tiles west'};
@@ -17103,6 +17179,13 @@ const ebRpgQuests=(()=>{
         if(prop.name===Farlands.creekPilotage.name&&flag(site,'g','taken')&&mark(site,'g','step1')){
             ebFarlands.refreshStoryHint();
             return 'Sounding started. Board the creek boat and row three tiles west.';
+        }
+        for (const kind of ['h','i']) {
+            const order=restOrders[kind];
+            if (prop.name===order.prop && flag(site,kind,'taken') && mark(site,kind,'step1')) {
+                ebFarlands.refreshStoryHint();
+                return 'Order noted. Speak to '+order.receiver+'.';
+            }
         }
         const tally=orchardTallies.indexOf(prop.name);
         if(tally!==-1&&flag(site,'f','taken')&&mark(site,'f','step'+(tally+1))){
@@ -17152,6 +17235,11 @@ const ebRpgQuests=(()=>{
         if(!active()||!npc||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return '';
         const here=stationAt(npc.x,npc.y),notes=[];
         for(const q of activePlans()){
+            if (Object.hasOwn(restOrders,q.kind) && npc.name===q.receiver &&
+                flag(q.site,q.kind,'step1') && mark(q.site,q.kind,'step2')) {
+                notes.push(q.kind==='h'?'Fen counts six loaves onto the cart.':'Osric grins. He’ll bring the night watch by after supper.');
+                continue;
+            }
             if(q.kind!=='a'||q.site.id!==here?.id)continue;
             if(npc.name===giverName(q.site,'c')&&mark(q.site,'a','step1'))notes.push('You have spoken with '+ebDisplayName(npc)+'.');
             if(npc.name===giverName(q.site,'b')&&mark(q.site,'a','step2'))notes.push('You have spoken with '+ebDisplayName(npc)+'.');
@@ -17263,6 +17351,8 @@ const ebRpgQuests=(()=>{
         const out=[];
         if(site.station){
             const done=k=>flag(site,k,'done')&&plan(site,k);
+            if(done('i'))out.push('The night watch got a hot supper. Osric is trying very hard to look unimpressed.');
+            else if(done('h'))out.push('Nell says you kept count better than Fen. He says that isn’t a fair contest.');
             if(done('g'))out.push('Hale marked the safe reach from your sounding. The next timber boat can take the inside bend.');
             if(done('f'))out.push('Nessa sent the first baskets down from Bell Orchard. Your tally kept the pickers on the right rows.');
             if(done('d'))out.push('The route you charted keeps our shell boats clear of the banks.');

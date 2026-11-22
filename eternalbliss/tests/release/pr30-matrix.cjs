@@ -22,7 +22,7 @@ const artifact=path.join(out,'pr30-matrix.json');
 const jobs=[
     ['geography','coastal-geography.cjs'],
     ['quest-contract','automation-quests.cjs',{},[baseline]],
-    ['shared-source-boundary','release/pr30-scope.cjs',{},[scope]],
+    ['shared-source-boundary','release/pr30-scope.cjs',{EB_SCOPE_LIVING_REST:process.env.EB_SCOPE_LIVING_REST||''},[scope]],
     ['architecture-batches','architecture-batches.cjs',{},[architecture]],
     ['local-occupations','local-occupations.cjs'],
     ['natural-harvest','natural-harvest.cjs'],
