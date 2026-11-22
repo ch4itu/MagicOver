@@ -155,6 +155,17 @@ async function verify(browser) {
                 if(slot.home?!npc.indoors:npc.indoors||npc.x!==slot.x||npc.y!==slot.y)
                     failures.push([hour,npc.name,'missed destination']);
             }
+            for(const name of ['Exchange order slate','Inn’s supper docket']){
+                const post=[...Farlands.authoredProps.values()].find(prop=>prop.name===name);
+                const readable=[-1,0,1].some(dx=>[-1,0,1].some(dy=>{
+                    const x=post.x+dx,y=post.y+dy;
+                    const reaches=entity=>Math.hypot(entity.x-x,entity.y-y)<=1.5;
+                    return canEntityMoveTo(x,y)&&Farlands.propNear(x,y)===post&&
+                        !npcs.some(npc=>!npc.fauna&&reaches(npc))&&!enemies.some(reaches)&&
+                        !buildings.some(building=>buildingDistance(building,x,y)<=2);
+                }));
+                if(!readable)failures.push([hour,name,'no interaction approach']);
+            }
         }
         worldClimate.time=clock;
         return failures;
@@ -170,7 +181,7 @@ async function verify(browser) {
         await quest.evaluate(id=>{
             const npc=npcs.find(n=>n.restNeighbour===id);
             Object.assign(gameState.player,{x:npc.x,y:npc.y});
-            talkToNPC(npc);
+            useWorldActor('npc',npc);
         },id);
         await quest.locator('#interactionModal').waitFor({state:'visible'});
     };
@@ -194,9 +205,12 @@ async function verify(browser) {
             const prop=[...Farlands.authoredProps.values()].find(p=>p.name===name);
             Object.assign(gameState.player,{x:prop.x,y:prop.y});
             if(!canEntityMoveTo(prop.x,prop.y)||Farlands.propAt(prop.x,prop.y,false))throw Error('invalid solo prop');
-            const note=ebRpgQuests.onProp(prop);
-            if(!note.includes('Order noted'))throw Error('missing prop objective');
+            document.activeElement?.blur();
         },prop);
+        await quest.keyboard.press('Space');
+        await quest.locator('#modalTitle').filter({hasText:prop}).waitFor();
+        t.assert((await quest.locator('#modalContent').textContent()).includes('Order noted'));
+        await close();
         await talk(recipient);
         t.assert((await quest.locator('#modalContent').textContent()).includes(line));
         await close();
