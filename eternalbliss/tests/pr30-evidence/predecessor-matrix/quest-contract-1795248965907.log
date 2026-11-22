@@ -1,0 +1,2 @@
+PASS coastal quest respects afloat state, order, pinning and completed flags
+{"result":"PASS","iterations":1000,"oldMs":209,"candidateMs":46}

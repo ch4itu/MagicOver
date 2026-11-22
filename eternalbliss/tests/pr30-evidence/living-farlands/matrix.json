@@ -1,0 +1,167 @@
+{
+  "source": "02a0e3f754ddf7bb280d561497a92b51779497bc592596a00a3ff4e419503a4b",
+  "jobs": {
+    "geography": {
+      "status": "PASS",
+      "fingerprint": "8bb52c4a295d80f19bc03cf85e8f56d720a4b000601ea8d14f28d73a4c5a8f77",
+      "log": "geography-1795314482919.log",
+      "started": "2026-11-22T02:28:02.919Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:28:04.609Z"
+    },
+    "quest-contract": {
+      "status": "PASS",
+      "fingerprint": "60cdef639de51fb8fbafccdfbe39c8fbb7d7b5484b49e8c16c755dc229c35520",
+      "log": "quest-contract-1795314484619.log",
+      "started": "2026-11-22T02:28:04.619Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:28:04.954Z"
+    },
+    "shared-source-boundary": {
+      "status": "PASS",
+      "fingerprint": "00ee63f3d5dd1bc89fbd5be2be0e712ca02dce208feea73ed71c48e87ef03d4c",
+      "log": "shared-source-boundary-1795314484963.log",
+      "started": "2026-11-22T02:28:04.963Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:28:05.080Z"
+    },
+    "architecture-batches": {
+      "status": "PASS",
+      "fingerprint": "7b339a976a7896c29b1a6991465cbe3aafa31bb12aaa52af2db5e7957bf79da5",
+      "log": "architecture-batches-1795314485089.log",
+      "started": "2026-11-22T02:28:05.089Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:28:05.222Z"
+    },
+    "local-occupations": {
+      "status": "PASS",
+      "fingerprint": "45adb915511177c522a6431e4556d04f0c6e768ec1adf52a6501d16106a233f4",
+      "log": "local-occupations-1795314485226.log",
+      "started": "2026-11-22T02:28:05.226Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:28:40.368Z"
+    },
+    "natural-harvest": {
+      "status": "PASS",
+      "fingerprint": "6aae3113e67c78792827056a2329c2d750f861309bbac710f514d27156ddf108",
+      "log": "natural-harvest-1795314520373.log",
+      "started": "2026-11-22T02:28:40.373Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:34:30.407Z"
+    },
+    "mobile-touch": {
+      "status": "PASS",
+      "fingerprint": "5852d484e91de11c170fcd663f5a45ec2650ddc84ed89bcc772d439603f7ca9a",
+      "log": "mobile-touch-1795314870423.log",
+      "started": "2026-11-22T02:34:30.423Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:35:07.555Z"
+    },
+    "generated-mooring-desktop": {
+      "status": "PASS",
+      "fingerprint": "0aa52bc952bfca874682c9e33669ecf5127e191e661f8817955bde417f898742",
+      "log": "generated-mooring-desktop-1795314907560.log",
+      "started": "2026-11-22T02:35:07.561Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:35:47.009Z"
+    },
+    "generated-mooring-portrait": {
+      "status": "PASS",
+      "fingerprint": "72b36c35effe66c4ad1e7ca09a4c096799df68c0fbf263260bac787c4f7e9e5f",
+      "log": "generated-mooring-portrait-1795314947014.log",
+      "started": "2026-11-22T02:35:47.014Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:36:20.005Z"
+    },
+    "generated-mooring-landscape": {
+      "status": "PASS",
+      "fingerprint": "491a8f1f04aff7634de8f00e795d6411f405df92b4ebfe819157f25da50bc4c9",
+      "log": "generated-mooring-landscape-1795314980010.log",
+      "started": "2026-11-22T02:36:20.010Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:37:00.973Z"
+    },
+    "fresh-first-visit": {
+      "status": "PASS",
+      "fingerprint": "fdeb0e5352f00afaa282ce11d948e56ce3af44a0e467f13366d22b565ee2c360",
+      "log": "fresh-first-visit-1795315020978.log",
+      "started": "2026-11-22T02:37:00.978Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:37:43.513Z"
+    },
+    "save-and-rollback": {
+      "status": "PASS",
+      "fingerprint": "62bcd51fb2f426f7bf254046fb3f58b952a6f50e9060d44771bed4991454121b",
+      "log": "save-and-rollback-1795315063531.log",
+      "started": "2026-11-22T02:37:43.531Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:38:26.212Z"
+    },
+    "authored-coastal-transport": {
+      "status": "PASS",
+      "fingerprint": "eabd98dc8c6ad87da41d218509127e0b1316c8c8c9720de252f53567e8b0458a",
+      "log": "authored-coastal-transport-1795315106222.log",
+      "started": "2026-11-22T02:38:26.222Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:39:21.246Z"
+    },
+    "shellwick-quest": {
+      "status": "PASS",
+      "fingerprint": "0820276737508acc4148f933caf27e70ac525d82fa521682cb083473954df9e5",
+      "log": "shellwick-quest-1795315161259.log",
+      "started": "2026-11-22T02:39:21.259Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:39:38.135Z"
+    },
+    "portrait-combat": {
+      "status": "PASS",
+      "fingerprint": "a5f1f30b49839aeb5db78a3b1616ba0b828a25f22736d56b63418f2670d7ff41",
+      "log": "portrait-combat-1795315178145.log",
+      "started": "2026-11-22T02:39:38.145Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:40:19.851Z"
+    },
+    "landscape-combat": {
+      "status": "PASS",
+      "fingerprint": "99b8613bcb16588a8adc82774d417c0f9dbce2d5d5fc2689d322c7d5cdd9e143",
+      "log": "landscape-combat-1795315219862.log",
+      "started": "2026-11-22T02:40:19.862Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:41:17.975Z"
+    },
+    "startup-modes": {
+      "status": "PASS",
+      "fingerprint": "c13480de51adeb639ebaac3f24901a16f9cde7024cc37a8d8d6314be2f0dea40",
+      "log": "startup-modes-1795315277986.log",
+      "started": "2026-11-22T02:41:17.986Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:42:23.800Z"
+    },
+    "shared-active-save-guard": {
+      "status": "PASS",
+      "fingerprint": "850fc07e1e2f952154e200e30d0574290c5b15c1334bca975bc9bb8bb3f716ff",
+      "log": "shared-active-save-guard-1795315343811.log",
+      "started": "2026-11-22T02:42:23.811Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-22T02:42:50.852Z"
+    }
+  }
+}

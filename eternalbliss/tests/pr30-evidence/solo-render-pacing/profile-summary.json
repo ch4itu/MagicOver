@@ -1,0 +1,517 @@
+[
+  {
+    "run": "active",
+    "profile": "desktop-first",
+    "sha": "e4f81a1263d70aa469291e3c01df3dccca35bd1fd18d1e6c1930b113b1128db5",
+    "route": [
+      4967,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 13,
+      "medianMs": 19,
+      "p95Ms": 893,
+      "maxMs": 893
+    },
+    "WebGLSubmission": {
+      "count": 10,
+      "medianMs": 32,
+      "p95Ms": 912,
+      "maxMs": 912
+    },
+    "inputGap": {
+      "count": 10,
+      "medianMs": 123,
+      "p95Ms": 974,
+      "maxMs": 974
+    },
+    "moveCpu": {
+      "count": 11,
+      "medianMs": 1,
+      "p95Ms": 1,
+      "maxMs": 1
+    },
+    "minimapCpu": {
+      "count": 20,
+      "medianMs": 1,
+      "p95Ms": 5,
+      "maxMs": 5
+    },
+    "terrainCpu": {
+      "count": 14,
+      "medianMs": 0,
+      "p95Ms": 28,
+      "maxMs": 28
+    },
+    "actorSyncCpu": {
+      "count": 3,
+      "medianMs": 0,
+      "p95Ms": 0,
+      "maxMs": 0
+    },
+    "terrainMissing": 0
+  },
+  {
+    "run": "active",
+    "profile": "desktop-overhead",
+    "sha": "e4f81a1263d70aa469291e3c01df3dccca35bd1fd18d1e6c1930b113b1128db5",
+    "route": [
+      4967,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 11,
+      "medianMs": 16,
+      "p95Ms": 2775,
+      "maxMs": 2775
+    },
+    "WebGLSubmission": {
+      "count": 11,
+      "medianMs": 16,
+      "p95Ms": 2775,
+      "maxMs": 2775
+    },
+    "inputGap": {
+      "count": 19,
+      "medianMs": 121,
+      "p95Ms": 960,
+      "maxMs": 960
+    },
+    "moveCpu": {
+      "count": 20,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 2
+    },
+    "minimapCpu": {
+      "count": 42,
+      "medianMs": 0,
+      "p95Ms": 2,
+      "maxMs": 2
+    },
+    "terrainCpu": {
+      "count": 12,
+      "medianMs": 0,
+      "p95Ms": 13,
+      "maxMs": 13
+    },
+    "actorSyncCpu": {
+      "count": 2,
+      "medianMs": 0,
+      "p95Ms": 0,
+      "maxMs": 0
+    },
+    "terrainMissing": 0
+  },
+  {
+    "run": "cpu",
+    "profile": "desktop-first",
+    "sha": "e4f81a1263d70aa469291e3c01df3dccca35bd1fd18d1e6c1930b113b1128db5",
+    "route": [
+      4967,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 468,
+      "medianMs": 16,
+      "p95Ms": 21,
+      "maxMs": 36
+    },
+    "WebGLSubmission": null,
+    "inputGap": {
+      "count": 64,
+      "medianMs": 121,
+      "p95Ms": 124,
+      "maxMs": 128
+    },
+    "moveCpu": {
+      "count": 65,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 3
+    },
+    "minimapCpu": {
+      "count": 132,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 2
+    },
+    "terrainCpu": {
+      "count": 469,
+      "medianMs": 0,
+      "p95Ms": 0,
+      "maxMs": 14
+    },
+    "actorSyncCpu": {
+      "count": 53,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 1
+    },
+    "terrainMissing": 0
+  },
+  {
+    "run": "map-off",
+    "profile": "desktop-first",
+    "sha": "e4f81a1263d70aa469291e3c01df3dccca35bd1fd18d1e6c1930b113b1128db5",
+    "route": [
+      4967,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 482,
+      "medianMs": 16,
+      "p95Ms": 20,
+      "maxMs": 33
+    },
+    "WebGLSubmission": null,
+    "inputGap": {
+      "count": 64,
+      "medianMs": 121,
+      "p95Ms": 125,
+      "maxMs": 130
+    },
+    "moveCpu": {
+      "count": 65,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 1
+    },
+    "minimapCpu": null,
+    "terrainCpu": {
+      "count": 483,
+      "medianMs": 0,
+      "p95Ms": 0,
+      "maxMs": 15
+    },
+    "actorSyncCpu": {
+      "count": 54,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 1
+    },
+    "terrainMissing": 0
+  },
+  {
+    "run": "pace-base-1",
+    "profile": "desktop-overhead",
+    "sha": "e4f81a1263d70aa469291e3c01df3dccca35bd1fd18d1e6c1930b113b1128db5",
+    "route": [
+      4967,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 14,
+      "medianMs": 16,
+      "p95Ms": 3845,
+      "maxMs": 3845
+    },
+    "WebGLSubmission": {
+      "count": 14,
+      "medianMs": 16,
+      "p95Ms": 3845,
+      "maxMs": 3845
+    },
+    "inputGap": {
+      "count": 20,
+      "medianMs": 121,
+      "p95Ms": 126,
+      "maxMs": 132
+    },
+    "moveCpu": {
+      "count": 21,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 1
+    },
+    "minimapCpu": {
+      "count": 53,
+      "medianMs": 0,
+      "p95Ms": 2,
+      "maxMs": 6
+    },
+    "terrainCpu": {
+      "count": 15,
+      "medianMs": 0,
+      "p95Ms": 22,
+      "maxMs": 22
+    },
+    "actorSyncCpu": {
+      "count": 2,
+      "medianMs": 0,
+      "p95Ms": 0,
+      "maxMs": 0
+    },
+    "terrainMissing": 0
+  },
+  {
+    "run": "pace-candidate-1",
+    "profile": "desktop-overhead",
+    "sha": "9cbb061a692f9a8e9ae520d56204988ce9e672ba38a4f696d855bfc57f8cf190",
+    "route": [
+      4967,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 26,
+      "medianMs": 20,
+      "p95Ms": 669,
+      "maxMs": 845
+    },
+    "WebGLSubmission": {
+      "count": 17,
+      "medianMs": 24,
+      "p95Ms": 909,
+      "maxMs": 909
+    },
+    "inputGap": {
+      "count": 16,
+      "medianMs": 123,
+      "p95Ms": 781,
+      "maxMs": 781
+    },
+    "moveCpu": {
+      "count": 17,
+      "medianMs": 1,
+      "p95Ms": 20,
+      "maxMs": 20
+    },
+    "minimapCpu": {
+      "count": 36,
+      "medianMs": 1,
+      "p95Ms": 4,
+      "maxMs": 5
+    },
+    "terrainCpu": {
+      "count": 27,
+      "medianMs": 0,
+      "p95Ms": 9,
+      "maxMs": 21
+    },
+    "actorSyncCpu": {
+      "count": 5,
+      "medianMs": 0,
+      "p95Ms": 0,
+      "maxMs": 0
+    },
+    "terrainMissing": 0
+  },
+  {
+    "run": "pace-base-2",
+    "profile": "desktop-overhead",
+    "sha": "e4f81a1263d70aa469291e3c01df3dccca35bd1fd18d1e6c1930b113b1128db5",
+    "route": [
+      4967,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 16,
+      "medianMs": 28,
+      "p95Ms": 2189,
+      "maxMs": 2189
+    },
+    "WebGLSubmission": {
+      "count": 16,
+      "medianMs": 28,
+      "p95Ms": 2189,
+      "maxMs": 2189
+    },
+    "inputGap": {
+      "count": 33,
+      "medianMs": 121,
+      "p95Ms": 131,
+      "maxMs": 525
+    },
+    "moveCpu": {
+      "count": 34,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 1
+    },
+    "minimapCpu": {
+      "count": 56,
+      "medianMs": 1,
+      "p95Ms": 2,
+      "maxMs": 3
+    },
+    "terrainCpu": {
+      "count": 17,
+      "medianMs": 0,
+      "p95Ms": 47,
+      "maxMs": 47
+    },
+    "actorSyncCpu": {
+      "count": 5,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 1
+    },
+    "terrainMissing": 0
+  },
+  {
+    "run": "pace-candidate-2",
+    "profile": "desktop-overhead",
+    "sha": "9cbb061a692f9a8e9ae520d56204988ce9e672ba38a4f696d855bfc57f8cf190",
+    "route": [
+      4967,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 23,
+      "medianMs": 19,
+      "p95Ms": 672,
+      "maxMs": 697
+    },
+    "WebGLSubmission": {
+      "count": 18,
+      "medianMs": 24,
+      "p95Ms": 712,
+      "maxMs": 712
+    },
+    "inputGap": {
+      "count": 22,
+      "medianMs": 124,
+      "p95Ms": 132,
+      "maxMs": 690
+    },
+    "moveCpu": {
+      "count": 23,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 2
+    },
+    "minimapCpu": {
+      "count": 45,
+      "medianMs": 1,
+      "p95Ms": 3,
+      "maxMs": 5
+    },
+    "terrainCpu": {
+      "count": 24,
+      "medianMs": 0,
+      "p95Ms": 6,
+      "maxMs": 6
+    },
+    "actorSyncCpu": {
+      "count": 7,
+      "medianMs": 0,
+      "p95Ms": 0,
+      "maxMs": 0
+    },
+    "terrainMissing": 0
+  },
+  {
+    "run": "mobile",
+    "profile": "mobile-mounted-first",
+    "sha": "9cbb061a692f9a8e9ae520d56204988ce9e672ba38a4f696d855bfc57f8cf190",
+    "route": [
+      4967,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 18,
+      "medianMs": 19,
+      "p95Ms": 563,
+      "maxMs": 563
+    },
+    "WebGLSubmission": {
+      "count": 15,
+      "medianMs": 21,
+      "p95Ms": 574,
+      "maxMs": 574
+    },
+    "inputGap": {
+      "count": 20,
+      "medianMs": 69,
+      "p95Ms": 74,
+      "maxMs": 535
+    },
+    "moveCpu": {
+      "count": 21,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 3
+    },
+    "minimapCpu": {
+      "count": 21,
+      "medianMs": 1,
+      "p95Ms": 2,
+      "maxMs": 2
+    },
+    "terrainCpu": {
+      "count": 19,
+      "medianMs": 6,
+      "p95Ms": 34,
+      "maxMs": 34
+    },
+    "actorSyncCpu": {
+      "count": 5,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 1
+    },
+    "terrainMissing": 0
+  },
+  {
+    "run": "mobile",
+    "profile": "mobile-overhead",
+    "sha": "9cbb061a692f9a8e9ae520d56204988ce9e672ba38a4f696d855bfc57f8cf190",
+    "route": [
+      4985,
+      4604,
+      90
+    ],
+    "frame": {
+      "count": 56,
+      "medianMs": 16,
+      "p95Ms": 385,
+      "maxMs": 451
+    },
+    "WebGLSubmission": {
+      "count": 25,
+      "medianMs": 32,
+      "p95Ms": 451,
+      "maxMs": 468
+    },
+    "inputGap": {
+      "count": 12,
+      "medianMs": 122,
+      "p95Ms": 437,
+      "maxMs": 437
+    },
+    "moveCpu": {
+      "count": 13,
+      "medianMs": 0,
+      "p95Ms": 2,
+      "maxMs": 2
+    },
+    "minimapCpu": {
+      "count": 23,
+      "medianMs": 0,
+      "p95Ms": 2,
+      "maxMs": 2
+    },
+    "terrainCpu": {
+      "count": 57,
+      "medianMs": 0,
+      "p95Ms": 9,
+      "maxMs": 14
+    },
+    "actorSyncCpu": {
+      "count": 10,
+      "medianMs": 0,
+      "p95Ms": 1,
+      "maxMs": 1
+    },
+    "terrainMissing": 0
+  }
+]

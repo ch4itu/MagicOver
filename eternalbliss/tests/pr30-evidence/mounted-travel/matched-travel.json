@@ -1,0 +1,422 @@
+{
+  "2d-normal-05394828-1": {
+    "stepGap": {
+      "n": 47,
+      "median": 67,
+      "p95": 90,
+      "max": 109
+    },
+    "frameGap": {
+      "n": 197,
+      "median": 16,
+      "p95": 32,
+      "max": 47
+    },
+    "submitGap": {},
+    "patchCpu": {},
+    "seatError": {
+      "n": 198,
+      "median": 0.0,
+      "p95": 0,
+      "max": 0
+    },
+    "gaitStalls": 0,
+    "tileEnd": [
+      5015,
+      4604
+    ],
+    "steps": 48,
+    "seatVerticalError": {
+      "n": 198,
+      "median": 0.0,
+      "p95": 0,
+      "max": 0
+    },
+    "sha256": "053948281fc9795dd9cd1ef955e13ca89f515d74452d7723416560b31c1891b4"
+  },
+  "2d-normal-05394828-2": {
+    "stepGap": {
+      "n": 47,
+      "median": 67,
+      "p95": 86,
+      "max": 109
+    },
+    "frameGap": {
+      "n": 190,
+      "median": 16.0,
+      "p95": 32,
+      "max": 40
+    },
+    "submitGap": {},
+    "patchCpu": {},
+    "seatError": {
+      "n": 191,
+      "median": 0,
+      "p95": 0,
+      "max": 0
+    },
+    "gaitStalls": 0,
+    "tileEnd": [
+      5015,
+      4604
+    ],
+    "steps": 48,
+    "seatVerticalError": {
+      "n": 191,
+      "median": 0,
+      "p95": 0,
+      "max": 0
+    },
+    "sha256": "053948281fc9795dd9cd1ef955e13ca89f515d74452d7723416560b31c1891b4"
+  },
+  "2d-normal-5d5dc2f1-1": {
+    "stepGap": {
+      "n": 47,
+      "median": 68,
+      "p95": 93,
+      "max": 109
+    },
+    "frameGap": {
+      "n": 194,
+      "median": 16.0,
+      "p95": 32,
+      "max": 84
+    },
+    "submitGap": {},
+    "patchCpu": {},
+    "seatError": {
+      "n": 195,
+      "median": 8.5,
+      "p95": 24.08,
+      "max": 32
+    },
+    "gaitStalls": 0,
+    "tileEnd": [
+      5015,
+      4604
+    ],
+    "steps": 48,
+    "seatVerticalError": {
+      "n": 195,
+      "median": 0,
+      "p95": 0,
+      "max": 13
+    },
+    "sha256": "5d5dc2f1b638d2643a1ec5a4a890a48861c31923d76f12d16622e48cbebaf9b3"
+  },
+  "2d-normal-5d5dc2f1-2": {
+    "stepGap": {
+      "n": 47,
+      "median": 66,
+      "p95": 90,
+      "max": 110
+    },
+    "frameGap": {
+      "n": 193,
+      "median": 16,
+      "p95": 31,
+      "max": 58
+    },
+    "submitGap": {},
+    "patchCpu": {},
+    "seatError": {
+      "n": 194,
+      "median": 11.45,
+      "p95": 26.08,
+      "max": 32
+    },
+    "gaitStalls": 0,
+    "tileEnd": [
+      5015,
+      4604
+    ],
+    "steps": 48,
+    "seatVerticalError": {
+      "n": 194,
+      "median": 0.0,
+      "p95": 0,
+      "max": 13
+    },
+    "sha256": "5d5dc2f1b638d2643a1ec5a4a890a48861c31923d76f12d16622e48cbebaf9b3"
+  },
+  "first-normal-05394828-1": {
+    "stepGap": {
+      "n": 47,
+      "median": 66,
+      "p95": 256,
+      "max": 266
+    },
+    "frameGap": {
+      "n": 115,
+      "median": 16,
+      "p95": 208,
+      "max": 236
+    },
+    "submitGap": {
+      "n": 45,
+      "median": 32,
+      "p95": 234,
+      "max": 368
+    },
+    "patchCpu": {
+      "n": 19,
+      "median": 6,
+      "p95": 12,
+      "max": 12
+    },
+    "seatError": {},
+    "gaitStalls": 0,
+    "tileEnd": [
+      5015,
+      4604
+    ],
+    "steps": 48,
+    "seatVerticalError": {},
+    "sha256": "053948281fc9795dd9cd1ef955e13ca89f515d74452d7723416560b31c1891b4"
+  },
+  "first-normal-05394828-2": {
+    "stepGap": {
+      "n": 47,
+      "median": 69,
+      "p95": 265,
+      "max": 270
+    },
+    "frameGap": {
+      "n": 134,
+      "median": 16.0,
+      "p95": 206,
+      "max": 221
+    },
+    "submitGap": {
+      "n": 48,
+      "median": 29.5,
+      "p95": 250,
+      "max": 426
+    },
+    "patchCpu": {
+      "n": 18,
+      "median": 5.0,
+      "p95": 8,
+      "max": 8
+    },
+    "seatError": {},
+    "gaitStalls": 0,
+    "tileEnd": [
+      5015,
+      4604
+    ],
+    "steps": 48,
+    "seatVerticalError": {},
+    "sha256": "053948281fc9795dd9cd1ef955e13ca89f515d74452d7723416560b31c1891b4"
+  },
+  "first-normal-5d5dc2f1-1": {
+    "stepGap": {
+      "n": 47,
+      "median": 67,
+      "p95": 287,
+      "max": 296
+    },
+    "frameGap": {
+      "n": 106,
+      "median": 16.0,
+      "p95": 239,
+      "max": 254
+    },
+    "submitGap": {
+      "n": 38,
+      "median": 42.5,
+      "p95": 261,
+      "max": 286
+    },
+    "patchCpu": {
+      "n": 19,
+      "median": 4,
+      "p95": 8,
+      "max": 8
+    },
+    "seatError": {},
+    "gaitStalls": 4,
+    "tileEnd": [
+      5015,
+      4604
+    ],
+    "steps": 48,
+    "seatVerticalError": {},
+    "sha256": "5d5dc2f1b638d2643a1ec5a4a890a48861c31923d76f12d16622e48cbebaf9b3"
+  },
+  "first-normal-5d5dc2f1-2": {
+    "stepGap": {
+      "n": 48,
+      "median": 67.5,
+      "p95": 284,
+      "max": 301
+    },
+    "frameGap": {
+      "n": 131,
+      "median": 16,
+      "p95": 227,
+      "max": 262
+    },
+    "submitGap": {
+      "n": 44,
+      "median": 43.5,
+      "p95": 273,
+      "max": 333
+    },
+    "patchCpu": {
+      "n": 20,
+      "median": 5.0,
+      "p95": 8,
+      "max": 9
+    },
+    "seatError": {},
+    "gaitStalls": 10,
+    "tileEnd": [
+      5016,
+      4604
+    ],
+    "steps": 49,
+    "seatVerticalError": {},
+    "sha256": "5d5dc2f1b638d2643a1ec5a4a890a48861c31923d76f12d16622e48cbebaf9b3"
+  },
+  "overhead-normal-05394828-1": {
+    "stepGap": {
+      "n": 48,
+      "median": 67.0,
+      "p95": 212,
+      "max": 284
+    },
+    "frameGap": {
+      "n": 137,
+      "median": 16,
+      "p95": 174,
+      "max": 234
+    },
+    "submitGap": {
+      "n": 45,
+      "median": 20,
+      "p95": 250,
+      "max": 335
+    },
+    "patchCpu": {
+      "n": 8,
+      "median": 6.0,
+      "p95": 7,
+      "max": 7
+    },
+    "seatError": {},
+    "gaitStalls": 0,
+    "tileEnd": [
+      5016,
+      4604
+    ],
+    "steps": 49,
+    "seatVerticalError": {},
+    "sha256": "053948281fc9795dd9cd1ef955e13ca89f515d74452d7723416560b31c1891b4"
+  },
+  "overhead-normal-05394828-2": {
+    "stepGap": {
+      "n": 47,
+      "median": 67,
+      "p95": 71,
+      "max": 247
+    },
+    "frameGap": {
+      "n": 134,
+      "median": 16.0,
+      "p95": 164,
+      "max": 223
+    },
+    "submitGap": {
+      "n": 36,
+      "median": 41.0,
+      "p95": 240,
+      "max": 274
+    },
+    "patchCpu": {
+      "n": 8,
+      "median": 6.0,
+      "p95": 8,
+      "max": 8
+    },
+    "seatError": {},
+    "gaitStalls": 0,
+    "tileEnd": [
+      5015,
+      4604
+    ],
+    "steps": 48,
+    "seatVerticalError": {},
+    "sha256": "053948281fc9795dd9cd1ef955e13ca89f515d74452d7723416560b31c1891b4"
+  },
+  "overhead-normal-5d5dc2f1-1": {
+    "stepGap": {
+      "n": 48,
+      "median": 68.0,
+      "p95": 74,
+      "max": 313
+    },
+    "frameGap": {
+      "n": 154,
+      "median": 16.0,
+      "p95": 21,
+      "max": 272
+    },
+    "submitGap": {
+      "n": 29,
+      "median": 33,
+      "p95": 297,
+      "max": 563
+    },
+    "patchCpu": {
+      "n": 8,
+      "median": 6.5,
+      "p95": 9,
+      "max": 9
+    },
+    "seatError": {},
+    "gaitStalls": 6,
+    "tileEnd": [
+      5016,
+      4604
+    ],
+    "steps": 49,
+    "seatVerticalError": {},
+    "sha256": "5d5dc2f1b638d2643a1ec5a4a890a48861c31923d76f12d16622e48cbebaf9b3"
+  },
+  "overhead-normal-5d5dc2f1-2": {
+    "stepGap": {
+      "n": 47,
+      "median": 67,
+      "p95": 273,
+      "max": 296
+    },
+    "frameGap": {
+      "n": 119,
+      "median": 16,
+      "p95": 218,
+      "max": 344
+    },
+    "submitGap": {
+      "n": 43,
+      "median": 32,
+      "p95": 308,
+      "max": 451
+    },
+    "patchCpu": {
+      "n": 8,
+      "median": 6.5,
+      "p95": 9,
+      "max": 9
+    },
+    "seatError": {},
+    "gaitStalls": 4,
+    "tileEnd": [
+      5015,
+      4604
+    ],
+    "steps": 48,
+    "seatVerticalError": {},
+    "sha256": "5d5dc2f1b638d2643a1ec5a4a890a48861c31923d76f12d16622e48cbebaf9b3"
+  }
+}

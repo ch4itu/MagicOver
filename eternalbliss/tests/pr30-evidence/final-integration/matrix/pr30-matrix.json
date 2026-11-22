@@ -1,0 +1,158 @@
+{
+  "source": "efd0588467394bbb5bd96271b7913ff0f5d7a02db7caa178a52c5f1f44b4f0bd",
+  "jobs": {
+    "geography": {
+      "status": "PASS",
+      "fingerprint": "a10c9020a27c01c2940cf6bc58584583e7e4e08c619e7adfcffc3d62c1dd7ff4",
+      "log": "geography-1795251567261.log",
+      "started": "2026-11-21T08:59:27.261Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:59:29.568Z"
+    },
+    "quest-contract": {
+      "status": "PASS",
+      "fingerprint": "b4d5380ceb50831b100bc1b935249e169b6b83ef3c374e53835653dbe0904293",
+      "log": "quest-contract-1795251569586.log",
+      "started": "2026-11-21T08:59:29.587Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:59:29.968Z"
+    },
+    "shared-source-boundary": {
+      "status": "PASS",
+      "fingerprint": "17869744ddfa0b7b6dd56e9e0929345f99648eba8199a908816aa30af2aea29a",
+      "log": "shared-source-boundary-1795251569989.log",
+      "started": "2026-11-21T08:59:29.990Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T08:59:30.148Z"
+    },
+    "local-occupations": {
+      "status": "PASS",
+      "fingerprint": "71e6740236a07dd51fb894a28ee69e86c7959ed3f260dcf36886f744f960e7fe",
+      "log": "local-occupations-1795251570155.log",
+      "started": "2026-11-21T08:59:30.155Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:00:23.453Z"
+    },
+    "natural-harvest": {
+      "status": "PASS",
+      "fingerprint": "683414e2f866e6797744882c2bc46f7f72db970fcedb121a5281fe0dd6930893",
+      "log": "natural-harvest-1795251623459.log",
+      "started": "2026-11-21T09:00:23.459Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:05:36.690Z"
+    },
+    "mobile-touch": {
+      "status": "PASS",
+      "fingerprint": "afa5e2bb099c7410baa5ef6bb316be98c613bcb344afe920a6900fb6fb035da6",
+      "log": "mobile-touch-1795251936697.log",
+      "started": "2026-11-21T09:05:36.697Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:06:15.067Z"
+    },
+    "generated-mooring-desktop": {
+      "status": "PASS",
+      "fingerprint": "23895814fd9961f3e584f7a6cfe8b1850d457ef31f89a167f7cd22f911012dc9",
+      "log": "generated-mooring-desktop-1795251975072.log",
+      "started": "2026-11-21T09:06:15.072Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:06:48.984Z"
+    },
+    "generated-mooring-portrait": {
+      "status": "PASS",
+      "fingerprint": "122fca124abaca398b3a465586df64157104d29f241ebf0cecc7e98ef027c090",
+      "log": "generated-mooring-portrait-1795252008990.log",
+      "started": "2026-11-21T09:06:48.990Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:07:19.864Z"
+    },
+    "generated-mooring-landscape": {
+      "status": "PASS",
+      "fingerprint": "296573cd2e653b4889f4b55e53227843d58d5d3a202c8067a2728cdd50e9d710",
+      "log": "generated-mooring-landscape-1795252039870.log",
+      "started": "2026-11-21T09:07:19.870Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:08:03.132Z"
+    },
+    "fresh-first-visit": {
+      "status": "PASS",
+      "fingerprint": "7cd7dd32b13e6b93dc14604a71f2465ed94c0ee2b3ed330f8845f3d74db65df0",
+      "log": "fresh-first-visit-1795252083137.log",
+      "started": "2026-11-21T09:08:03.137Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:08:50.018Z"
+    },
+    "save-and-rollback": {
+      "status": "PASS",
+      "fingerprint": "41a5cc7f5f05bf519b0b8b64777b6e2534a2ce349236439a149a31ce01887b36",
+      "log": "save-and-rollback-1795252130033.log",
+      "started": "2026-11-21T09:08:50.033Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:09:35.744Z"
+    },
+    "authored-coastal-transport": {
+      "status": "PASS",
+      "fingerprint": "a7ccc4294e1a947bedefc73e122e9df31f694eade460d990d46c752dbac8316a",
+      "log": "authored-coastal-transport-1795252175749.log",
+      "started": "2026-11-21T09:09:35.750Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:10:40.151Z"
+    },
+    "shellwick-quest": {
+      "status": "PASS",
+      "fingerprint": "f2acc5b812b8d8a5b925874c344e95afeb3c38b938969552657bf2f6071014b3",
+      "log": "shellwick-quest-1795252240160.log",
+      "started": "2026-11-21T09:10:40.160Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:10:59.489Z"
+    },
+    "portrait-combat": {
+      "status": "PASS",
+      "fingerprint": "4ef41dc746ee87c640007a3fc185aede4d1b93e33c8704639fa5f6a69dd610c4",
+      "log": "portrait-combat-1795252259498.log",
+      "started": "2026-11-21T09:10:59.499Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:11:44.547Z"
+    },
+    "landscape-combat": {
+      "status": "PASS",
+      "fingerprint": "15e2a1d1ebd6f9f70b2ac1ece38124c91c2a6d8397bdfc3376a10489ec6c9151",
+      "log": "landscape-combat-1795252304564.log",
+      "started": "2026-11-21T09:11:44.564Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:12:42.667Z"
+    },
+    "startup-modes": {
+      "status": "PASS",
+      "fingerprint": "39120db684db1dafdd62e19bab8e1521c4873a1c45b5dfa4f9b6c19990c57665",
+      "log": "startup-modes-1795252362677.log",
+      "started": "2026-11-21T09:12:42.677Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:13:36.299Z"
+    },
+    "shared-active-save-guard": {
+      "status": "PASS",
+      "fingerprint": "f93d6a823e93ab90262704f2d0f5f779ac2209f2181d72d86073b88e0eb7689e",
+      "log": "shared-active-save-guard-1795252416311.log",
+      "started": "2026-11-21T09:13:36.311Z",
+      "code": 0,
+      "signal": null,
+      "finished": "2026-11-21T09:14:01.483Z"
+    }
+  }
+}

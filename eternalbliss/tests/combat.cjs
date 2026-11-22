@@ -21,7 +21,9 @@ if(require.main===module)(async()=>{const b=await t.launch();try{
   await t.shot(p,`combat-${name}-${mounted}-guard`);
   const results=[];
   for(const action of ['attack','magic','heal']){
-   await p.locator(`[data-eb-combat="${action}"]`).click();await p.waitForTimeout(230);
+   const control=p.locator(`[data-eb-combat="${action}"]`);
+   if(profile.hasTouch)await control.tap();else await control.click();
+   await p.waitForTimeout(230);
    s=await state(p);t.assert(s.eye&&s.hand,action+' retains eye camera/feedback');
    // Capture after replies separately: paused-pose evidence is not action/timer evidence.
    await p.waitForFunction(()=>!ebCombatHUD.waiting());s=await state(p);results.push({action,hp:s.hp,mp:s.mp,foe:s.foe,potions:s.potions});t.assert(s.eye,'enemy reply retains eye');
@@ -29,7 +31,7 @@ if(require.main===module)(async()=>{const b=await t.launch();try{
   t.assert.deepEqual(results,[{action:'attack',hp:73,mp:50,foe:487,potions:2},{action:'magic',hp:66,mp:38,foe:470,potions:2},{action:'heal',hp:93,mp:38,foe:470,potions:1}]);
   // Ending restores the same eye preference; overhead combat is checked separately.
   await p.evaluate(()=>endBattle(false));await p.waitForTimeout(350);t.assert(await p.evaluate(()=>__view.eyeActive()&&!__view.eyeHands.visible));
-  t.assert.deepEqual(p.errors,[]);t.record(`FP combat ${name} mounted=${mounted}`,{result:'PASS',results});await p.close();
+  t.assert.deepEqual(p.errors,[]);t.record(`FP combat ${name} mounted=${mounted}`,{result:'PASS',input:profile.hasTouch?'native Chromium touch':'mouse',results});await p.close();
  }
  // Presentation-only paths must retain exact rules with the same fixed RNG.
  if(!process.env.EB_COMBAT_CASE||process.env.EB_COMBAT_CASE==='overhead'){const p=await t.page(b);await fixture(p,false,false);t.assert(!(await state(p)).eye);await p.locator('[data-eb-combat="attack"]').click();await p.waitForFunction(()=>!ebCombatHUD.waiting());t.assert.deepEqual(await p.evaluate(()=>[gameState.player.hp,gameState.currentEnemy.hp]),[73,487]);await t.shot(p,'combat-overhead');t.assert.deepEqual(p.errors,[]);t.record('Overhead combat unchanged fixed-RNG attack/reply','PASS');await p.close();

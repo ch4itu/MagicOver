@@ -2006,6 +2006,12 @@ body.eb-shared-movement #worldGrid { transition: none !important; }
 #eb-capture-toggle { position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:10020;
   border:1px solid #a4aa90;border-radius:8px;background:rgba(17,28,28,.88);color:#f4e7c9;
   padding:7px 12px;min-height:34px;font:600 12px system-ui;cursor:pointer;pointer-events:auto; }
+#eb-clean-room-exit { display:none; }
+[data-eb-interior] body.eb-capture-clean:not(.eb-in-battle) #eb-clean-room-exit {
+    display:block;position:fixed;z-index:999;
+    top:max(8px, env(safe-area-inset-top));left:max(8px, env(safe-area-inset-left));
+    min-height:44px;padding:6px 10px;font:600 13px system-ui;touch-action:manipulation;
+}
 body.eb-capture-clean .location-info,
 body.eb-capture-clean .minimap,
 body.eb-capture-clean .left-panel,
@@ -2025,7 +2031,6 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
 }
 [data-eb-immersive="first"] #eb-eye-reticle{font-size:20px;opacity:.75;}
 #eb-eye-reticle[hidden],#eb-eye-actions[hidden]{display:none!important}
-#eb-immersive-toggle.eb-solo-only-off{display:none!important}
 [data-eb-eye-battle] :is(#eb-eye-reticle,#eb-eye-actions,#eb-immersive-look){display:none!important}
 #eb-eye-reticle{position:absolute;z-index:9;left:50%;top:49%;transform:translate(-50%,-50%);
  pointer-events:none;color:#f8e9c7;text-shadow:0 1px 5px #10252a;font:26px system-ui}
@@ -2039,6 +2044,15 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
 @media(max-width:600px){
  [data-eb-immersive="first"] #eb-eye-actions{right:12px;bottom:184px}
  [data-eb-immersive="first"] #eb-immersive-look{bottom:100px}
+}
+/* On a short viewport, keep first-person controls beside the expanded minimap. */
+@media (min-width:601px) and (max-height:650px) {
+ [data-eb-immersive="first"] #eb-eye-actions,
+ [data-eb-immersive="first"] #eb-immersive-look{right:176px}
+}
+@media (max-height:450px) and (pointer:coarse) {
+ [data-eb-immersive="first"] #eb-eye-actions{right:190px;bottom:55px}
+ [data-eb-immersive="first"] #eb-immersive-look{bottom:55px;right:10px}
 }
 /* D-pad stays usable while filming. */
 /* PR #2: keep desktop controls hidden by default; retain touch movement at every size, including hybrids. */
@@ -2072,6 +2086,9 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
   html[data-eb-farlands] .location-info.eb-capture-location-closed { display:flex !important; align-items:center; gap:8px; }
   /* R17.11: People nearby stays one tap away while the panel is minimised */
   html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-people-quick:not([hidden]) { display:inline-flex !important; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 !important; font-size:18px; }
+  html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-people-quick[data-goal] {
+    font-size:12px; padding:0 8px !important; white-space:nowrap;
+  }
   /* R17.13: the Show panel button kept the relative offsets (top 6px, right 8px) it has in the open card, which pulled
      it 8px left onto the hero line and 6px down; here it sits in line, after the panel's 8px gap */
   html[data-eb-farlands] .location-info.eb-capture-location-closed > #eb-actions-collapse { top:auto !important; right:auto !important; margin:0 !important; flex-shrink:0; }
@@ -2842,7 +2859,7 @@ function updateBuildingFootprints() {
         }
     }
     // R15.56: street furniture of the Farlands (a well, a lamp post) blocks its tile like a wall.
-    if (ebFarlands.surface()) for (const prop of Farlands.restProps.values()) if (prop.solid) buildingFootprints.add(prop.y*width+prop.x);
+    if (ebFarlands.surface()) for (const prop of Farlands.authoredProps.values()) if (prop.solid && (!prop.soloOnly || !sharedWorld.active())) buildingFootprints.add(prop.y*width+prop.x);
     if (before.size !== buildingFootprints.size || [...buildingFootprints].some(tile => !before.has(tile))) buildingFootprintRevision++;
 }
 
@@ -2875,6 +2892,21 @@ function boatFitsWater(x, y, tileAt, scale = 1, headings = [.6, .6+Math.PI/2, .6
     for (const heading of headings)
         if (boatHullTiles(x, y, heading, scale).every(([tx, ty]) => tileAt(tx, ty) === 'water')) return heading;
     return null;
+}
+
+function boatHasChannel(x,y,tileAt) {
+    const queue=[[x,y]];
+    const seen=new Set([y*Farlands.size+x]);
+    for(const [wx,wy] of queue){
+        if(Math.hypot(wx-x,wy-y)>=8)return true;
+        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+            const nx=wx+dx,ny=wy+dy,key=ny*Farlands.size+nx;
+            if(nx<0||ny<0||nx>=Farlands.size||ny>=Farlands.size||seen.has(key))continue;
+            seen.add(key);
+            if(tileAt(nx,ny)==='water')queue.push([nx,ny]);
+        }
+    }
+    return false;
 }
 
 function keepPlayerOnWalkableTile(terrainChanged) {
@@ -3014,7 +3046,8 @@ function renderWorld() {
 
 function renderAllEntities() {
     const worldGrid = document.getElementById('worldGrid');
-    if (ebFarlands.surface()) for (const {kind,x,y} of [...Farlands.restProps.values(), ...(sharedWorld.active() ? [] : Farlands.villagePropsNear(gameState.player.x,gameState.player.y))]) { // R15.56: street furniture in the 2D view
+    if (ebFarlands.surface()) for (const {kind,x,y,soloOnly} of [...Farlands.authoredProps.values(), ...(sharedWorld.active() ? [] : Farlands.villagePropsNear(gameState.player.x,gameState.player.y))]) { // R15.56: street furniture in the 2D view
+        if (soloOnly && sharedWorld.active()) continue;
         if (Math.abs(x-gameState.player.x)>48 || Math.abs(y-gameState.player.y)>48) continue;
         const prop = document.createElement('span');
         prop.className = 'eb-room-prop';
@@ -3137,6 +3170,7 @@ function renderAllEntities() {
 
     player.title = `${gameState.player.name} (Level ${gameState.player.level})`;
     worldGrid.appendChild(player);
+    if (ebHorseMounted) ebFarlands.updateVisibleHorse(player);
 
     renderClassicBoat();
 }
@@ -3408,7 +3442,7 @@ function canMoveTo(x, y) {
     }
 
     if (tileType === 'door' && buildingInterior?.questDungeon) {
-        ebStory.bumpGate(); // R15.55
+        ebStory.bumpGate(tileX,tileY);
         return false;
     }
     if (tileType === 'door') {
@@ -3771,17 +3805,18 @@ function interact() {
             return;
         }
     }
-    const prop = ebFarlands.surface() && Farlands.propNear(gameState.player.x, gameState.player.y);
+    const prop = ebFarlands.surface() && Farlands.propNear(gameState.player.x, gameState.player.y, !sharedWorld.active());
     if (prop) { // R15.56: the well, the signpost, the stall, the shrine
         document.getElementById('modalTitle').textContent = prop.name;
+        const note=ebStory.crossingClue(prop)||ebRpgQuests.onProp(prop);
         document.getElementById('modalContent').innerHTML = `<div style="font-size: 32px; margin-bottom: 20px;">${streetPropIcons[prop.kind]}</div>
-            <p style="line-height: 1.6;">${escapeMapText(prop.text)}</p>`;
+            <p style="line-height: 1.6;">${escapeMapText(prop.text)}</p>${note ? '<p role="status">'+escapeMapText(note)+'</p>' : ''}`;
         document.getElementById('interactionModal').style.display = 'flex';
         return;
     }
     showFloatingText('Nothing nearby', gameState.player.x * 32 + 16, gameState.player.y * 32 - 20, '#94a3b8');
 }
-const streetPropIcons = {well:'⛲',oak:'🌳',bench:'🪑',stall:'🍎',barrel:'🛢️',signpost:'🪧',lamp:'🏮',flowers:'🌼',garden:'🥬',shrine:'🪦',crates:'📦',mooring:'⚓'};
+const streetPropIcons = {well:'⛲',oak:'🌳',bench:'🪑',stall:'🍎',barrel:'🛢️',signpost:'🪧',lamp:'🏮',flowers:'🌼',garden:'🥬',shrine:'🪦',crates:'📦',cart:'🛒',mooring:'⚓'};
 
 function escapeMapText(value) {
     const span = document.createElement('span');
@@ -3799,10 +3834,12 @@ function talkToNPC(npc) {
     const opener = typeof ebLivingRest !== 'undefined' ? ebLivingRest.opener(npc) : null;
     const rpgNote = typeof ebRpgQuests !== 'undefined' ? ebRpgQuests.onTalk(npc) : '';
     const unified = ebFarlands.surface() && !sharedWorld.active() && !buildingInterior;
+    const followup = ebLife.followup(npc);
     document.getElementById('modalContent').innerHTML = `
         ${unified ? ebTalkHead(npc) : `<div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>`}
         <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(opener ?? npc.dialogue)}"</div>
         ${rpgNote ? '<p role="status">'+escapeMapText(rpgNote)+'</p>' : ''}
+        ${followup ? '<p data-eb-followup>'+escapeMapText(followup.line)+'</p>' : ''}
         ${storyLine ? (storyReady ? '<div role="status">'+storyLine+'</div>' : '<div data-eb-pane="quests">'+storyLine+'</div>') : ''}
         ${ebFarlands.errandTalk(npc)}
         ${typeof ebJournal !== 'undefined' ? ebJournal.hint(npc) : ''}
@@ -3818,6 +3855,14 @@ function talkToNPC(npc) {
     if (typeof ebRpgAccess !== 'undefined') ebRpgAccess.attach(npc);
     if (typeof ebRpgQuests !== 'undefined') ebRpgQuests.attach(npc);
     if (unified) ebTradeAttach(npc);
+    if (unified && followup?.lead) {
+        const site=Farlands.byId.get(followup.lead);
+        const button=document.createElement('button');
+        button.type='button'; button.className='btn';
+        button.textContent='Mark '+site.name+' on the Atlas';
+        button.addEventListener('click',()=>{if(ebFarlands.pin(site.id))button.textContent=site.name+' marked';});
+        document.querySelector('[data-eb-followup]').append(document.createElement('br'),button);
+    }
     if (unified) ebOrganizeTalk(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
 }
@@ -4439,6 +4484,8 @@ function enemyDefeated() {
     enemies = enemies.filter(e => e.x !== enemy.x || e.y !== enemy.y);
 
     checkLevelUp();
+    if (enemy.realmId==='quest-vault-crossing-sentinel' && buildingInterior?.questDungeon && !sharedWorld.active())
+        ebFarlands.markStory('quest-vault-crossing-sentinel');
     ebRank.record();
 
     if (!enemy.realmId && Math.random() < 0.4) {
@@ -4478,7 +4525,7 @@ function playerDefeated() {
 }
 
 function endBattle(victory) {
-    const questWin = victory && gameState.currentEnemy?.realmId==='quest-vault-guardian';
+    const questWin = victory && ['quest-vault-guardian','quest-vault-crossing-sentinel'].includes(gameState.currentEnemy?.realmId);
     gameState.inBattle = false;
     gameState.currentEnemy = null;
     document.getElementById('battleModal').style.display = 'none';
@@ -4737,7 +4784,7 @@ function ebRelativeDirections(directions) {
     const x=-Math.sin(yaw)*forward+Math.cos(yaw)*strafe;
     const y=-Math.cos(yaw)*forward-Math.sin(yaw)*strafe;
     if(Math.abs(x)<.001&&Math.abs(y)<.001){ebRelativeDirections.lastOctant=null;return directions;}
-    // 8 sectors in solo mode; shared rollup supports cardinal actions only.
+    // Quantize the camera-relative input to eight sectors.
     const angle=Math.atan2(x,-y);
     const rawOctant=angle/(Math.PI/4);
     const nearest=Math.round(rawOctant);
@@ -4747,10 +4794,7 @@ function ebRelativeDirections(directions) {
     ebRelativeDirections.lastOctant=stable;
     const sectors=[['up'],['up','right'],['right'],['down','right'],
       ['down'],['down','left'],['left'],['up','left']];
-    const chosen=sectors[octant];
-    if(sharedWorld.active()&&chosen.length===2)
-        return Math.abs(x)>=Math.abs(y)?[x>0?'right':'left']:[y>0?'down':'up'];
-    return chosen;
+    return sectors[octant];
 }
 ebRelativeDirections.lastOctant=null;
 const heldMovement = new Map();
@@ -4803,7 +4847,14 @@ function repeatMovement() {
     const input = [...heldMovement.values()].at(-1);
     if(!input)ebRelativeDirections.lastOctant=null;
     if (input) {
-        const directions=ebRelativeDirections(input.directions);
+        const shared = sharedWorld.active();
+        let held = input.directions;
+        if (shared && input.keyboard) {
+            held = [...heldMovement.values()].filter(entry => entry.keyboard).flatMap(entry => entry.directions);
+            held = held.filter(direction => !held.includes({up:'down',down:'up',left:'right',right:'left'}[direction]));
+            held = [...new Set(held)];
+        }
+        const directions=ebRelativeDirections(held);
         if (directions.length === 2 && !sharedWorld.active()) {
             // One actual diagonal grid step in solo mode, not a zig-zag.
             const a = moveDirections[directions[0]], b = moveDirections[directions[1]];
@@ -4823,10 +4874,14 @@ function repeatMovement() {
                     if (run([sx, sy]) && movePlayer(sx, sy)) break;
                 }
             }
-        } else {
-            // R14.3: shared rollup supports cardinal steps only. Never alternate
-            // axes for a held diagonal: that produces the unwanted zig-zag.
-            // The joystick selects a stable dominant cardinal direction instead.
+        } else if (directions.length === 2) {
+            // Keep one validated cardinal step per input tick. Alternating axes
+            // gives diagonal steering without increasing the movement budget.
+            const axis = input.step % 2;
+            if (movePlayer(...moveDirections[directions[axis]])) input.step++;
+            else if (!gameState.inBattle) movePlayer(...moveDirections[directions[1-axis]]);
+        } else if (directions.length) {
+            input.step = 0;
             movePlayer(...moveDirections[directions[0]]);
         }
     } else if (walkRoute) {
@@ -4847,7 +4902,7 @@ function repeatMovement() {
     if (heldMovement.size || walkRoute) movementTimer = setTimeout(repeatMovement, ebHorseMounted && ebFarlands.surface() && !sharedWorld.active() ? 65 : 120);
 }
 
-function holdMovement(id, directions, button) {
+function holdMovement(id, directions, button, keyboard = false) {
     if (movementBlocked()) return;
     if (typeof directions === 'string') directions = [directions];
     const current = heldMovement.get(id);
@@ -4858,7 +4913,7 @@ function holdMovement(id, directions, button) {
         current.directions = directions;
         current.step = 0;
     } else {
-        heldMovement.set(id, { directions, button, step: 0 });
+        heldMovement.set(id, { directions, button, keyboard, step: 0 });
         button?.classList.add('active');
         repeatMovement();
     }
@@ -4883,7 +4938,7 @@ function handleKeyboard(event) {
         event.target.closest?.('input, textarea, select, [contenteditable]') || movementBlocked()) return;
     if (movementKeys[key]) {
         event.preventDefault();
-        if (!event.repeat) holdMovement(key, movementKeys[key]);
+        if (!event.repeat) holdMovement(key, movementKeys[key], null, true);
     } else if ((key === ' ' || key === 'enter') && !event.target.closest?.('button, a')) {
         event.preventDefault();
         if (!event.repeat) interact();
@@ -4941,6 +4996,27 @@ function findWalkRoute(targetX, targetY) {
     return [];
 }
 
+// Handle a stationary primary touch on release. Some touch drivers suppress the
+// compatibility click after a swipe even when the next pointer sequence is a tap.
+function groundTap(target,onTap) {
+    let start=null;
+    target.addEventListener('pointerdown',event=>{
+        if(event.pointerType!=='touch')return;
+        start=event.isPrimary ? {id:event.pointerId,x:event.clientX,y:event.clientY} : null;
+    });
+    const moved=event=>Math.hypot(event.clientX-start.x,event.clientY-start.y)>10;
+    target.addEventListener('pointermove',event=>{
+        if(start?.id===event.pointerId && moved(event))start=null;
+    });
+    target.addEventListener('pointerup',event=>{
+        if(event.pointerType!=='touch')return;
+        const accepted=start?.id===event.pointerId && !moved(event);
+        start=null;
+        if(accepted && ebFarlands.surface() && !sharedWorld.active())onTap(event);
+    });
+    target.addEventListener('pointercancel',()=>{start=null;});
+}
+
 function walkTo(x, y, then = null) {
     if (movementBlocked()) return false;
     releaseMovement();
@@ -4969,17 +5045,8 @@ function joystickDirections(x, y) {
     // Hysteresis: entering diagonal requires a stronger angle than staying in it.
     const wasDiagonal = lastJoystickDirections.length === 2;
     const diagonal = ratio >= (wasDiagonal ? .34 : .48);
-    if (sharedWorld.active()) {
-        // Preserve the previously chosen axis until the finger clearly crosses
-        // the other axis. This avoids oscillation near 45 degrees.
-        const previous = lastJoystickDirections[0];
-        const previousHorizontal = previous === 'left' || previous === 'right';
-        const horizontal = previous ? (previousHorizontal ? ax >= ay * .72 : ax > ay * 1.38) : ax >= ay;
-        lastJoystickDirections = [horizontal ? primaryX : primaryY];
-    } else {
-        lastJoystickDirections = diagonal ? [primaryX, primaryY] :
-            ax >= ay ? [primaryX] : [primaryY];
-    }
+    lastJoystickDirections = diagonal ? [primaryX, primaryY] :
+        ax >= ay ? [primaryX] : [primaryY];
     return lastJoystickDirections;
 }
 
@@ -5051,10 +5118,14 @@ function setupMobileControls() {
         button.addEventListener('contextmenu', event => event.preventDefault());
     }
 
-    document.getElementById('worldGrid').addEventListener('click', event => {
-        if (!classicView() || event.pointerType === 'touch' || event.button !== 0 ||
-            !event.target.classList.contains('tile')) return;
-        walkTo(Math.round(parseFloat(event.target.style.left) / 32), Math.round(parseFloat(event.target.style.top) / 32));
+    const grid=document.getElementById('worldGrid');
+    const walkToTile=event=>{
+        if(!classicView() || event.button!==0 || !event.target.classList.contains('tile'))return;
+        walkTo(Math.round(parseFloat(event.target.style.left)/32),Math.round(parseFloat(event.target.style.top)/32));
+    };
+    groundTap(grid,walkToTile);
+    grid.addEventListener('click',event=>{
+        if(event.pointerType!=='touch')walkToTile(event);
     });
 }
 
@@ -5063,6 +5134,7 @@ function setupMobileControls() {
 // Adventure snapshots are device-local, with one slot for each Smaran public key and one for guests.
 const mapGroups = ['buildings', 'npcs', 'enemies', 'items', 'areas'];
 const saveVersion = 1;
+const farlandsSaveVersion = 2;
 
 function validateAdventureMap(map) {
     if (!map || typeof map !== 'object') throw new Error('A map object is required.');
@@ -5149,6 +5221,9 @@ function loadAdventure(slot) {
     if (!raw) return false;
     const save = JSON.parse(raw);
     if (save?.version !== saveVersion) throw new Error('This save uses a different game version.');
+    if (save.farlands != null && ![1, farlandsSaveVersion].includes(save.farlands.version)) {
+        throw new Error('This Farlands journey uses a different save version.');
+    }
     validateAdventureMap(save.map);
     const fields = (source, current) => {
         if (!source || typeof source !== 'object') throw new Error('The saved adventure is incomplete.');
@@ -5167,6 +5242,12 @@ function loadAdventure(slot) {
     if (player.x < 0 || player.x >= save.map.width || player.y < 0 || player.y >= save.map.height ||
         !Number.isInteger(save.sailingMoves) || save.sailingMoves < 0 || save.sailingMoves > 15) {
         throw new Error('The saved position is outside this map.');
+    }
+    if (save.farlands?.version === 1) {
+        save.farlands = ebFarlands.migrateCoast(save.farlands);
+        // Commit the recovery copy before applying new terrain or allowing an autosave.
+        const backup = slot + '/before-farlands-v2';
+        if (localStorage.getItem(backup) !== raw) localStorage.setItem(backup,raw);
     }
     gameState.inventory = inventory;
     gameState.stats = stats;
@@ -6556,6 +6637,9 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
    The stats bar drops its headings. */
 @media (max-height: 450px) and (pointer: coarse) {
     #eb-capture-toggle { left: auto; right: 136px; transform: none; } /* beside Menu, clear of the card */
+    [data-eb-interior] body.eb-capture-clean:not(.eb-in-battle) #eb-clean-room-exit {
+        left:auto;right:max(8px, env(safe-area-inset-right));
+    }
     html[data-eb-farlands] .location-info:not(.eb-capture-location-closed) { display: flex; flex-wrap: wrap;
         align-items: center; gap: 4px 10px; max-width: calc(100% - 255px); }
     html[data-eb-farlands] .location-info > .eb-mobile-title { display: none; }
@@ -6754,7 +6838,8 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 <style id="eb-r147-real-horse">
 #eb-horse-presence{position:absolute!important;display:block;pointer-events:none;z-index:14;width:64px;height:60px;transform:none!important;font-size:initial!important;filter:none!important;transition:left .09s linear,top .09s linear}
 #eb-horse-presence[hidden]{display:none!important}
-#eb-horse-presence.mounted{z-index:14}
+/* The horse shares its rider's interpolated world position, including camera motion. */
+.main-player-avatar > #eb-horse-presence.mounted{left:-19px;top:-18px;z-index:-1;transition:none}
 .main-player-avatar.eb-riding-horse{z-index:16!important;transform:translateY(-13px)!important;box-shadow:none!important;background:transparent!important}
 </style>
 <style id="eb-r146-style">
@@ -6865,6 +6950,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 
         <div class="main-game">
         <button type="button" id="eb-capture-toggle" aria-pressed="false" title="Hide interface for recording; tap again to restore">◱ Clean view</button>
+        <button type="button" class="eb-panel-button" id="eb-clean-room-exit">Exit building</button>
         <button type="button" class="eb-panel-button" id="eb-hero-open" aria-controls="eb-hero-panel" aria-expanded="false">Hero</button>
             <button type="button" class="eb-panel-button" id="eb-menu-open" aria-haspopup="dialog">Menu</button>
 
@@ -9028,10 +9114,17 @@ const EternalBlissArt = (() => {
     // tile and door, and is drawn as a farmhouse with a silo instead of a keep; `regional` gives houses their region's walls
     // (Hearthmere keeps the stone it had) and Lanternreach houses a pair of door lanterns.
     const REGION_WALLS = {alder:0x9b7b5a, rime:0xd3d8d2, iron:0xa7a698, amber:0xe7dfcb, salt:0xd4ae78, reed:0xc2ae80, ember:0x9d8a76, lantern:0xd9cdb5};
+    const regionalExteriors = new Map();
     function building(kind, variant, footprint = null, region, authoredRest = false, style = null) {
         if(authoredRest && kind==='inn')return authoredInn(footprint);
         if(authoredRest && kind==='shop')return authoredExchange(footprint);
         if(authoredRest && kind==='temple')return authoredChapel(footprint);
+        const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
+        const key = style?.regional && [kind,region,across,deep,style.farmstead,style.hall,region?'':variant%3].join(':');
+        if(key && regionalExteriors.has(key)){
+            const model=regionalExteriors.get(key);
+            return {...model,group:model.group.clone(true)};
+        }
         const group = new T.Group();
         const roofColors = {hearth:0x7b4834,alder:0x32574d,rime:0x638582,iron:0x414f59,
             amber:0x467f77,salt:0xa46b48,reed:0x5f6952,ember:0x443d48,lantern:0x427e80};
@@ -9155,17 +9248,20 @@ const EternalBlissArt = (() => {
             castle:[1.56,1.46,1.92], temple:[1.31,1.42,1.63],
             inn:[1.41,1.06,1.33], shop:[1.41,1.06,1.33]
         }[kind === 'house' && (footprint?.w ?? 1) > 1 ? 'shop' : kind] ?? [1.11,1.06,1.33];
-        const across = footprint?.w ?? 1, deep = footprint?.h ?? 1;
+        const exterior=key?bakeArchitecture(group):group;
         if (across === 1 && deep === 1) {
             // Extend eaves within the clearance of adjacent walkable tile centers.
             const size = kind === 'house' ? 1.18 : 1.22;
-            group.scale.set(.98*size/width,size,.96*size/depth);
+            exterior.scale.set(.98*size/width,size,.96*size/depth);
         } else {
             // Over several tiles: the same eaves margin around the footprint, and height in proportion to the ground size.
             const sx = .98*(across+.22)/width, sz = .96*(deep+.22)/depth;
-            group.scale.set(sx,Math.sqrt(sx*sz)*(style?.hall ? .85 : 1),sz);
+            exterior.scale.set(sx,Math.sqrt(sx*sz)*(style?.hall ? .85 : 1),sz);
         }
-        return { group,height,width,depth };
+        const model={group:exterior,height,width,depth};
+        if(!key)return model;
+        regionalExteriors.set(key,model);
+        return {...model,group:exterior.clone(true)};
     }
 
     function landmark(kind, footprint = null) {
@@ -9200,6 +9296,18 @@ const EternalBlissArt = (() => {
             for (const x of [-.24,.24]) box(group,.09,.66,.14,wood,x,.39,.29);
             stone(group,.26,0x908976,.29,.76,-.18,1,.6,1.15);
             stone(group,.19,0x84796a,-.31,.19,.37,1,.7,1.14);
+        } else if (kind==='orchard-belfry') {
+            box(group,.76,.13,.68,stoneColor,0,.13);
+            for(const x of [-.29,.29])for(const z of [-.23,.23]){
+                box(group,.11,1.01,.11,wood,x,.69,z);
+                box(group,.15,.19,.15,stoneColor,x,.26,z);
+            }
+            box(group,.84,.10,.66,0x62412e,0,1.24);
+            roof(group,.94,.86,1.25,.26,0x984b38);
+            cylinder(group,.088,.16,.21,12,0xa57537,0,1.05);
+            cylinder(group,.17,.16,.04,12,0xc79b52,0,.94);
+            cylinder(group,.032,.032,.09,8,0x594032,0,.89);
+            height=1.53;
         } else if (kind==='wreck') {
             stone(group,.45,0x765c42,0,.30,0,.77,.45,1.08);
             box(group,.065,.80,.063,0x8c7658,0,.60,-.08).rotation.z=.28;
@@ -9424,6 +9532,20 @@ const EternalBlissArt = (() => {
     }
 
     function fauna(name) {
+        if (name==='Ida’s Hen') {
+            const group=new T.Group(), body=new T.Group(), legs=[];
+            group.add(body);
+            stone(body,.20,0xb77a48,0,.27,0,.77,.76,1.12);
+            stone(body,.106,0xd4a16a,0,.41,.14);
+            box(body,.06,.05,.10,0xd6a24d,0,.40,.24);
+            box(body,.045,.07,.055,0xa64e34,0,.51,.14);
+            for (const x of [-.06,.06]) {
+                const leg=makeLimb(body,x,.20,0);
+                box(leg,.03,.17,.03,0xca9b57,0,-.09);
+                legs.push(leg);
+            }
+            return {group,body,legs,arms:[],height:.56,width:.35};
+        }
         const group=new T.Group(), body=new T.Group();
         group.add(body);
         const hare=/hare|marmot|badger/i.test(name);
@@ -9574,6 +9696,7 @@ window.addEventListener('load', () => {
     const tileTop = .055;
     const seaLevel = -.19;
     const chunkSize = 8;
+    const terrainPatchSize = 24;
     const colors = {
         grass: 0x709650, forest: 0x557849, mountain: 0x848775,
         sand: 0xbcac78, road: 0xa39777, door: 0x77644c,
@@ -9688,17 +9811,19 @@ window.addEventListener('load', () => {
                 'varying vec2 surface;',
                 'void main(){',
                 '  vec2 p = surface;',
+                '  float horizonFade = eyeBlend*smoothstep(18.0,41.0,distance(surface,eyeOrigin));',
+                '  vec3 color = horizonColor;',
+                '  if(horizonFade < 1.0){',
                 '  float swell = sin(p.x*.58+p.y*.71-time*.48) * sin(p.y*.43-p.x*.20+time*.31);',
                 '  float detail = sin(p.x*4.8+p.y*2.6+sin(p.y*1.2+time*.6)*1.4-time*1.5);',
                 '  float crosswave = sin(p.y*2.2-p.x*2.1+sin(p.x*.72-time*.4)-time*.6);',
                 '  float glint = pow(max(0.0, detail*.54 + crosswave*.46), 10.0);',
-                '  vec3 color = mix(dark,pale,clamp(.43 + swell*.26 + detail*.028,0.,1.));',
+                '  color = mix(dark,pale,clamp(.43 + swell*.26 + detail*.028,0.,1.));',
                 '  color += vec3(.35,.31,.19)*glint*.28;',
                 // In FP, fade only distant ocean into the ACTUAL time-of-day sky.
                 // Near water, rivers and sailing remain unchanged.
-                '  float distanceFromEye = distance(surface,eyeOrigin);',
-                '  float horizonFade = eyeBlend*smoothstep(18.0,41.0,distanceFromEye);',
                 '  color = mix(color,horizonColor,horizonFade);',
+                '  }',
                 '  gl_FragColor = vec4(color,1.0);',
                 '  #include <tonemapping_fragment>',
                 '  #include <encodings_fragment>',
@@ -9708,6 +9833,8 @@ window.addEventListener('load', () => {
         const mesh = new T.Mesh(new T.PlaneGeometry(240, 240), shader);
         mesh.rotation.x = -Math.PI / 2;
         mesh.position.y = seaLevel;
+        // Draw opaque terrain first so land occludes water before its fragment shader runs.
+        mesh.renderOrder = 1;
         return mesh;
     }
 
@@ -9811,6 +9938,14 @@ window.addEventListener('load', () => {
                 block(.24,1.22,0,.56,.13,.04,0xd9c08a);
                 block(-.22,1.04,0,.50,.13,.04,0xcfb47c,.5);
                 block(.06,.86,.20,.50,.13,.04,0xd9c08a,-1.25);
+                if(prop.cloth!==undefined){
+                    block(.37,.92,.03,.17,.48,.04,prop.cloth);
+                    post(-.25,.10,.24,.18,.20,0x9a714d);
+                    if(prop.cloth===0xeee4c8){
+                        for(const [dx,dz] of [[-.31,.19],[-.19,.20],[-.24,.31]])
+                            round(dx,.23,dz,.075,.075,.075,0xa83e2f);
+                    }
+                }
                 round(0,.06,0,.17,.07,.17,0x8f8a78);
                 break;
             case 'lamp':
@@ -9848,6 +9983,16 @@ window.addEventListener('load', () => {
                 break;
             }
             // R17.16: farm pieces, from the same blocks and posts as the rest
+            case 'cart':
+                block(0,.30,0,.60,.10,.66,oak);
+                for (const side of [-1,1]) {
+                    block(.31*side,.44,0,.065,.23,.67,oak);
+                    block(.20*side,.27,.39,.05,.05,.20,dark);
+                    block(.35*side,.23,0,.09,.40,.40,dark);
+                    block(.40*side,.23,0,.035,.12,.12,iron);
+                }
+                block(0,.49,-.07,.40,.27,.36,0xc8a466);
+                break;
             case 'hay':
                 block(0,.17,0,.66,.34,.44,0xd8b65a); block(.04,.46,.02,.58,.24,.38,0xcfac52);
                 block(0,.17,.225,.68,.05,.02,0xa8873e); block(0,.17,-.225,.68,.05,.02,0xa8873e);
@@ -9912,6 +10057,10 @@ window.addEventListener('load', () => {
             this.eyeMode = false;
             this.mobile = matchMedia('(pointer: coarse), (max-width: 768px)').matches;
             this.renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: this.mobile ? 'default' : 'high-performance' });
+            const gl = this.renderer.getContext();
+            const debug = gl.fenceSync && gl.getExtension('WEBGL_debug_renderer_info');
+            this.swiftShader = Boolean(debug && /SwiftShader/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)));
+            this.frameFence = null;
             this.renderer.outputEncoding = T.sRGBEncoding;
             this.renderer.toneMapping = T.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.09;
@@ -9974,20 +10123,30 @@ window.addEventListener('load', () => {
 
             this.hero = art.humanoid('hero');
             this.ship = art.boat();
+            this.shipGhostParts = [];
+            this.ship.traverse(node=>{
+                if(!node.isMesh || !node.material)return;
+                const opaque=node.material;
+                const ghost=opaque.clone();
+                ghost.transparent=true;
+                ghost.opacity=.20;
+                ghost.depthWrite=false;
+                this.shipGhostParts.push({node,opaque,ghost});
+            });
             this.scene.add(this.hero.group, this.ship);
             // R15.32: disembarked vessel stays moored where the player left it.
             this.parkedShip = art.boat();
             this.parkedShip.visible = false;
             this.scene.add(this.parkedShip);
-            // R15.21: two dockside vessels in SOLO Farlands, visual only.
-            // Do not modify movement, collision, world tiles, persistence or MagicBlock.
-            this.harborVessels = ['amber','lantern','reed'].map((id,index)=>{
+            // Solo dockside boats share the sailing hull geometry, with extra scale per port.
+            this.harborVessels = ['amber','lantern','reed','settlement-lantern-0'].map((id,index)=>{
                 const station=Farlands.byId.get(id);
                 const model=art.boat();
-                model.scale.setScalar(index===0?1.35:index===1?1.15:.85);
+                const hullScale=[1.35,1.15,.85,.85][index];
+                model.scale.multiplyScalar(hullScale);
                 model.visible=false;
                 this.scene.add(model);
-                return {id,station,model,position:null};
+                return {id,station,model,hullScale,position:null};
             });
             // R15.28: deterministic shoreline moorings in streamed local cells.
             // No saved schema, random runtime churn, or full-world scan.
@@ -10085,7 +10244,13 @@ window.addEventListener('load', () => {
             this.resize();
             this.observer = new ResizeObserver(() => this.resize());
             this.observer.observe(world);
-            canvas.addEventListener('click', event => this.pick(event));
+            const soloGroundTouch=()=>this.active&&!this.eyeMode&&ebFarlands.surface()&&!sharedWorld.active();
+            groundTap(canvas,event=>{
+                if(soloGroundTouch())this.pick(event,true);
+            });
+            canvas.addEventListener('click',event=>{
+                if(event.pointerType!=='touch'||!soloGroundTouch())this.pick(event);
+            });
             canvas.addEventListener('pointermove', event => {
                 if (event.pointerType !== 'mouse') return;
                 const record = this.aim(event);
@@ -10108,7 +10273,8 @@ window.addEventListener('load', () => {
             const budget = this.mobile ? 850000 : 2400000;
             const ratio = Math.min(devicePixelRatio || 1, this.mobile ? 1.5 : 1.55,
                 Math.sqrt(budget / (this.width * this.height)));
-            this.renderer.setPixelRatio(ratio);
+            this.fullPixelRatio = ratio;
+            this.updateRideResolution();
             this.renderer.setSize(this.width, this.height, false);
             const aspect = this.width / this.height;
             this.eyeCamera.aspect = aspect;
@@ -10153,26 +10319,151 @@ window.addEventListener('load', () => {
                 if (this.room) this.scene.add(this.roomDecor);
             }
             const radius = Math.max(this.eyeMode ? (this.mobile ? 48 : 60) : (this.mobile ? 17 : 25), this.visibleRadius() + 2);
-            const x0 = Math.floor(gameState.player.x / chunkSize) * chunkSize - radius;
-            const z0 = Math.floor(gameState.player.y / chunkSize) * chunkSize - radius;
             const width = gameState.world.width;
             const height = gameState.world.height;
+            if (ebFarlands.surface() && !sharedWorld.active() && !this.room) {
+                this.planTerrainPatches(radius, width, height);
+                return;
+            }
+
+            const x0 = Math.floor(gameState.player.x / chunkSize) * chunkSize - radius;
+            const z0 = Math.floor(gameState.player.y / chunkSize) * chunkSize - radius;
             const left = Math.max(0, x0);
             const top = Math.max(0, z0);
             const right = Math.min(width, x0 + radius * 2 + chunkSize);
             const bottom = Math.min(height, z0 + radius * 2 + chunkSize);
             const signature = [left, top, right, bottom, minimapTerrainRevision, buildingFootprintRevision, worldClimate.season, this.eyeMode].join(',');
-            if (signature === this.terrainSignature) return;
-
+            if (!this.terrainPatches && signature === this.terrainSignature) return;
+            this.terrainPatches = null;
+            this.terrainQueue = [];
             this.terrainSignature = signature;
+            if (this.swiftShader && this.eyeMode && sharedWorld.active() && !this.room) {
+                // Bound each batch independently so both the eye and shadow cameras
+                // can omit terrain outside their frusta. Keep the exact tile window.
+                const land = new T.Group();
+                for (let z = top; z < bottom; z += terrainPatchSize) {
+                    for (let x = left; x < right; x += terrainPatchSize) {
+                        const patch = this.buildTerrain(x, z, Math.min(x + terrainPatchSize, right),
+                            Math.min(z + terrainPatchSize, bottom), true);
+                        for (const mesh of [...patch.children]) land.add(mesh);
+                    }
+                }
+                this.replaceLand(land);
+            } else {
+                this.replaceLand(this.buildTerrain(left, top, right, bottom));
+            }
+        }
+
+        disposeTerrainMesh(mesh) {
+            if (mesh.isInstancedMesh) mesh.dispose();
+            if (!mesh.isInstancedMesh || mesh.userData.terrainPrototype) mesh.geometry.dispose();
+        }
+
+        replaceLand(land) {
             if (this.land) {
                 this.scene.remove(this.land);
-                this.land.children.forEach(mesh => {
-                    if (mesh.isInstancedMesh) mesh.dispose();
-                    else mesh.geometry.dispose();
-                });
+                for (const mesh of this.land.children) this.disposeTerrainMesh(mesh);
             }
+            this.land = land;
+            this.scene.add(land);
+        }
 
+        planTerrainPatches(radius, width, height) {
+            const size = terrainPatchSize;
+            const {x, y} = gameState.player;
+            const signature = [minimapTerrainRevision, worldClimate.season].join(',');
+            const reset = !this.terrainPatches || this.terrainMap !== worldMap || this.terrainStyle !== signature;
+            if (reset) {
+                this.terrainMap = worldMap;
+                this.terrainStyle = signature;
+                this.terrainPatches = new Map();
+                this.replaceLand(new T.Group());
+            }
+            const keyAt = (x,z) => Math.floor(z/size)*width + Math.floor(x/size);
+            const wanted = new Map();
+            // Begin preparing the next patches outside the normal draw radius.
+            // Keep the previous rim until the new one is ready.
+            const margin = 8;
+            for (let z = Math.max(0, Math.floor((y-radius-margin)/size)*size); z < Math.min(height, y+radius+margin+1); z += size) {
+                for (let x0 = Math.max(0, Math.floor((x-radius-margin)/size)*size); x0 < Math.min(width, x+radius+margin+1); x0 += size) {
+                    const draw = x0 < x+radius+1 && x0+size > x-radius &&
+                        z < y+radius+1 && z+size > y-radius;
+                    wanted.set(keyAt(x0,z), {x:x0,z,draw});
+                }
+            }
+            const dirty = reset ? new Set() : this.dirtyTerrainPatches;
+            if (!reset && this.terrainFootprintRevision !== buildingFootprintRevision) {
+                for (const tile of this.terrainFootprints)
+                    if (!buildingFootprints.has(tile)) {
+                        const key=keyAt(tile % width, Math.floor(tile / width));
+                        if(this.terrainPatches.has(key))dirty.add(key);
+                    }
+                for (const tile of buildingFootprints)
+                    if (!this.terrainFootprints.has(tile)) {
+                        const key=keyAt(tile % width, Math.floor(tile / width));
+                        if(this.terrainPatches.has(key))dirty.add(key);
+                    }
+            }
+            this.terrainFootprintRevision = buildingFootprintRevision;
+            this.terrainFootprints = buildingFootprints;
+            const planned = [...wanted.entries()];
+            this.terrainSignature = signature + ':' + planned[0]?.[0] + ':' + planned.at(-1)?.[0];
+            this.terrainWanted = wanted;
+            this.dirtyTerrainPatches = dirty;
+            for (const [key, position] of wanted) {
+                if (position.draw) for (const mesh of this.terrainPatches.get(key) || []) mesh.visible = true;
+            }
+            this.terrainQueue = planned.filter(([key]) => !this.terrainPatches.has(key) || dirty.has(key))
+                .map(([key, position]) => ({key, ...position}))
+                .sort((a,b) => Number(b.draw)-Number(a.draw) ||
+                    Math.hypot(a.x+size/2-x,a.z+size/2-y) - Math.hypot(b.x+size/2-x,b.z+size/2-y));
+            // A new map or teleport needs a complete surface before its first frame.
+            const hasPlayer = this.terrainPatches.has(keyAt(x,y));
+            const widerView = radius > (this.terrainDrawRadius ?? 0);
+            this.terrainDrawRadius = radius;
+            if (reset || !hasPlayer || widerView) {
+                while (this.terrainQueue[0]?.draw) this.streamTerrain();
+            } else if (!this.terrainQueue.length) this.trimTerrainPatches();
+        }
+
+        streamTerrain() {
+            if (!this.terrainQueue?.length) return;
+            const {key,x,z} = this.terrainQueue.shift();
+            const {width,height} = gameState.world;
+            const patch = this.buildTerrain(x, z, Math.min(x+terrainPatchSize,width), Math.min(z+terrainPatchSize,height), true);
+            const meshes = [...patch.children];
+            for (const mesh of this.terrainPatches.get(key) || []) {
+                this.land.remove(mesh);
+                this.disposeTerrainMesh(mesh);
+            }
+            for (const mesh of meshes) {
+                mesh.visible = this.terrainWanted.get(key).draw;
+                this.land.add(mesh);
+            }
+            this.dirtyTerrainPatches.delete(key);
+            this.terrainPatches.set(key, meshes);
+            this.land.geometryRevision = (this.land.geometryRevision || 0) + 1;
+            if (!this.terrainQueue.length) this.trimTerrainPatches();
+        }
+
+        trimTerrainPatches() {
+            for (const [key, meshes] of this.terrainPatches) {
+                const position = this.terrainWanted.get(key);
+                if (position) {
+                    for (const mesh of meshes) mesh.visible = position.draw;
+                    continue;
+                }
+                for (const mesh of meshes) {
+                    this.land.remove(mesh);
+                    this.disposeTerrainMesh(mesh);
+                }
+                this.terrainPatches.delete(key);
+                this.dirtyTerrainPatches.delete(key);
+            }
+        }
+
+        buildTerrain(left, top, right, bottom, partitioned = false) {
+            const width = gameState.world.width;
             const positions = [], tints = [], uvs = [];
             const shorePositions = [], shoreTints = [], shoreUvs = [];
             const logs = [], leaves = [], canopies = [], stones = [], sprouts = [], lanterns = [], roomBlocks = [], glows = [];
@@ -10258,7 +10549,7 @@ window.addEventListener('load', () => {
                         ], surfColor, shorePositions, shoreTints, shoreUvs);
                     }
                     // R15.56: street furniture of an authored village, built from the same scenery pieces as the trees
-                    const prop = streamed && !this.room && (Farlands.propAt(x,z) || (!sharedWorld.active() && Farlands.villagePropAt(x,z)));
+                    const prop = streamed && !this.room && (Farlands.propAt(x,z,!sharedWorld.active()) || (!sharedWorld.active() && Farlands.villagePropAt(x,z)));
                     if (prop) { streetProp(prop, {logs, leaves, stones, sprouts, lanterns, roomBlocks, glows}, season, tileTop); continue; }
                     // A building's tiles keep only their ground: no tree, rock or lantern grows through its walls.
                     if (!this.room && buildingFootprints.has(z * width + x)) continue;
@@ -10356,21 +10647,41 @@ window.addEventListener('load', () => {
                 }
             }
 
-            this.land = new T.Group();
-            this.land.add(makeSurface(this.ground, positions, tints, uvs));
-            if (shorePositions.length) this.land.add(makeSurface(this.shallowsMaterial, shorePositions, shoreTints, shoreUvs));
+            const land = new T.Group();
+            if (positions.length) land.add(makeSurface(this.ground, positions, tints, uvs));
+            if (shorePositions.length) land.add(makeSurface(this.shallowsMaterial, shorePositions, shoreTints, shoreUvs));
             for (const [geometry, batch, shadow] of [
                 [this.trunk, logs, true], [this.crown, leaves, true], [this.canopy, canopies, true],
                 [this.rock, stones, true], [this.crown, sprouts, false], [this.roomBlock, roomBlocks, true]
             ]) {
-                const mesh = instanced(geometry, this.terrainMaterial, batch, shadow);
-                if (mesh) this.land.add(mesh);
+                if (!partitioned) {
+                    const mesh = instanced(geometry, this.terrainMaterial, batch, shadow);
+                    if (mesh) land.add(mesh);
+                    continue;
+                }
+                if (!batch.length) continue;
+                if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+                const primitive = geometry.boundingSphere;
+                const extent = primitive.radius + primitive.center.length();
+                const bounds = new T.Box3(), point = new T.Vector3();
+                for (const [x,y,z,sx,sy,sz] of batch) {
+                    const r = extent * Math.max(sx,sy,sz);
+                    bounds.expandByPoint(point.set(x-r,y-r,z-r));
+                    bounds.expandByPoint(point.set(x+r,y+r,z+r));
+                }
+                // The bundled Three.js uses geometry bounds for both camera and shadow frusta.
+                const patchGeometry = geometry.clone();
+                patchGeometry.boundingSphere = bounds.getBoundingSphere(new T.Sphere());
+                const mesh = instanced(patchGeometry, this.terrainMaterial, batch, shadow);
+                mesh.userData.terrainPrototype = geometry;
+                mesh.frustumCulled = true;
+                land.add(mesh);
             }
             const lamps = instanced(this.lanternGlass, this.lanternMaterial, lanterns, false);
-            if (lamps) this.land.add(lamps);
+            if (lamps) land.add(lamps);
             const pools = instanced(this.glowDisc, this.glowMaterial, glows, false);
-            if (pools) { pools.receiveShadow = false; pools.renderOrder = 2; this.land.add(pools); }
-            this.scene.add(this.land);
+            if (pools) { pools.receiveShadow = false; pools.renderOrder = 2; land.add(pools); }
+            return land;
         }
 
         actorTitle(record) {
@@ -10388,6 +10699,11 @@ window.addEventListener('load', () => {
         syncActors() {
             const player = gameState.player;
             const radius = this.eyeMode ? Math.max(48,this.visibleRadius()) : this.visibleRadius();
+            const socialRange = this.mobile ? 9 : 14;
+            this.socialActors = ebFarlands.surface() && !sharedWorld.active() ?
+                new Set(npcs.filter(n=>ebLife.drawn(n) && Math.hypot(n.x-player.x,n.y-player.y)<=socialRange)
+                    .sort((a,b)=>Math.hypot(a.x-player.x,a.y-player.y)-Math.hypot(b.x-player.x,b.y-player.y))
+                    .slice(0,this.mobile?6:12)) : null;
             const visible = new Set();
             this.targets = [];
             for (const [kind, group] of [
@@ -10405,7 +10721,8 @@ window.addEventListener('load', () => {
                         // landmark flag (and its footprint); it is drawn as the farmhouse it is. Flag, footprint, collision
                         // and door are unchanged.
                         if (kind === 'building') model = data.realmId && data.landmark && !(/ Farmstead$/.test(data.name) && ebFarlands.surface() && !sharedWorld.active()) ?
-                            art.landmark(data.landmark, buildingFootprint(data)) :
+                            art.landmark(data.realmId==='orchard-structure' && ebFarlands.surface() && !sharedWorld.active()
+                                ? 'orchard-belfry' : data.landmark, buildingFootprint(data)) :
                             art.building(data.type, variant, buildingFootprint(data), data.realmId ? data.region : undefined,
                                 ebFarlands.surface() && !sharedWorld.active() && (data.realmId==='rest-service-0'||data.realmId==='rest-service-1'||data.realmId==='rest-service-2'),
                                 ebFarlands.surface() && !sharedWorld.active() && data.realmId ? {farmstead:/ Farmstead$/.test(data.name), regional:true, hall:data.realmId==='rest-service-3'} : null);
@@ -10721,9 +11038,10 @@ window.addEventListener('load', () => {
         // copies of their materials). Both come back when the battle ends. Something in front reaches up over the
         // fighters on screen when it stands closer to the camera than about 1.13 times its height.
         clearCombatView(c,rest) {
-            if (c.land===this.land) return;
+            if (c.land===this.land && c.landRevision===this.land?.geometryRevision) return;
             this.restoreCombatView(c);
             c.land=this.land;
+            c.landRevision=this.land?.geometryRevision;
             const T=THREE, m=new T.Matrix4(), p=new T.Vector3(), none=new T.Matrix4().makeScale(0,0,0);
             const across=c.eye ? new T.Vector3(c.dir.z,0,-c.dir.x) : new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2);
             const toward=c.eye ? c.dir : new T.Vector3(Math.SQRT1_2,0,Math.SQRT1_2);
@@ -10747,7 +11065,8 @@ window.addEventListener('load', () => {
             }
             if (!this.land) return;
             for (const mesh of this.land.children) {
-                if (!mesh.isInstancedMesh || (mesh.geometry!==this.trunk && mesh.geometry!==this.crown && mesh.geometry!==this.canopy)) continue;
+                const geometry = mesh.userData.terrainPrototype || mesh.geometry;
+                if (!mesh.isInstancedMesh || (geometry!==this.trunk && geometry!==this.crown && geometry!==this.canopy)) continue;
                 let changed=false;
                 for (let i=0;i<mesh.count;i++) {
                     mesh.getMatrixAt(i,m);
@@ -10908,7 +11227,7 @@ window.addEventListener('load', () => {
                 // latter can have two nonzero axes even for a cardinal step.
                 const soloSpeed = ebHorseMounted && ebFarlands.surface() ? 15.38 : 8.33;
                 const speed = soloHero ? soloSpeed * (model.soloStepDiagonal ? Math.SQRT2 : 1) :
-                    (sharedActor && model.ebRemotePlayer) ? 40 : sharedActor ? 8.33 : 13;
+                    sharedActor ? 8.33 : 13;
                 const distance = Math.hypot(dx, dz);
                 if (model === this.hero && sharedActor && location.search.includes('ebMovementDebug=1')) {
                     window.__ebMoveDiagnostics = {renderGap:distance,frameMs:Math.round(dt*1000),
@@ -10920,15 +11239,18 @@ window.addEventListener('load', () => {
                 else position.set(position.x + dx / distance * travel, y, position.z + dz / distance * travel);
             }
             }
+            if (localHero && ebHorseMounted) {
+                this.mountedTravel = jump || this.reduced ? 0 : (walkDistance ?? Math.hypot(position.x-beforeX, position.z-beforeZ));
+            }
             if (!model.body) return;
             // Solo hero/residents advance a stride only by their real rendered travel, not global time/tile phase.
             // This changes joint poses only; authoritative locations and the movement interpolation above stay intact.
             const localGait=ebFarlands.inRealm()&&!sharedWorld.active()&&!gameState.inBattle&&
                 (model===this.hero||model.ebResidentGait)&&!(model===this.hero&&(ebHorseMounted||gameState.sailingMoves>0));
-            if(localGait){
+            if(localGait || model.ebRemotePlayer){
                 const moved=jump||this.reduced?0:(walkDistance??Math.hypot(position.x-beforeX,position.z-beforeZ));
                 if(jump||this.reduced){model.gaitPhase=0;model.gaitBlend=0;}
-                model.gaitPhase=((model.gaitPhase||0)+moved*(model===this.hero?2.28:11))%(Math.PI*2);
+                model.gaitPhase=((model.gaitPhase||0)+moved*(model===this.hero || model.ebRemotePlayer ? 2.28 : 11))%(Math.PI*2);
                 const target=moved>.00001?1:0;
                 model.gaitBlend=(model.gaitBlend||0)+(target-(model.gaitBlend||0))*(1-Math.exp(-14*Math.min(dt,.1)));
                 const phase=model.gaitPhase,b=this.reduced?0:model.gaitBlend,swing=Math.sin(phase)*(model===this.hero ? .44 : .33)*b;
@@ -10955,18 +11277,24 @@ window.addEventListener('load', () => {
             const kit = this.ebPropKit ??= (() => {
                 const mat = c => new T.MeshLambertMaterial({ color: c });
                 return { handle: new T.BoxGeometry(.026, .46, .026), blade: new T.BoxGeometry(.13, .035, .06), bundle: new T.BoxGeometry(.15, .1, .11),
+                    malletHead: new T.BoxGeometry(.17, .08, .08), malletGrip: new T.BoxGeometry(.026, .22, .026),
                     bucket: new T.CylinderGeometry(.055, .045, .095, 8), tray: new T.BoxGeometry(.3, .022, .19),
                     wood: mat(0x8a6240), iron: mat(0x7d8a88), cloth: mat(0xc9a96b), pail: mat(0x6f7f86), plate: mat(0xb08a5a) };
             })();
             const hand = model.arms[1] ?? model.arms[0];
             const hoe = new T.Group(), handle = new T.Mesh(kit.handle, kit.wood), blade = new T.Mesh(kit.blade, kit.iron);
             handle.position.y = -.12; blade.position.set(0, -.34, .05); hoe.add(handle, blade); hoe.position.set(.02, -.2, .02);
+            const mallet = new T.Group();
+            const grip = new T.Mesh(kit.malletGrip, kit.wood), head = new T.Mesh(kit.malletHead, kit.wood);
+            head.position.y = -.13;
+            mallet.add(grip, head);
+            mallet.position.set(.02, -.21, .03);
             const bundle = new T.Mesh(kit.bundle, kit.cloth); bundle.position.set(.02, -.25, .04);
             const bucket = new T.Mesh(kit.bucket, kit.pail); bucket.position.set(.02, -.27, 0);
             const tray = new T.Mesh(kit.tray, kit.plate); tray.position.set(0, .4, .2);
-            for (const prop of [hoe, bundle, bucket, tray]) prop.scale.setScalar(1.4); // readable at the normal zoom
-            hand.add(hoe, bundle, bucket); model.body.add(tray);
-            model.ebProps = { hoe, bundle, bucket, tray };
+            for (const prop of [hoe, mallet, bundle, bucket, tray]) prop.scale.setScalar(1.4); // readable at the normal zoom
+            hand.add(hoe, mallet, bundle, bucket); model.body.add(tray);
+            model.ebProps = { hoe, mallet, bundle, bucket, tray };
             for (const prop of Object.values(model.ebProps)) prop.visible = false;
             return model.ebProps;
         }
@@ -11001,7 +11329,7 @@ window.addEventListener('load', () => {
             const body = model.body, arms = model.arms;
             if (!body || !arms?.length) return;
             const holding = act && (data.walkingUntil ?? 0) < performance.now() ?
-                { work: 'hoe', trade: 'bundle', tend: 'bucket', serve: 'tray' }[act.kind] : null;
+                { work: 'hoe', repair: 'mallet', trade: 'bundle', tend: 'bucket', serve: 'tray', harvest: 'bucket', sortCatch: 'bundle' }[act.kind] : null;
             if (holding || model.ebProps) {
                 const props = this.activityProps(model);
                 for (const [name, prop] of Object.entries(props)) prop.visible = name === holding;
@@ -11019,9 +11347,14 @@ window.addEventListener('load', () => {
                 switch (act.kind) {
                     // R17: the whole body works, not only the arms: a stroke bends the back, herding is done stooped
                     case 'work':   set(-.9+wave(3.2,.55), -.9+wave(3.2,.55)); lean = .2+wave(3.2,.12,-.6); break;
+                    case 'repair': set(-.65, -.95+wave(4.8,.51)); lean = .22; break;
+                    case 'harvest': set(-.35+wave(1.8,.2), -.95+wave(1.8,.35)); lean = .28+wave(1.8,.1); break;
+                    case 'sortCatch': set(-.95+wave(2.4,.3), -.95+wave(2.4,.3,2.4)); lean = .16; break;
                     case 'tend':   set(-.75+wave(1.6,.2), -.65+wave(1.6,.2,.6)); lean = .38; break;
                     case 'trade':  set(-1.15+wave(1.4,.08), -.2); break;                           // goods held out
                     case 'browse': set(-.25, -.25); break;
+                    case 'pack': set(-.62+wave(2.6,.26),-.84+wave(2.6,.33,1.1)); lean=.34; break;
+                    case 'carry':  set(-1.2, -1.2); lean=.12; break;
                     case 'serve':  set(-1.05, -1.05); break;                                       // a tray in both hands
                     case 'rest':   set(.05, .05); lean = -.05; break;
                     case 'pray':   set(-1.45, -1.45); lean = .3; break;
@@ -11271,10 +11604,10 @@ window.addEventListener('load', () => {
         useEyeTarget() {
             if(!this.active || !this.eyeMode || gameState.inBattle)return;
             // A reachable archive action must not lose to a distant actor picked through a wall.
-            if(ebStory.eyeHint(this.eyeYaw)){interact();return;}
+            if(!sharedWorld.active() && ebStory.eyeHint(this.eyeYaw)){interact();return;}
             this.ray.setFromCamera(new T.Vector2(0,0),this.eyeCamera);
             const hits=this.ray.intersectObjects(this.targets||[],false);
-            const hit=hits.find(h=>h.distance<=4.4);
+            const hit=hits.find(h=>h.distance<=4.4 && h.object.userData.record?.kind!=='remote');
             if(hit?.object?.userData?.record){
                 this.activate(hit.object.userData.record);
                 return;
@@ -11331,7 +11664,7 @@ window.addEventListener('load', () => {
 
         }
 
-        pick(event) {
+        pick(event, groundInput = event.pointerType!=='touch') {
             if(this.eyeMode){
                 if(performance.now()<(this.suppressEyeClickUntil||0))return;
                 this.useEyeTarget();
@@ -11375,7 +11708,7 @@ window.addEventListener('load', () => {
             const crowd = hit?.kind === 'npc' ? this.crowdAt(hit) : [];
             if (crowd.length > 1) ebChoosePerson(crowd);
             else if (hit) this.activate(hit);
-            else if (this.active && event.pointerType !== 'touch' && event.button === 0 &&
+            else if (this.active && groundInput && event.button === 0 &&
                 this.ray.ray.intersectPlane(this.walkPlane, this.groundHit)) {
                 walkTo(Math.round(this.groundHit.x), Math.round(this.groundHit.z));
             }
@@ -11468,6 +11801,7 @@ window.addEventListener('load', () => {
                 }
             }
 
+            this.streamTerrain();
             const player = gameState.player;
             const afloat = gameState.sailingMoves > 0;
             const bob = this.reduced ? 0 : Math.sin(time * 2.7) * .045;
@@ -11521,7 +11855,7 @@ window.addEventListener('load', () => {
                 if (ebHorseMounted) {
                     if (this.horseLastX !== null) {
                         const dx = hx - this.horseLastX, dz = hz - this.horseLastZ;
-                        if (Math.hypot(dx,dz) > .045 && Math.hypot(dx,dz) < 3) {
+                        if (this.mountedTravel > .0005 && Math.hypot(dx,dz) > .0005) {
                             this.horseHeading = Math.atan2(-dx,-dz);
                             this.horseLastTime = now;
                         }
@@ -11545,11 +11879,15 @@ window.addEventListener('load', () => {
                     Math.hypot(hx - this.horsePrevX, hz - this.horsePrevZ);
                 this.horsePrevX = hx;
                 this.horsePrevZ = hz;
-                const moving = moved > .0005 && moved < .8;
+                const moving = ebHorseMounted ? this.mountedTravel > .0005 : moved > .0005 && moved < .8;
                 const desired = moving ? 1 : 0;
                 this.horseGaitAmount += (desired - this.horseGaitAmount) *
                     (1 - Math.exp(-Math.min(dt,.05) * (moving ? 12 : 18)));
-                if (moving) this.horseGaitPhase += Math.min(moved,.12) * 7.5;
+                if (moving) {
+                    // Six tiles per mounted stride. Frame rate changes how much of the stride we see.
+                    const advance = ebHorseMounted ? this.mountedTravel * Math.PI / 3 : Math.min(moved,.12) * 7.5;
+                    this.horseGaitPhase += advance;
+                }
                 const gait = this.reduced ? 0 : this.horseGaitAmount;
                 // Diagonal pairs move together (trot); pivots keep feet attached to legs.
                 this.horseLegs.forEach((leg,i)=>{
@@ -11604,7 +11942,11 @@ window.addEventListener('load', () => {
                         // re-chosen near the player each time the cell came back into range, so a boat the player had
                         // taken reappeared at a new spot beside the one parked elsewhere.
                         if(!this.mooringSpots)this.mooringSpots=new Map();
-                        if(this.mooringSpots.has(id)){wanted.set(id,this.mooringSpots.get(id));continue;}
+                        if(this.mooringSpots.has(id)){
+                            const position=this.mooringSpots.get(id);
+                            if(position)wanted.set(id,position);
+                            continue;
+                        }
                         const startX=ax*80,startY=az*80;
                         let best=null,bestScore=Infinity;
                         for(let oy=2;oy<78;oy+=2)for(let ox=2;ox<78;ox+=2){
@@ -11620,9 +11962,10 @@ window.addEventListener('load', () => {
                             const score=(hash^Math.imul(ox*131+oy+7,2654435761))>>>0;
                             if(score>=bestScore)continue;
                             const heading=boatFitsWater(x,y,Farlands.sample);
-                            if(heading!==null){best={x,y,heading};bestScore=score;}
+                            if(heading!==null&&boatHasChannel(x,y,Farlands.sample)){best={x,y,heading};bestScore=score;}
                         }
-                        if(best){wanted.set(id,best);this.mooringSpots.set(id,best);}
+                        this.mooringSpots.set(id,best);
+                        if(best)wanted.set(id,best);
                     }
                     for(const [id,v] of this.coastalBoats)if(!wanted.has(id)){
                         this.scene.remove(v.model);this.coastalBoats.delete(id);
@@ -11650,11 +11993,17 @@ window.addEventListener('load', () => {
                 if(vessel.position===null){
                     // R15.58: the nearest water where the whole (scaled) hull floats, not just its centre tile.
                     let closest=null, distance=Infinity;
-                    for(let dy=-24;dy<=24;dy+=2) for(let dx=-24;dx<=24;dx+=2){
+                    const dock=Farlands.coastalDocks[vessel.id];
+                    if(dock){
+                        const [x,y]=dock.water;
+                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.hullScale);
+                        if(heading!==null)closest={x,y,heading};
+                    }
+                    for(let dy=-24;!dock&&dy<=24;dy+=2) for(let dx=-24;dx<=24;dx+=2){
                         const x=vessel.station.x+dx,y=vessel.station.y+dy;
                         const d=dx*dx+dy*dy;
                         if(d>=distance||Farlands.sample(x,y)!=='water')continue;
-                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.model.scale.x,[.35,.35+Math.PI/2,.35+Math.PI/4,.35-Math.PI/4]);
+                        const heading=boatFitsWater(x,y,Farlands.sample,vessel.hullScale,[.35,.35+Math.PI/2,.35+Math.PI/4,.35-Math.PI/4]);
                         if(heading!==null){closest={x,y,heading};distance=d;}
                     }
                     vessel.position=closest||false; // searched once even when nothing fits
@@ -11761,12 +12110,11 @@ window.addEventListener('load', () => {
                 if (model.wheel && !this.reduced) model.wheel.rotation.z=time*.78;
                 const lift = kind === 'item' && !this.reduced ? .055 * Math.sin(time * 3 + data.x) + .06 : 0;
                 const pose = kind === 'building' ? buildingCentre(data) : sharedWorld.actorPose(data,now);
-                // Remote player poses may be interpolated by the shared-world buffer.
-                // Do not force-snap those poses on every frame: that defeats 3D smoothing.
+                // The remote track already interpolates confirmed samples at frame time.
                 model.ebRemotePlayer = kind === 'remote';
                 model.ebResidentGait=kind==='npc'&&/^rest-resident-[0-6]$/.test(data.realmId||'');
                 if (model !== this.combat?.model) // R15.37: a battle poses its enemy itself
-                    this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data && kind !== 'remote');
+                    this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data || kind==='remote');
                 // Real resident, real scheduled location: only the idle hand pose changes while bundling herbs.
                 if(kind==='npc' && data.realmId==='rest-resident-0' && model.arms?.length){
                     const target=ebVillageWork.working(data)?1:0;
@@ -11778,7 +12126,7 @@ window.addEventListener('load', () => {
                 // within 14 tiles of the hero; the rest of the world is not animated).
                 if(kind==='npc' && !model.ebDressed && ebFarlands.surface() && !sharedWorld.active() && ebLife.look(data))
                     this.dressRole(model,ebLife.look(data));
-                if(kind==='npc' && contextual && ebLife.drawn(data) && Math.hypot(data.x-here.x,data.y-here.z)<=14)
+                if(kind==='npc' && this.socialActors?.has(data) && !buildingInterior)
                     this.poseActivity(model,ebLife.activity(data,performance.now()),time,dt,data);
                 // R15.59: Mira and Nessa at work, at their real scheduled places (pose and facing only).
                 if(kind==='npc' && model.arms?.length && model.body) ebLivingRest.pose(data,model,time,dt,this.reduced,now);
@@ -11840,7 +12188,7 @@ window.addEventListener('load', () => {
                 this.eyeCamera.updateMatrixWorld();
             }
             if(!this.lastEyeHint || now-this.lastEyeHint>=140){
-                const hint=this.eyeMode?ebStory.eyeHint(this.eyeYaw):'',node=document.getElementById('eb-eye-context');
+                const hint=this.eyeMode&&!sharedWorld.active()?ebStory.eyeHint(this.eyeYaw):'',node=document.getElementById('eb-eye-context');
                 if(node.textContent!==hint)node.textContent=hint;
                 node.hidden=!hint;this.lastEyeHint=now;
             }
@@ -11853,30 +12201,44 @@ window.addEventListener('load', () => {
             // FP boat: retain the vessel/horse in the world but prevent near-field
             // sail/deck and horse from occupying the entire view.
             const boatEye=eyeEnabled&&afloat;
-            const boatParts=[];
-            if(boatEye){
-                this.ship.traverse(node=>{
-                    if(node.isMesh && node.material){
-                        boatParts.push([node,node.material,node.visible]);
-                        const mat=node.material.clone();
-                        mat.transparent=true;mat.opacity=.20;mat.depthWrite=false;
-                        node.material=mat;
-                    }
-                });
-                if(this.farlandsHorse.visible){
-                    this.farlandsHorse.visible=false;
-                    boatParts.push(['horse',true]);
-                }
-            }
+            const hideBoatHorse=boatEye&&this.farlandsHorse.visible;
+            if(boatEye)for(const {node,ghost} of this.shipGhostParts)node.material=ghost;
+            if(hideBoatHorse)this.farlandsHorse.visible=false;
             if(eyeEnabled){this.hero.group.visible=false;this.heroTag.hidden=true;}
-            this.renderer.render(this.scene,eyeEnabled?this.eyeCamera:this.camera);
-            if(boatEye)for(const part of boatParts){
-                if(part[0]==='horse'){this.farlandsHorse.visible=part[1];continue;}
-                part[0].material.dispose();part[0].material=part[1];part[0].visible=part[2];
-            }
+            this.renderFrame(eyeEnabled);
+            if(boatEye)for(const {node,opaque} of this.shipGhostParts)node.material=opaque;
+            if(hideBoatHorse)this.farlandsHorse.visible=true;
             if(eyeEnabled){this.hero.group.visible=heroWasVisible;this.heroTag.hidden=tagWasHidden;}
             if(mountedEye)this.farlandsHorse.visible=true;
             this.frame = requestAnimationFrame(next => this.draw(next));
+        }
+
+        updateRideResolution() {
+            // The software rasterizer misses mounted input deadlines at full resolution.
+            // Keep HUD text at native resolution and restore the scene buffer off horseback.
+            const softwareRide = this.swiftShader && ebHorseMounted && ebFarlands.surface() &&
+                !sharedWorld.active() && !buildingInterior && !gameState.inBattle && !gameState.sailingMoves;
+            const ratio = this.fullPixelRatio * (softwareRide ? .65 : 1);
+            if (this.renderer.getPixelRatio() !== ratio) this.renderer.setPixelRatio(ratio);
+        }
+
+        renderFrame(eyeEnabled) {
+            if (this.swiftShader) this.updateRideResolution();
+            const gl = this.renderer.getContext();
+            const paced = this.swiftShader && ((ebFarlands.inRealm() && !sharedWorld.active()) ||
+                (eyeEnabled && sharedWorld.active()));
+            // Keep at most one Farlands frame in flight on the software renderer.
+            // Camera, simulation, and input still advance even when a submission is deferred.
+            if (this.frameFence) {
+                if (paced && gl.clientWaitSync(this.frameFence, 0, 0) === gl.TIMEOUT_EXPIRED) return;
+                gl.deleteSync(this.frameFence);
+                this.frameFence = null;
+            }
+            this.renderer.render(this.scene, eyeEnabled ? this.eyeCamera : this.camera);
+            if (paced && !gl.isContextLost()) {
+                this.frameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+                if (this.frameFence) gl.flush();
+            }
         }
 
         setActive(active) {
@@ -11888,6 +12250,10 @@ window.addEventListener('load', () => {
                 this.resize();
                 this.draw(performance.now());
             } else {
+                if (this.frameFence) {
+                    this.renderer.getContext().deleteSync(this.frameFence);
+                    this.frameFence = null;
+                }
                 for (const effect of this.effects) effect.node.remove();
                 this.effects = [];
             }
@@ -11963,12 +12329,7 @@ window.addEventListener('load', () => {
             toggle.setAttribute('aria-label', 'Switch to 3D view');
         });
         toggle.addEventListener('click', () => display(root.dataset.ebView === '3d' ? '2d' : '3d'));
-        immersiveButton.addEventListener('click',()=>{ if(!sharedWorld.active())immersive(!view?.eyeMode); });
-        setInterval(()=>{
-            const shared=sharedWorld.active();
-            if(shared && view?.eyeMode)immersive(false);
-            immersiveButton.classList.toggle('eb-solo-only-off',shared);
-        },500);
+        immersiveButton.addEventListener('click',()=>immersive(!view?.eyeMode));
         document.getElementById('eb-eye-use').addEventListener('click',()=>view?.useEyeTarget());
         // Swipe on the canvas to look, without stealing the movement joystick.
         // Do not alter world coordinates or the accepted movement cadence.
@@ -13684,6 +14045,22 @@ function openBuildingInterior(building, position) {
     };
     const start = layout[position?.y]?.[position?.x];
     const decorTiles = new Set(props.map(([,x,y]) => y*width+x));
+    if (building.realmId === 'rest-service-0' && ebFarlands.surface() && !sharedWorld.active()) {
+        const seats = [[3,5],[9,5],[10,6]];
+        for (const [i,patron] of ebLife.restPatrons().entries()) {
+            const [x,y] = seats[i];
+            map.npcs.push({name:patron.name,class:patron.class,realmId:patron.realmId,x,y,
+                dialogue:'The road can wait until morning. There’s a warm seat if you want one.'});
+        }
+    }
+    if (building.realmId && building.realmId!=='rest-service-0' && ebFarlands.surface() && !sharedWorld.active()) {
+        const seats = building.type==='inn' ? [[3,5],[9,5]] : building.type==='shop' ? [[4,5],[8,5]] : [];
+        if (seats.length) for (const [i,patron] of ebLife.roomPatrons(building.realmId).entries()) {
+            const [x,y]=seats[i];
+            map.npcs.push({name:patron.name,class:patron.class,realmId:patron.realmId,x,y,
+                dialogue:patron.life.slot.says ?? 'I’ll stay here tonight. The road will still be there in the morning.'});
+        }
+    }
     setInteriorState({ building, outside, door, service, furniture, decorTiles });
     applyAdventureMap(map,{ ...gameState.player, ...(start && start !== '#' ? position : door) });
     return true;
@@ -13723,12 +14100,16 @@ async function exitBuilding() {
     if (button.disabled) return;
     closeModal();
     if (!sharedWorld.active()) { closeBuildingInterior(); return; }
-    button.disabled = true;
+    const cleanButton = document.getElementById('eb-clean-room-exit');
+    button.disabled = cleanButton.disabled = true;
     try { await sharedWorld.toggleRoom(buildingInterior.building); }
-    finally { button.disabled = false; }
+    finally { button.disabled = cleanButton.disabled = false; }
 }
 
-window.addEventListener('load', () => document.getElementById('eb-room-exit').addEventListener('click',exitBuilding));
+window.addEventListener('load', () => {
+    for (const id of ['eb-room-exit', 'eb-clean-room-exit'])
+        document.getElementById(id).addEventListener('click', exitBuilding);
+});
 
 </script>
 <script data-source="farlands-map.js">
@@ -13830,7 +14211,8 @@ const Farlands = (() => {
         const [dx,dy] = satelliteOffsets[j];
         return {id:'settlement-'+station.id+'-'+j,name,
             x:station.x+dx,y:station.y+dy,region:station.region,
-            story:name+' is a '+(j===0?'market town':j===1?'farming village':'rural hamlet')+
+            story:name==='Shellwick' ? 'Shellwick sorts the catch and trades shells from Pearl Banks. A short path from the market leads to the landing on the bay.' :
+                name+' is a '+(j===0?'market town':j===1?'farming village':'rural hamlet')+
                 ' where growers, herders and traders make their living.',
             services:[name+' Inn',name+' Market',name+' Gathering Hall',name+' Farmstead'],
             index:index*3+j,station:true,settlement:true,kind:j===0?'town':'village',radius:18};
@@ -13881,6 +14263,12 @@ const Farlands = (() => {
         {name:'Delta distributary',points:[[4990,6790],[4820,7160],[4636,7444],[4700,7630]],kind:'river'},
         {name:'Alderwash landings',points:[[2780,4538],[3340,4480],[3920,4480],[4590,4660],[5064,4864]],kind:'river'}
     ];
+    const coastalDocks = {
+        amber:{shore:[7653,3866],pier:[7654,3866],water:[7656,3866]},
+        lantern:{shore:[8496,8541],pier:[8496,8542],water:[8496,8544]},
+        'settlement-lantern-0':{shore:[8555,8581],pier:[8555,8582],water:[8555,8584]}
+    };
+    const pierTiles = new Set(Object.values(coastalDocks).map(({pier:[x,y]})=>y*size+x));
     const sites = [...stations,...landmarks,...settlements,...waterfrontSettlements];
     const byId = new Map(sites.map(site => [site.id,site]));
     const start = stations[0];
@@ -13943,7 +14331,25 @@ const Farlands = (() => {
     const alderwashY = x => 4500+110*Math.sin((x-2400)/570)-.11*(x-2425);
     const millCreekY = x => 4875+2.4*Math.sin((x-5064)/12);
     const deltaX = y => riverX(y)+(y-7140)*.35;
-    function natural(x,y) {
+    function coastalInlet(x,y) {
+        // A south-facing tidal bay on the Keys and a separate east-facing mainland ria.
+        // Both ellipses extend past the old shore. Their narrow heads leave the town cores dry.
+        if (x>8250 && x<9000 && y>8525 && y<9300) {
+            const along=y-.59*(x-8500);
+            const across=x-.40*(y-8550);
+            const westBank=8455+11*Math.sin((y-8560)/63);
+            return Math.min(ellipse(across,along,8500,8820,186,276)+.055*(noise(x,y,17,121)-.5),
+                (x-westBank)/45);
+        }
+        if (x>7639 && x<9650 && y>3400 && y<4520) {
+            const along=x-7650;
+            const across=y+.055*Math.min(along,100)-.15*Math.max(along-100,0)-21*Math.sin(along/240);
+            const width=Math.min(207,61+.175*along);
+            return ellipse(x,across,8575,3868,923,width)+.025*(noise(x,y,26,123)-.5);
+        }
+        return -1;
+    }
+    function natural(x,y,legacy=false) {
         const shoreNoise = .28*(noise(x,y,630,1)-.5)+.12*(noise(x,y,175,2)-.5)+.045*(noise(x,y,49,3)-.5);
         const land = Math.max(
             ellipse(x,y,4610,4710,4090,4170)-.10*Math.max(0,ellipse(x,y,8150,5740,1100,730)),
@@ -13954,7 +14360,8 @@ const Farlands = (() => {
             ellipse(x,y,8020,9230,340,225),
             ellipse(x,y,1000,7350,310,550)
         )+shoreNoise;
-        if (land<0) return 'water';
+        const inlet=legacy ? -1 : coastalInlet(x,y);
+        if (land<0 || inlet>0) return 'water';
         const river = riverX(y);
         const lake = Math.max(ellipse(x,y,5260,1770,210,170),ellipse(x,y,5570,4820,152,106),
             ellipse(x,y,2425,4500,205,140),ellipse(x,y,6700,6970,180,121));
@@ -13963,7 +14370,7 @@ const Farlands = (() => {
             (x>2425 && x<river && Math.abs(y-alderwashY(x))<12) ||
             (x>riverX(4875)-12 && x<5560 && Math.abs(y-millCreekY(x))<7) ||
             (y>7140 && y<8690 && Math.abs(x-deltaX(y))<13)) return 'water';
-        if (land<.047) return 'sand';
+        if (land<.047 || inlet>-.045) return 'sand';
         const region = regionAt(x,y);
         const stone = noise(x,y,215,6)*.75+noise(x,y,66,7)*.25;
         const growth = noise(x,y,128,8)*.62+noise(x,y,37,9)*.38;
@@ -14049,8 +14456,10 @@ const Farlands = (() => {
         const site = nearbySite(x,y);
         return Math.abs(x-site.x)<=11 && Math.abs(y-site.y)<=11;
     }
-    function baseSample(x,y) {
+    function baseSample(x,y,legacy=false) {
+        if (!legacy && pierTiles.has(y*size+x)) return 'road';
         if (trailAt(x,y)) return 'road';
+        if (!legacy && coastalInlet(x,y)>0) return 'water';
         if (farmlandAt(x,y)) return 'grass';
         const site = nearbySite(x,y);
         if (site) {
@@ -14061,7 +14470,7 @@ const Farlands = (() => {
             }
             if (!site.station && dx<=4 && dy<=3) return 'grass';
         }
-        return natural(x,y);
+        return natural(x,y,legacy);
     }
 
     // R15.56: Wayfarer's Rest is laid out by hand. The map's own generator gave every waystation the same template and
@@ -14081,8 +14490,8 @@ const Farlands = (() => {
     const restSquare = (dx,dy) => Math.abs(dx)<=3 && Math.abs(dy)<=2 &&
         !(dx===-3 && dy===-2) && !(dx===3 && dy===2) && !(dx===-3 && dy===2);
     const restTrees = new Set(['-8,-2','-8,2','8,2','7,-6','-8,-5','8,5']);
-    function sample(x,y) {
-        const base = baseSample(x,y);
+    function sample(x,y,legacy=false) {
+        const base = baseSample(x,y,legacy);
         const dx=x-rest.x, dy=y-rest.y;
         if (!villageAt(x,y)) return base;
         if (base==='water') return dy===8 && (dx===-5 || dx===-6) ? 'road' : base; // the landing's jetty: planks over water
@@ -14094,7 +14503,8 @@ const Farlands = (() => {
     const villageAt = (x,y) => Math.abs(x-rest.x)<=10 && y-rest.y>=-8 && y-rest.y<=9;
     // Street furniture: [dx, dy, kind, blocks the tile, turn, name, words when used]. Drawn by the 3D ground, shown as a
     // small glyph in the 2D view. Only named pieces can be used.
-    const restProps = new Map();
+    const creekPilotage = {board:[5044,4876], reach:[5041,4874], name:'Mill Creek sounding board'};
+    const authoredProps = new Map();
     for (const [dx,dy,kind,solid,turn,name,text] of [
         [0,-1,'well',true,0,'The square well','Cool water from under the square. Travellers fill their flasks here before taking the road.'],
         [-2,-1,'oak',true,0],
@@ -14109,15 +14519,31 @@ const Farlands = (() => {
         [7,-4,'garden',false,0],[8,-4,'garden',false,1],[7,-3,'garden',false,2],[8,-3,'garden',false,3],
         [-6,4,'shrine',true,0,'Wayside shrine','A worn stone for travellers who did not come back down the road. Someone still leaves flowers.'],
         [-6,5,'flowers',false,0],
-        [2,8,'crates',true,0],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
+        [2,8,'crates',true,0,'Ivo’s axle crate','Chalk on the lid reads: Millbend · two axle collars, one oak pin. The river seal is intact.'],[2,9,'barrel',true,0],[-4,7,'crates',true,.6],
         [-6,8,'mooring',false,0]
-    ]) restProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
-    const propAt = (x,y) => restProps.get(y*size+x);
-    function propNear(x,y) {
+    ]) authoredProps.set((rest.y+dy)*size+rest.x+dx,{x:rest.x+dx,y:rest.y+dy,kind,solid,turn,name,text});
+    authoredProps.set((rest.y+1)*size+rest.x+7,{x:rest.x+7,y:rest.y+1,kind:'cart',turn:0,
+        solid:true,soloOnly:true,name:'Fen’s bread cart',text:'Deep wheel ruts stop here. The cart smells of rye and sawdust.'});
+    for (const [x,y,name,text,cloth] of [
+        [...creekPilotage.board,creekPilotage.name,'Hale’s chalk marks the starting berth. From the moored boat, row three tiles west along the creek. Turn back by the causeway and give Hale the sounding.',0xa8c5c7],
+        [5038,4845,'North orchard tally','White cloth marks the trees ready for picking. Two baskets can go down to the stall before noon.',0xeee4c8],
+        [5042,4850,'South orchard tally','Red cloth marks the trees that need another day. Leave those branches for the next crew.',0xb64632],
+        [byId.get('mill').x-5,byId.get('mill').y,'Millbend flood marker',
+            'An old brass strip reads: First the boat, then the grain, then the bell. The keeper was counting people before sacks.',0x779d9f],
+        [rest.x+6,rest.y+2,'Exchange order slate','Chalk orders for the inn: six rye loaves, a dozen eggs, and no more than one of Fen’s stories.',0xc6a477],
+        [rest.x-3,rest.y-7,'Inn’s supper docket','Three benches laid. Spare bread goes to the north road watch after supper.',0x9dba9f],
+        [8556,8580,'Shellwick tide board','Shellfish baskets go out past the yellow sand at low tide. The mooring is just southwest. Lantern Quay lies northwest around the head of the bay. Ask the waykeeper about dry space for the shell baskets.'],
+        [8559,8565,'Pearl Banks tally post','Collectors count the day’s shells here before taking them to the Shellwick market. Follow the bank southwest for the shared landing.']
+    ]) authoredProps.set(y*size+x,{x,y,kind:'signpost',solid:false,turn:0,name,text,cloth,soloOnly:cloth!==undefined});
+    function propAt(x,y,solo=true) {
+        const prop=authoredProps.get(y*size+x);
+        return !solo&&prop?.soloOnly?undefined:prop;
+    }
+    function propNear(x,y,solo=true) {
         let best=null, near=Infinity;
-        for (const prop of restProps.values()) {
+        for (const prop of authoredProps.values()) {
             const d=Math.max(Math.abs(prop.x-x),Math.abs(prop.y-y));
-            if (prop.text && d<=1 && d<near) { best=prop; near=d; }
+            if (prop.text && (solo || !prop.soloOnly) && d<=1 && d<near) { best=prop; near=d; }
         }
         return best;
     }
@@ -14208,6 +14634,22 @@ const Farlands = (() => {
     // dx, dy, what they say there] or [from hour] for home. Two lines mean before and after the Harvest Bell is back.
     // No one's place is within three tiles of Mira, so Space beside her always reaches her.
     const restDoors = {inn:[-5,-3],chapel:[-4,3],cottage:[9,-2]};
+    // Fixed residents, staggered shifts and paired stops. Positions remain owned by the normal resident simulation.
+    const restNeighbours = [
+        ['nell','Nell, the Baker','merchant','Baker','inn',[[6.5,5,-1,'market','Hot rye, cold butter. Best argument for getting up before dawn.'],[13,6,-1,'market','The Exchange gets the crusty loaves. The inn gets the soft ones. They both think they won.'],[18.5,-2,-6,'square','I have flour in both boots and a whole evening to complain about it.'],[21]]],
+        ['fen','Fen, the Market Carter','villager','Courier','inn',[[7,2,-3,'market','I came for bread, but Nessa has put the pears where I can see them. Cunning woman.'],[12,5,0,'market','A small loaf, please. Last time I bought a big one the cart smelled of bread all the way to Millbend.'],[18,-1,-5,'square','Bram swears this next story is shorter. He swore that yesterday, too.'],[22]]],
+        ['ida','Ida, the Smallholder','villager','Farmer','cottage',[[6,8,-4,'garden','That’s the mint bed. The hens know to leave it alone, which makes them wiser than my brother.'],[10.5,4,0,'square','I have eggs enough for the inn and two left to barter. Know anyone with a little salt?'],[16,5,-1,'market','Nell and I trade before supper. A good loaf weighs about as much as a bad excuse.'],[20]]],
+        ['osric','Osric, the Watchman','guard','Trail Warden','chapel',[[0,1,-5,'roadA','Quiet since midnight. Even the owls have given up arguing.'],[7.5,0,6,'roadB','I keep the causeway clear for the carts. Put a wheel in that ditch and you’ll meet Hale soon enough.'],[14.5,1,-6,'roadA','Count the wagons, check the lamp oil, try not to count the hours.'],[21,0,-4,'roadA','Mind the step by the inn. The lamp goes out before the stories do.']]],
+        ['piper','Piper, a Road Fiddler','villager','Pilgrim','inn',[[8,-1,-3,'square','I play for my supper. This morning I played for breakfast too, and that may have been pushing it.'],[14,1,6,'square','Bram knows a story for every bend in the road. I only know three tunes, but I play them faster.'],[18.25,-1,-4,'square','Let Bram finish. I’ll get my tune in while he takes a breath.'],[20.5]]]
+    ];
+    function restNeighbour([id,name,role,occupation,home,day]) {
+        const [hx,hy]=restDoors[home];
+        return {realmId:'rest-neighbour-'+id,name,class:role,ebRole:occupation,ebSite:'rest',
+            restHome:home,restNeighbour:id,movable:false,x:rest.x+hx,y:rest.y+hy,
+            homeDoor:{x:rest.x+hx,y:rest.y+hy,checked:true},
+            routine:day.map(([from,dx,dy,where,says])=>dx===undefined ? {from,home:true} :
+                {from,x:rest.x+dx,y:rest.y+dy,where,says,fit:true})};
+    }
     const restLife = {
         ivo:{name:'Ivo, the Millwright',home:'inn',day:[
             [6,-3,8,'The mill at Millbend takes its timber by river. I count what lands here before it goes up the creek.'],
@@ -14271,16 +14713,13 @@ const Farlands = (() => {
             const key = bucketKey(x,y,chunkSize);
             let chunk = this.chunks.get(key);
             if (!chunk) {
-                const left = x-x%chunkSize, top = y-y%chunkSize;
-                chunk = new Uint8Array(chunkSize*chunkSize);
-                for (let dy=0;dy<chunkSize;dy++) {
-                    for (let dx=0;dx<chunkSize;dx++) {
-                        chunk[dy*chunkSize+dx] = tileIds[sample(left+dx,top+dy)];
-                    }
-                }
-                remember(this.chunks,key,chunk,80);
+                // A rider can touch several new chunks in one frame. Generate each
+                // requested tile once, instead of sampling all 1,024 on the first read.
+                chunk = remember(this.chunks,key,new Uint8Array(chunkSize*chunkSize).fill(255),80);
             }
-            return tileNames[chunk[(y%chunkSize)*chunkSize+x%chunkSize]];
+            const index=(y%chunkSize)*chunkSize+x%chunkSize;
+            if(chunk[index]===255) chunk[index]=tileIds[sample(x,y)];
+            return tileNames[chunk[index]];
         }
         setTile(x,y,tile) {
             if (this.tileAt(x,y)) this.edits.set(y*size+x,tile);
@@ -14342,7 +14781,7 @@ const Farlands = (() => {
         'Storyteller':[[9,'centre','Telling stories to anyone who stops in the square.'],[14,'inn','Trading tales with the travellers at the inn.'],[23,'home']],
         'Craftsperson':[[7,'work','Mending tools at the workshop.'],[12,'market','Trading repaired tools at the market.'],[14,'work','Back at the bench, fitting a new handle.'],[19,'inn','Resting tired hands at the inn.'],[22,'home']],
         'Pilgrim':[[6,'temple','Saying the morning prayers at the hall.'],[10,'centre','Asking travellers about the old roads.'],[15,'temple','Resting at the hall before the evening walk.'],[21,'home']],
-        'Farmer':[[6,'field','Working the fields while it is cool.'],[12,'barn','Hauling the morning’s harvest to the granary.'],[14,'field','Back in the fields until the light goes.'],[19,'inn','Supper at the inn after a long day.'],[21,'home']],
+        'Farmer':[[6,'field','Working the fields while it is cool.'],[12,'barn','Hauling the morning’s harvest to the granary.'],[14,'field','Back in the fields while the light holds.'],[17,'market','A basket of leeks for the inn and another for the market. They can argue over which is heavier.'],[19,'inn','Supper at the inn after a long day.'],[21,'home']],
         'Shepherd':[[6,'pasture','Taking the herd out to pasture.'],[17,'barn','Bringing the herd back to the barn.'],[20,'home']],
         'Baker':[[5,'market','Baking bread for the morning travellers.'],[13,'home'],[16,'market','Selling the afternoon loaves.'],[20,'home']],
         'Gardener':[[7,'garden','Weeding the vegetable plots.'],[12,'centre','Drawing water for the gardens.'],[14,'garden','Picking what is ripe for the market.'],[19,'home']],
@@ -14357,13 +14796,24 @@ const Farlands = (() => {
         'Woodcutter':[[6,'wild','Cutting wood at the edge of the village.'],[12,'work','Stacking timber by the workshop.'],[14,'wild','Back to the woods for another load.'],[19,'home']],
         'Caretaker':[[7,'temple','Sweeping the hall steps.'],[11,'centre','Tidying the square.'],[15,'temple','Tending the hall garden.'],[20,'home']]
     };
+    const fishingDays = {
+        Fisher:[[5.5,'landing','The early catch goes to the market. The rest goes into the inn’s pot.'],
+            [10,'market','The fish are fresh. The prices are between you and the stallholder.'],
+            [14,'landing','I mend the small holes first. The big ones never ask to be found.'],[19,'inn','At last, a chair rather than a wet plank.'],[21,'home']],
+        Dockworker:[[6,'landing','Mind the coils. If a boat pulls, that rope will jump.'],
+            [11,'work','I’m putting the loose tools away before someone calls them salvage.'],
+            [14,'landing','Stack the empty baskets on top. A full one can sit wherever it likes.'],[20,'inn','A bowl of stew, and no one asking me to move it.'],[22,'home']],
+        'Market Buyer':[[7,'market','I promised to buy a loaf. Somehow I’m being offered three kinds of jam.'],
+            [12,'inn','The cook claims the smaller bowl is the same size. We have agreed to disagree.'],
+            [16,'market','I’m waiting for the seed merchant. She always comes just after I’ve given up.'],[20,'home']]
+    };
     function villageLife(site,actors) {
         const {x,y} = site, taken = new Set();
         // Authored places stay clear: the resident tiles of Wayfarer's Rest's own people, and three tiles around Mira, so
         // Space beside her still reaches her (see restLife).
         const authored = actors.npcs.filter(n => n.routine).flatMap(n => n.routine.filter(e => !e.home).map(e => [e.x,e.y]))
             .concat(actors.npcs.filter(n => !n.fauna && !n.movable && !n.routine &&
-                !(n.name.startsWith(site.name+' ') && villageDay[n.name.slice(site.name.length+1)])).map(n => [n.x,n.y]));
+                !(n.name.startsWith(site.name+' ') && (villageDay[n.name.slice(site.name.length+1)] || fishingDays[n.name.slice(site.name.length+1)]))).map(n => [n.x,n.y]));
         const blocked = (tx,ty) => ['water','mountain','lava'].includes(sample(tx,ty)) || (site===start && propAt(tx,ty)?.solid) ||
             actors.buildings.some(b => (b.x===tx && b.y===ty) || (b.fixed && tx>=b.fixed[0] && tx<b.fixed[0]+b.fixed[2] && ty>=b.fixed[1] && ty<b.fixed[1]+b.fixed[3])) ||
             authored.some(([ax,ay]) => Math.hypot(ax-tx,ay-ty) < 2) || (site===start && Math.hypot(tx-(x-1),ty-(y+1)) <= 3);
@@ -14390,9 +14840,12 @@ const Farlands = (() => {
         const roadA = roads[0] ?? {x:x-9,y}, roadB = roads.find(t => Math.abs(((t.a-(roads[0]?.a??0))+16)%16-8)<=3) ?? {x:x+9,y};
         const wild = ring(9,12,(tx,ty) => !trailAt(tx,ty) && ['grass','forest','snow','sand'].includes(sample(tx,ty)))[0] ?? roadB;
         const services = site.services ?? [];
+        const landing = coastalDocks[site.id]?.shore;
+        const shore = landing ? {x:landing[0],y:landing[1]} :
+            site.waterfront ? ring(4,13,(tx,ty) => [[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>sample(tx+dx,ty+dy)==='water'))[0] : null;
         const place = {
             inn:front(named(services[0])), market:front(named(services[1])), temple:front(named(services[2])), work:front(named(services[3])),
-            centre:{x,y:y+1}, roadA, roadB, wild,
+            centre:{x,y:y+1}, roadA, roadB, wild, landing:shore,
             field:ring(6,11,(tx,ty) => farmlandAt(tx,ty))[0] ?? wild,
             garden:front(named('Farmhouse')) ?? wild, pasture:{x:x+9,y:y+6}, barn:front(named('Granary')) ?? front(named('Barn')) ?? wild
         };
@@ -14401,15 +14854,20 @@ const Farlands = (() => {
             front(named(services[0])) ?? {x,y:y+2};
         actors.npcs.forEach((npc,k) => {
             if (npc.routine || npc.fauna || !npc.name.startsWith(site.name+' ')) return;
-            const role = npc.name.slice(site.name.length+1), day = villageDay[role];
+            const role = npc.name.slice(site.name.length+1), day = villageDay[role] ?? fishingDays[role];
             if (!day) return;
             const late = Math.floor(hash(x+k,y,301)*4)/8;       // up to 45 minutes, so the village does not move in step
-            const door = homeOf(role);
+            const sleepsAtInn = role==='Fisher'||role==='Dockworker'||role==='Market Buyer';
+            const door = sleepsAtInn ? place.inn ?? homeOf(role) : homeOf(role);
             // R17: each place keeps what it is (market, field, road...), which decides what the resident does there;
             // a guard on the road also has a second post three tiles further out, and walks between the two.
             const guard = role==='Trail Warden' || role==='Caravan Guard';
             const slotAt = (where,from) => {
-                const at = place[where]??place.centre, slot = {from:from+late,...fit(at.x,at.y,from),where,fit:true};
+                const destination = where==='landing'&&!shore ? 'work' : where;
+                const at = place[destination]??place.centre;
+                const room = destination==='inn' && site!==start && role!=='Provisioner' && role!=='Trail Warden' ? site.id+'-service-0' :
+                    destination==='market'&&role==='Market Buyer' ? site.id+'-service-1' : undefined;
+                const slot = {from:from+late,...(room ? at : fit(at.x,at.y,from)),where:destination,fit:true,room};
                 if (guard && (where==='roadA' || where==='roadB')) {
                     const d = Math.hypot(at.x-x,at.y-y) || 1;
                     slot.beat = {...fit(Math.round(at.x+(at.x-x)/d*3),Math.round(at.y+(at.y-y)/d*3),from+'b'),fit:true};
@@ -14417,7 +14875,8 @@ const Farlands = (() => {
                 return slot;
             };
             Object.assign(npc,{movable:false,homeDoor:fit(door.x,door.y,'door'),ebRole:role,ebSite:site.id,
-                routine:day.map(([from,where,says]) => where==='home' ? {from:from+late,home:true} :
+                routine:day.map(([from,where,says]) => where==='home' ? {from:from+late,home:true,
+                    room:sleepsAtInn ? site.id+'-service-0' : undefined} :
                     {...slotAt(where,from),says})});
             delete npc.patrol;
         });
@@ -14466,6 +14925,11 @@ const Farlands = (() => {
                     if (['water','mountain','lava'].includes(sample(x+dx,y+dy))) continue;
                     const resident={name:name+' '+role,class:'villager',x:x+dx,y:y+dy,dialogue,realmId:id+'-resident-'+i};
                     actors.npcs.push(site===start ? restResident(resident,i) : resident);
+                }
+                if (site===start) {
+                    actors.npcs.push(...restNeighbours.map(restNeighbour),
+                        {name:'Ida’s Hen',realmId:'rest-livestock-0',glyph:'🐓',fauna:true,class:'villager',x:x+8,y:y-6,
+                            dialogue:'The hen pecks at the loose straw beside the herb beds.'});
                 }
                 if (site.settlement) {
                     const residents = [
@@ -14529,6 +14993,10 @@ const Farlands = (() => {
                         x:ax,y:ay,dialogue:words+' '+site.story,realmId:site.id+'-r16-'+i,movable:i===1||i===5});
                     added++;
                 }
+                const specialists = site===start ? [] : site.waterfront || Object.hasOwn(coastalDocks,id) ?
+                    ['Fisher','Dockworker'] : !site.settlement ? ['Market Buyer'] : [];
+                for (const role of specialists) actors.npcs.push({name:name+' '+role,class:'villager',x,y,
+                    realmId:id+'-'+role.toLowerCase().replace(' ','-'),dialogue:fishingDays[role][0][2]});
                 villageLife(site,actors); // R17: a working day for the generated residents
                 if (site===start) actors.items.push({x:x+2,y,type:'health_potion',value:1,realmId:'rest-welcome'});
             } else {
@@ -14589,7 +15057,7 @@ const Farlands = (() => {
                             actors.npcs.some(n=>Math.hypot(n.x-sx,n.y-sy)<3)||
                             actors.enemies.some(n=>Math.hypot(n.x-sx,n.y-sy)<3)||
                             actors.buildings.some(n=>Math.hypot(n.x-sx,n.y-sy)<3))continue;
-                        point={x:sx,y:sy};break;
+                        point={x:sx,y:sy,trailX:tx,trailY:ty};break;
                     }
                     if(point)break;
                 }
@@ -14603,8 +15071,22 @@ const Farlands = (() => {
                     Peddler:'Small villages need needles, salt and other goods as much as the towns do.',
                     Surveyor:'I mark water crossings and changes to the trail so the next traveler can find them.'
                 };
+                const roadStops=[];
+                for(let dy=-8;dy<=8;dy++)for(let dx=-8;dx<=8;dx++){
+                    const x=point.trailX+dx,y=point.trailY+dy;
+                    if(Math.max(Math.abs(dx),Math.abs(dy))<5||nearbySite(x,y)||!trailAt(x,y)||
+                        sample(x,y)!=='road'||Math.floor(x/cellSize)!==cx||Math.floor(y/cellSize)!==cy)continue;
+                    roadStops.push({x,y});
+                }
+                const first=roadStops[0], last=roadStops.at(-1), offset=Math.floor(hash(cx,cy,200)*3);
+                const routine=first&&last&&Math.hypot(last.x-first.x,last.y-first.y)>=4 ? [
+                    {from:0,home:true},{from:7+offset,...first,fit:true,where:'roadA',says:words[role]},
+                    {from:12+offset,x:point.x,y:point.y,fit:true,where:'rest',says:words[role]},
+                    {from:15+offset,...last,fit:true,where:'roadB',says:words[role]},{from:21,home:true}
+                ] : null;
                 actors.npcs.push({name:regions[region].name+' '+role,class:role==='Caravan Guard'?'guard':role==='Peddler'?'merchant':'villager',
-                    x:point.x,y:point.y,dialogue:words[role],realmId:'road-r16-'+cx+'-'+cy,movable:false});
+                    x:point.x,y:point.y,dialogue:words[role],realmId:'road-r16-'+cx+'-'+cy,movable:false,
+                    homeDoor:{x:point.x,y:point.y},routine,ebRole:routine?role:undefined});
             }
         }
         // R15.54: use the original authored waystations, 27 named villages,
@@ -14705,8 +15187,8 @@ const Farlands = (() => {
         }
     }
 
-    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,restProps,propAt,propNear,plazaAt,villageAt,
-        sceneCell,remember,hash};
+    return {size,cellSize,regions,stations,sites,settlements,waterfrontSettlements,byId,start,survey,roads,rivers,waterwayPorts,waterwayRoutes,creekPilotage,Terrain,nearbySite:siteAt,generationSite:nearbySite,farmlandAt,pastureAt,villagePropAt,villageGround,villagePathAt,villagePropsNear,regionAt,natural,sample,authoredProps,propAt,propNear,plazaAt,villageAt,
+        coastalDocks,sceneCell,remember,hash};
 })();
 
 </script>
@@ -14716,6 +15198,7 @@ const ebFarlands = (() => {
     const get = id => document.getElementById(id);
     let journey = null;
     let home = null;
+    let horsePresence;
     let chart = null;
     let localChart = null;
     const chartSize = 448;
@@ -14744,11 +15227,39 @@ const ebFarlands = (() => {
                 Number.isInteger(entry[0]) && entry[0]>=0 && entry[0]<Farlands.size**2 && ['grass','road'].includes(entry[1]))),
             visited:new Set(list('visited').filter(id=>Farlands.byId.has(id))),
             spent:new Set(list('spent').filter(id=>typeof id==='string' && /^[a-z0-9-]{1,64}$/.test(id))),
-            station:Farlands.stations.some(site=>site.id===save?.station) ? save.station : Farlands.start.id,
+            station:Farlands.byId.get(save?.station)?.station ? save.station : Farlands.start.id,
             pin:Farlands.byId.has(save?.pin) ? save.pin : null,
             place:where, horseOwned:save?.horseOwned===true, horsePlace:save?.horsePlace && validTile(save.horsePlace.x) && validTile(save.horsePlace.y) ? {x:save.horsePlace.x,y:save.horsePlace.y} : null, cells:new Map(), scene:null
         };
     }
+    function migrateCoast(save) {
+        const journey=newJourney(save);
+        const terrain=journey.terrain;
+        const dry = (x,y) => {
+            const tile=terrain.edits.get(y*Farlands.size+x) ?? Farlands.sample(x,y);
+            return !['water','mountain','lava','door'].includes(tile);
+        };
+        function moveOffNewWater(point) {
+            if (!point || !Number.isInteger(point.x) || !Number.isInteger(point.y) ||
+                Farlands.sample(point.x,point.y,true)==='water' ||
+                terrain.tileAt(point.x,point.y)!=='water') return point;
+            const {x,y}=point;
+            // Search outward from the flooded tile. The old coordinates are in the recovery copy.
+            for (let radius=1;radius<=1024;radius++) {
+                for (let dy=-radius;dy<=radius;dy++) {
+                    for (let dx=-radius;dx<=radius;dx+=Math.abs(dy)===radius ? 1 : 2*radius) {
+                        const nx=x+dx,ny=y+dy;
+                        if (nx>=0&&ny>=0&&nx<Farlands.size&&ny<Farlands.size&&dry(nx,ny)) return {...point,x:nx,y:ny};
+                    }
+                }
+            }
+            throw new Error('Could not find nearby dry ground for the old Farlands position.');
+        }
+        const place=save.place?.sailing ? save.place : moveOffNewWater(save.place);
+        const aboard=save.place?.sailing && save.horsePlace?.x===save.place.x && save.horsePlace?.y===save.place.y;
+        return {...save,version:farlandsSaveVersion,place,horsePlace:aboard ? save.horsePlace : moveOffNewWater(save.horsePlace)};
+    }
+
     // R15.58: the boat the player took is kept with the save, so a reload neither brings it back to its mooring (a
     // second boat beside the one in use or parked) nor loses the parked one. Optional: older saves have no `boat`.
     function restoreBoat(save) {
@@ -14799,10 +15310,10 @@ const ebFarlands = (() => {
                 items.push(...cell.items.filter(item=>!journey.spent.has(item.realmId)));
             }
         }
+        updateBuildingFootprints();
         npcs.push(...ebLife.enroll(residents));
         enemies.forEach(actor=>addPatrol(actor,true));
         npcs.forEach(actor=>addPatrol(actor,false));
-        updateBuildingFootprints();
         return true;
     }
 
@@ -14839,7 +15350,7 @@ const ebFarlands = (() => {
         if (!journey) return state;
         const active=state.map.terrain instanceof Farlands.Terrain ||
             buildingInterior?.outside.map.terrain instanceof Farlands.Terrain;
-        state.farlands={version:1,active,place:active ? recordLocation() : journey.place,
+        state.farlands={version:farlandsSaveVersion,active,place:active ? recordLocation() : journey.place,
             station:journey.station,pin:journey.pin,horseOwned:journey.horseOwned,horsePlace:journey.horsePlace,visited:[...journey.visited],spent:[...journey.spent],
             edits:[...journey.terrain.edits],boat:{taken:window.__ebTakenMooring||null,parked:window.__ebParkedBoat||null}};
         if (active && home) {
@@ -14852,7 +15363,8 @@ const ebFarlands = (() => {
     }
 
     function restore(save) {
-        if (save?.version!==1) return;
+        if (save?.version===1) save=migrateCoast(save);
+        if (save?.version!==farlandsSaveVersion) return;
         journey=newJourney(save);
         restoreBoat(save);
         if (save.active===true) enter(true);
@@ -14913,20 +15425,21 @@ const ebFarlands = (() => {
     // R16: tightly namespaced solo quest progress. Never affects quest-vault-*, errands, combat or multiplayer.
     function markRpgQuest(key) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||
-            !/^rq-(taken|step1|step2)-[abc]-[a-z0-9-]+$/.test(key)||journey.spent.has(key))return false;
+            !/^rq-(taken|step1|step2)-(?:[abc]-[a-z0-9-]+|[dj]-settlement-lantern-0|j-lantern|[efghi]-rest)$/.test(key)||journey.spent.has(key))return false;
         journey.spent.add(key);saveNow();return true;
     }
     function completeRpgQuest(id,kind) {
         if(!journey||!surface()||sharedWorld.active()||buildingInterior||gameState.inBattle||
-            !/^[a-z0-9-]+$/.test(id)||!['a','b','c'].includes(kind))return false;
+            !/^[a-z0-9-]+$/.test(id)||(!['a','b','c'].includes(kind)&&!(kind==='d'&&id==='settlement-lantern-0')&&
+            !(kind==='j'&&['settlement-lantern-0','lantern'].includes(id))&&!(['e','f','g','h','i'].includes(kind)&&id==='rest')))return false;
         const site=Farlands.byId.get(id),prefix='rq-';
         // R16.1: within the station's own radius. nearbySite returns whichever overlapping site it finds first.
         if(!site?.station||Math.max(Math.abs(site.x-gameState.player.x),Math.abs(site.y-gameState.player.y))>site.radius)return false;
         if(journey.spent.has(prefix+'done-'+kind+'-'+id)||
             !journey.spent.has(prefix+'taken-'+kind+'-'+id)||
             !journey.spent.has(prefix+'step1-'+kind+'-'+id)||
-            (kind==='a'&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
-        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15];
+            (['a','d','e','f','g','h','i'].includes(kind)&&!journey.spent.has(prefix+'step2-'+kind+'-'+id)))return false;
+        const [gold,xp]=kind==='a'?[7,8]:kind==='b'?[11,12]:kind==='d'?[24,25]:kind==='e'?[15,18]:kind==='f'?[22,28]:kind==='g'?[20,25]:kind==='h'?[8,9]:kind==='i'?[10,12]:kind==='j'?[12,16]:[14,15];
         journey.spent.add(prefix+'done-'+kind+'-'+id);
         gameState.inventory.gold+=gold;gameState.player.xp+=xp;
         checkLevelUp();updateUI();saveNow();updateHint();return true;
@@ -14939,7 +15452,7 @@ const ebFarlands = (() => {
         const site=Farlands.nearbySite(x,y);
         if (site?.station) journey.station=site.id;
         if (site && !sharedWorld.active()) errandArrived(site);
-        if (site && !sharedWorld.active() && typeof ebRpgQuests!=='undefined') ebRpgQuests.onLocation(site);
+        if ((site || gameState.sailingMoves>0) && !sharedWorld.active() && typeof ebRpgQuests!=='undefined') ebRpgQuests.onLocation(site);
         if (site && !journey.visited.has(site.id)) {
             journey.visited.add(site.id);
             if (Farlands.survey.includes(site.id) && Farlands.survey.every(id=>journey.visited.has(id))) {
@@ -15441,10 +15954,10 @@ const ebFarlands = (() => {
         const travel=get('eb-farlands-travel');
         travel.disabled=!here?.station || !selected.station || here===selected;
         const waterLink=here?.station && selected.station && routeFor(here.id,selected.id);
-        travel.textContent=waterLink ? '⛵ Pilot boat' : selected.region==='lantern' || here?.region==='lantern' ? 'Ferry route unavailable' : 'Horse-drawn carriage';
+        travel.textContent=waterLink ? '⛵ Pilot passage boat' : selected.region==='lantern' || here?.region==='lantern' ? 'Ferry route unavailable' : 'Horse-drawn carriage';
         if(!waterLink && (selected.region==='lantern'||here?.region==='lantern')) travel.disabled=true;
         get('eb-farlands-travel-note').textContent=!selected.station ? 'Reach this landmark on foot. Pin it for a bearing.' :
-            here?.station ? 'Carriages provide station travel. Ferries connect the island quay. Select a linked river port to pilot a boat; other destinations use carriages.' :
+            here?.station ? 'Pilot a passage boat between linked stations in a separate sailing scene. Board boats at a shoreline for free sailing. Carriages serve overland destinations.' :
                 'Ports: Wayfarer’s Rest (Hearthmere), Aldercross, Reedhaven, Amberport and Lantern Quay. Walk to one and tap Routes from… for direct connections.';
         get('eb-farlands-pin').textContent=journey.pin===selected.id ? 'Clear pin' : 'Pin this place';
         get('eb-farlands-discovery').textContent=journey.visited.size+' / '+Farlands.sites.length+' places visited';
@@ -15485,7 +15998,9 @@ const ebFarlands = (() => {
         list.replaceChildren();
         const port=Farlands.waterwayPorts.find(p=>p.id===here.id);
         get('eb-transport-board-title').textContent=(port ? '⚓ '+port.name : '🚋 '+here.name+' Station');
-        get('eb-transport-board-hint').textContent=port ? 'Available boat passages and road connections:' : 'Available road connections from this station:';
+        get('eb-transport-board-hint').textContent=port
+            ? 'Passage boats use a separate sailing scene.'
+            : 'Available road connections from this station:';
         const links=Farlands.stations.filter(site=>site.id!==here.id).map(to=>({to,link:routeFor(here.id,to.id)}));
         // Water connections first. Other stations remain accessible by existing carriage service.
         links.sort((a,b)=>Number(!!b.link)-Number(!!a.link)||a.to.name.localeCompare(b.to.name));
@@ -15609,7 +16124,7 @@ const ebFarlands = (() => {
             get('eb-transport-board').close();openAtlas();
         });
         // Horse is a world-space actor, not a fixed HUD icon.
-        const horsePresence=document.createElement('div');
+        horsePresence=document.createElement('div');
         horsePresence.id='eb-horse-presence';
         horsePresence.setAttribute('aria-label','Your horse');
         horsePresence.innerHTML=`<svg viewBox="0 0 64 60" width="64" height="60" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -15624,19 +16139,6 @@ const ebFarlands = (() => {
           <path d="M20 19 Q31 9 39 20" fill="none" stroke="#f1ce87" stroke-width="2"/>
         </svg>`;
         document.getElementById('worldGrid')?.append(horsePresence);
-        function updateVisibleHorse(){
-            const show=surface() && !sharedWorld.active() && !buildingInterior && gameState.sailingMoves<=0 && !!journey?.horseOwned && classicView();
-            const grid=document.getElementById('worldGrid');
-            if (grid && horsePresence.parentElement!==grid) grid.append(horsePresence);
-            horsePresence.hidden=!show;
-            document.querySelector('.main-player-avatar')?.classList.toggle('eb-riding-horse',Boolean(show && ebHorseMounted));
-            if (!show) return;
-            const x=ebHorseMounted?gameState.player.x:(journey.horsePlace?.x ?? gameState.player.x+1);
-            const y=ebHorseMounted?gameState.player.y:(journey.horsePlace?.y ?? gameState.player.y);
-            horsePresence.style.left=(x*32-16)+'px';
-            horsePresence.style.top=(y*32-28)+'px';
-            horsePresence.classList.toggle('mounted',ebHorseMounted);
-        }
         setInterval(updateVisibleHorse,80);
         const horseButton=get('eb-farlands-horse');
         let horseActionConfirmed=false;
@@ -15735,7 +16237,7 @@ const ebFarlands = (() => {
             if(link){voyageStart(here,there,link);return;}
             // Preserve the existing overland carriage service.
             if(here.region==='lantern' || there.region==='lantern') {
-                alert('No navigable waterway connects these ports yet. Select Amberport or Lantern Quay for the coastal passage.');
+                alert('No station passage serves this destination. Select Amberport or Lantern Quay for the coastal passage.');
                 return;
             }
             putPlayer(pointAt(there));
@@ -15790,8 +16292,28 @@ const ebFarlands = (() => {
         updateControls();
     });
 
+    function updateVisibleHorse(rider = document.querySelector('.main-player-avatar')) {
+        if (!horsePresence) return;
+        const show = surface() && !sharedWorld.active() && !buildingInterior &&
+            gameState.sailingMoves <= 0 && journey?.horseOwned && classicView();
+        const mounted = Boolean(show && ebHorseMounted && rider);
+        const parent = mounted ? rider : get('worldGrid');
+        if (parent && horsePresence.parentElement !== parent) parent.append(horsePresence);
+        horsePresence.hidden = !show;
+        horsePresence.classList.toggle('mounted', mounted);
+        rider?.classList.toggle('eb-riding-horse', mounted);
+        if (mounted) {
+            horsePresence.style.removeProperty('left');
+            horsePresence.style.removeProperty('top');
+        } else if (show) {
+            const x = journey.horsePlace?.x ?? gameState.player.x + 1;
+            const y = journey.horsePlace?.y ?? gameState.player.y;
+            horsePresence.style.left = (x * 32 - 16) + 'px';
+            horsePresence.style.top = (y * 32 - 28) + 'px';
+        }
+    }
     function discoveries() { return journey ? new Set(journey.visited) : new Set(); }
-    return {surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
+    return {migrateCoast,updateVisibleHorse,surface,inRealm,enter,leave,pack,restore,reset,startDefault,pin,pinned,refreshScene,consume,location,errandGoal,errandTalk,errandsInHand,acceptOfferedErrand,rescuePoint,shore,drawTerrain,updateControls,discoveries,openAtlas,
         completeHerbLesson,storyFlag,markStory,markTalk,markRpgQuest,completeRpgQuest,refreshStoryHint,saveStoryNow,horseState:()=>({owned:!!journey?.horseOwned,place:journey?.horsePlace??null})};
 })();
 
@@ -15804,7 +16326,25 @@ const ebStory = (() => {
     const mark=id=>ebFarlands.markStory('quest-vault-'+id);
     const isVault=b=>b?.realmId==='toll-structure';
     const active=()=>ebFarlands.inRealm() && !sharedWorld.active();
-    function objective() {
+    const crossingGate={x:12,y:9}, crossingDesk={x:13,y:12}, crossingMargin={x:10,y:12};
+    const CROSSING_SIGNS=['Boat','Grain','Bell'];
+    const crossingTitle='The Tollkeeper’s Last Crossing';
+    const clueText='First the boat, then the grain, then the bell.';
+    function crossingObjective(){
+        if(!active()||!flag('crossing-started'))return null;
+        if(flag('crossing-done'))return {label:'Mira recorded the names of the rescued ferrymen',done:true};
+        if(!flag('crossing-clue'))return {label:'Read the flood marker by Millbend creek',site:Farlands.byId.get('mill')};
+        if(flag('crossing-chart'))return {label:'Bring the flood chart to Mira',site:Farlands.byId.get('rest')};
+        if(!buildingInterior?.questDungeon)return {label:'Find the flood door beneath the Old Tollhouse',site:Farlands.byId.get('toll')};
+        if(!flag('crossing-lock'))return {label:'Set the flood-door signs in order'};
+        if(!flag('crossing-sentinel'))return {label:'Defeat the Siltbound Keeper'};
+        return {label:'Read the flood chart inside the chamber'};
+    }
+    function objective(){
+        const crossing=crossingObjective();
+        return crossing&&!crossing.done ? crossing : harvestObjective();
+    }
+    function harvestObjective() {
         if(!active())return null;
         if(flag('reward'))return {label:'The Harvest Bell sings again · chapter complete',done:true};
         if(flag('relic'))return {label:'Bring the Harvest Bell to Mira',site:Farlands.byId.get('rest')};
@@ -15819,7 +16359,13 @@ const ebStory = (() => {
     }
     function mira() {
         if (!active())return '';
-        if(flag('reward'))return '<p style="margin:12px 0">The bell rings again at harvest. You have restored the valley’s promise.</p>';
+        if(flag('reward')){
+            const thanks='<p style="margin:12px 0">The bell rings again at harvest. You have restored the valley’s promise.</p>';
+            if(flag('crossing-done'))return thanks+'<p>My grandmother was the smallest name on that chart. You brought her home twice, in a way.</p>';
+            if(flag('crossing-chart'))return thanks+'<section data-eb-pane="quests" data-eb-ready="1"><strong>'+crossingTitle+'</strong><p>These are passengers, not tolls. Let me put their names where the next ferryman can see them.</p><button type="button" class="btn" onclick="ebStory.finishCrossing()">Record the rescued names</button></section>';
+            if(flag('crossing-started'))return thanks+'<p>My grandmother said the old keeper never charged anyone during the flood. I’d like to know who he ferried across.</p>';
+            return thanks+'<section data-eb-pane="quests"><strong>'+crossingTitle+'</strong><p>The bell shook loose a memory. My grandmother said the tollkeeper hid a flood chart behind three brass signs. The marker by Millbend may tell us how to open them.</p><button type="button" class="btn" onclick="ebStory.beginCrossing()">Ask about the flood chart</button></section>';
+        }
         if(flag('relic')) {
             if(!flag('reward')) {
                 gameState.inventory.gold+=65;
@@ -15839,6 +16385,10 @@ const ebStory = (() => {
         const terrain=layout.map(row=>[...row].map(char=>({
             '#':'wall','.':'floor','E':'exit','D':unlocked?'floor':'door','T':'floor'
         })[char]));
+        if(flag('crossing-started')){
+            for(let x=9;x<=15;x++)terrain[crossingGate.y][x]='wall';
+            terrain[crossingGate.y][crossingGate.x]=flag('crossing-lock')?'floor':'door';
+        }
         const outside={map:captureAdventureMap(),x:gameState.player.x,y:gameState.player.y};
         const furniture=[
             {kind:'brazier',x:2,y:2},{kind:'rack',x:6,y:4},
@@ -15850,6 +16400,10 @@ const ebStory = (() => {
             x:11,y:7,hp:55,maxHp:55,attack:10,defense:3,xpReward:75,goldReward:35,
             movable:false
         }];
+        if(flag('crossing-started')){
+            furniture.push({kind:'table',...crossingDesk},{kind:'trunk',...crossingMargin},{kind:'brazier',x:15,y:11});
+            if(flag('crossing-lock')&&!flag('crossing-sentinel'))guardian.push(crossingSentinel());
+        }
         const relic=flag('relic')?[]:[{
             x:13,y:3,type:'vault_relic',value:1,realmId:'quest-vault-relic'
         }];
@@ -15859,9 +16413,10 @@ const ebStory = (() => {
             npcs:[],enemies:guardian,items:relic,buildings:[]};
         const door={...EB_VAULT_EXIT};
         const interior={building,outside,door,service:{x:-10,y:-10},furniture,
-            decorTiles:new Set(),questDungeon:true};
+            decorTiles:new Set(),questDungeon:true,crossingSequence:0};
         setInteriorState(interior);
-        const valid=position && Number.isInteger(position.x)&&Number.isInteger(position.y)&&
+        const valid=position && (flag('crossing-lock')||!flag('crossing-started')||position.y<=9||position.x<=8) &&
+            Number.isInteger(position.x)&&Number.isInteger(position.y)&&
             position.x>0&&position.y>0&&position.x<layout[0].length-1&&position.y<layout.length-1&&
             terrain[position.y][position.x]!=='wall'&&terrain[position.y][position.x]!=='door'&&
             (unlocked || position.x<EB_VAULT_GATE.x);
@@ -15904,6 +16459,94 @@ const ebStory = (() => {
         releaseMovement();document.getElementById('interactionModal').style.display='flex';return true;
     }
     function ledgerNote(){return active()&&flag('ledger')?'<section id="eb-archive-copy" style="padding:12px;margin:10px 0;border:1px solid rgba(180,200,180,.25);border-radius:10px;text-align:left"><strong>'+ledgerTitle+'</strong>'+ledgerPage+'</section>':'';}
+    function crossingSentinel(){
+        return {name:'Siltbound Keeper',class:'enemy-spawn enemy-goblin',realmId:'quest-vault-crossing-sentinel',
+            x:13,y:11,hp:68,maxHp:68,attack:12,defense:4,xpReward:30,goldReward:18,movable:false};
+    }
+    function nearMira(){
+        return active()&&ebFarlands.surface()&&!gameState.inBattle&&npcs.some(n=>n.name==='Mira, the Cartographer'&&
+            Math.hypot(n.x-gameState.player.x,n.y-gameState.player.y)<=1.5);
+    }
+    function beginCrossing(){
+        if(!nearMira()||!flag('reward')||!mark('crossing-started'))return;
+        ebFarlands.pin('mill');closeModal();
+    }
+    function finishCrossing(){
+        if(!nearMira()||!flag('crossing-chart')||flag('crossing-done'))return;
+        gameState.inventory.gold+=24;gameState.player.xp+=30;
+        checkLevelUp();updateUI();mark('crossing-done');
+        document.getElementById('modalTitle').textContent='The river remembers';
+        document.getElementById('modalContent').textContent='Mira reads her grandmother’s name aloud, then copies the chart into the village record. “She always said the boat was too small. Apparently so was the tollkeeper’s handwriting.” You earned 24 gold and 30 XP.';
+    }
+    function crossingClue(prop){
+        if(!active()||!flag('crossing-started')||prop.name!=='Millbend flood marker')return '';
+        if(mark('crossing-clue')){ebFarlands.pin('toll');return 'You copy the order of the three signs. Follow the old road to the Tollhouse.';}
+        return 'The sign order is in your Explorer’s Journal.';
+    }
+    function nearCrossing(at,r=1.35){
+        const p=gameState.player;
+        return active()&&buildingInterior?.questDungeon&&flag('crossing-started')&&!gameState.inBattle&&Math.hypot(p.x-at.x,p.y-at.y)<=r;
+    }
+    function crossingModal(title,text){
+        document.getElementById('modalTitle').textContent=title;
+        const content=document.getElementById('modalContent');content.textContent=text;
+        releaseMovement();document.getElementById('interactionModal').style.display='flex';
+        return content;
+    }
+    function floodDoor(){
+        if(!nearCrossing(crossingGate)||flag('crossing-lock'))return;
+        if(!flag('crossing-clue')){
+            crossingModal('The flood door','Three brass signs are worn smooth. Mira mentioned a flood marker by the creek at Millbend.');
+            return;
+        }
+        const room=buildingInterior;
+        room.crossingSequence=0;
+        const content=crossingModal('The flood door','A boat, a sack of grain, and a bell. Set the signs in the order you found at Millbend.');
+        const status=document.createElement('p');status.setAttribute('role','status');content.append(status);
+        const signs=document.createElement('div');content.append(signs);
+        for(const label of ['Bell','Boat','Grain']){
+            const button=document.createElement('button');button.type='button';button.className='btn';
+            button.textContent=label;
+            button.addEventListener('click',()=>{
+                if(buildingInterior!==room||!nearCrossing(crossingGate)||flag('crossing-lock'))return;
+                if(label!==CROSSING_SIGNS[room.crossingSequence]){
+                    room.crossingSequence=0;status.textContent='The signs spring back. Start again.';return;
+                }
+                if(++room.crossingSequence<CROSSING_SIGNS.length){
+                    status.textContent=room.crossingSequence+' of 3 signs set.';return;
+                }
+                changeAdventureTile(crossingGate.x,crossingGate.y,'floor');
+                enemies.push(crossingSentinel());
+                mark('crossing-lock');closeModal();
+                resetWorldRenderCache();initializeMinimap();renderWorld();ebSound.play('pickup');
+            });
+            signs.append(button);
+        }
+    }
+    function readCrossing(){
+        if(nearCrossing(crossingGate)&&!flag('crossing-lock')){floodDoor();return true;}
+        if(!flag('crossing-sentinel'))return false;
+        if(nearCrossing(crossingDesk)){
+            const first=mark('crossing-chart');
+            if(first)ebFarlands.pin('rest');
+            crossingModal('The rescued names','A dry chart lists nineteen passengers, two goats, and one child marked “too small for a fare.” The tollkeeper crossed out every debt. Take this record back to Mira.');
+            return true;
+        }
+        if(nearCrossing(crossingMargin)){
+            mark('crossing-margin');
+            crossingModal('A private tally','The keeper wrote a second list inside his coat: “One blanket, one wet dog, and one excellent excuse for being late to supper.” Copied to the Explorer’s Journal.');
+            return true;
+        }
+        return false;
+    }
+    function crossingNote(){
+        const q=crossingObjective();
+        if(!q)return '';
+        const clue=flag('crossing-clue')?'<p>Millbend marker: '+clueText+'</p>':'';
+        const secret=flag('crossing-margin')?'<p>Private tally discovered: one blanket, one wet dog, and one excellent excuse for being late to supper.</p>':'';
+        const track=q.site?`<button type="button" class="btn" onclick="ebFarlands.pin('${q.site.id}');closeModal()">Mark ${escapeMapText(q.site.name)} on the Atlas</button>`:'';
+        return '<section style="padding:12px;margin:10px 0;border:1px solid rgba(180,200,180,.25);border-radius:10px;text-align:left"><strong>'+crossingTitle+'</strong><p>'+q.label+'</p>'+clue+secret+track+'</section>';
+    }
     function interactDungeon() {
         if(!buildingInterior?.questDungeon)return;
         const {x,y}=gameState.player;
@@ -15918,7 +16561,7 @@ const ebStory = (() => {
             else collectItem(items.indexOf(relic));
             return;
         }
-        if(readLedger())return;
+        if(readCrossing()||readLedger())return;
         showFloatingText(flag('guardian')?'Find the bell in the eastern chamber':'The archive still has a guardian',x*32+16,y*32,'#d3b483');
     }
     // The pin follows the quest: if the place just finished was pinned, the next place is pinned instead.
@@ -15933,13 +16576,22 @@ const ebStory = (() => {
             if(enemy){at=enemy;text='Challenge '+enemy.name;}
             else if(!flag('gate')&&near(EB_VAULT_GATE,1.5)){at=EB_VAULT_GATE;text=flag('key')?'Iron gate nearby · use ward key':'Iron gate nearby · needs ward key';}
             else {const relic=items.find(i=>i.type==='vault_relic'&&near(i,1));if(relic){at=relic;text=flag('guardian')?'Harvest Bell nearby · take it':'Harvest Bell nearby · still guarded';}
+                else if(nearCrossing(crossingGate)&&!flag('crossing-lock')){at=crossingGate;text='Flood door nearby · set the signs';}
+                else if(flag('crossing-sentinel')&&nearCrossing(crossingDesk)){at=crossingDesk;text='Flood chart nearby · read';}
+                else if(flag('crossing-sentinel')&&nearCrossing(crossingMargin)){at=crossingMargin;text='Small trunk nearby · inspect';}
                 else {const rack=nearbyLedger();if(rack){at=rack;text='Archive ledger nearby · read';}}}
         }
         if(!at)return '';const dx=at.x-p.x,dy=at.y-p.y,d=Math.hypot(dx,dy);
         return d<.01||(-Math.sin(yaw)*dx-Math.cos(yaw)*dy)/d>=.6?text:'';
     }
-    const bumpGate=()=>openGate(true); // walking into the gate: opens with the ward key, a short note without it
-    return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon,eyeHint,ledgerNote};
+    const bumpGate=(x,y)=>{
+        if(x===crossingGate.x&&y===crossingGate.y){
+            showFloatingText('Use the three brass signs',x*32+16,y*32,'#fbbf24');return;
+        }
+        openGate(true);
+    };
+    return {isVault,objective,harvestObjective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon,eyeHint,ledgerNote,
+        beginCrossing,finishCrossing,crossingClue,crossingNote};
 })();
 </script>
 <script data-source="farlands-life.js">
@@ -15949,15 +16601,52 @@ const ebStory = (() => {
 // moment for a hero standing close, and goes indoors for the night. One position serves drawing, talking and blocking.
 const ebLife = (() => {
     const pace = .85;                    // tiles per second: an unhurried walk, the same on a slow or a fast device
-    let roster = [], lastTick = 0;
+    let roster = [], lastTick = 0, localHour = 0;
     const hour = () => { const [h,m] = worldClimate.time.split(':').map(Number); return h + m/60; };
-    function slotOf(npc) {
-        const now = hour();
+    // Event destinations reuse places each resident already knows how to reach. Completion flags are the
+    // entire durable state; opening the game after a missed shift derives the right schedule from the clock.
+    const effects = () => ({
+        bread:ebFarlands.storyFlag('rq-done-h-rest'),
+        supper:ebFarlands.storyFlag('rq-done-i-rest'),
+        quay:ebFarlands.storyFlag('rq-done-j-settlement-lantern-0'),
+        cargo:ebFarlands.storyFlag('rq-done-j-lantern')
+    });
+    function eventSlot(npc, now, state) {
+        if (state.bread && now>=17.95 && now<19.75 &&
+            ['nell','fen'].includes(npc.restNeighbour)) {
+            return npc.marketService ??= {...npc.routine.find(s=>s.from===(npc.restNeighbour==='nell'?13:12)),
+                event:'late-market',says:npc.restNeighbour==='nell'?
+                    'The late loaves are out. Fen can take the end piece if he stops counting it.' :
+                    'Six loaves. I can do six without taking my boots off now.'};
+        }
+        if (state.supper && now>=17 && now<18.5 && ['piper','osric'].includes(npc.restNeighbour)) {
+            const fiddler=npc.restNeighbour==='piper';
+            return npc.watchSupper ??= {...npc.routine.find(s=>s.from===(fiddler?18.25:21)),
+                event:'watch-supper',where:'square',says:fiddler?
+                    'I promised the watch a tune. They asked for a short one, which is rude and fair.' :
+                    'They sent me a hot heel of bread. I can sit through a tune without calling it loitering.'};
+        }
+        const opened = (npc.ebSite==='lantern' && state.cargo) ||
+            (npc.ebSite==='settlement-lantern-0' && state.quay);
+        if (opened && now>=18.95 && now<21.25 && ['Fisher','Dockworker'].includes(npc.ebRole)) {
+            const shore=npc.routine.find(s=>s.where==='landing'&&s.from>=14);
+            if (shore) return npc.lateCargo ??= {...shore,event:'late-cargo',
+                says:npc.ebRole==='Fisher'?'Set the dry baskets down first. The inn can wait another bell.' :
+                    'One more load while the berth is free. Mind the trailing rope.'};
+        }
+        return null;
+    }
+    function slotOf(npc, now, state) {
+        const event=eventSlot(npc,now,state);
+        if (event) return event;
         let slot = npc.routine[npc.routine.length-1];
         for (const entry of npc.routine) if (entry.from <= now) slot = entry;
         return slot;
     }
     const goalOf = (npc,slot) => slot.home ? npc.homeDoor : slot;
+    const restPatrons = () => roster.filter(npc => npc.restHome==='inn' && npc.indoors);
+    const roomPatrons = id => roster.filter(npc => npc.ebSite!=='rest' && npc.life?.slot.room===id &&
+        (npc.indoors || Math.hypot(npc.x-npc.life.slot.x,npc.y-npc.life.slot.y)<.1)).slice(0,2);
     // R17: a generated resident's place is chosen before the scene's structures are known; the first time it is used
     // with the scene loaded, a place inside a structure moves to the nearest walkable tile (Rest's authored places do not).
     function usable(npc,slot) {
@@ -16002,10 +16691,11 @@ const ebLife = (() => {
     function enroll(all) {
         roster = all.filter(npc => npc.routine);
         // first sight of a resident: they are simply where the hour says, not marching in from somewhere
+        const now=hour(), state=effects();
         for (const npc of roster) if (!npc.life) {
-            const slot = slotOf(npc), goal = goalOf(npc,slot);
+            const slot = slotOf(npc,now,state), goal = npc.restNeighbour || slot.room || npc.realmId?.startsWith('road-r16-') || ['Fisher','Dockworker','Market Buyer'].includes(npc.ebRole) ? usable(npc,slot) : goalOf(npc,slot);
             npc.life = {slot,path:null,retry:0};
-            npc.indoors = !!slot.home;
+            npc.indoors = !!(slot.home || slot.room);
             npc.x = goal.x; npc.y = goal.y;
         }
         speak();
@@ -16022,26 +16712,29 @@ const ebLife = (() => {
         if (!roster.length || !ebFarlands.surface() || sharedWorld.active()) return;
         let listChanged = false;
         const hero = gameState.player;
+        const clock=localHour=hour();
+        const alternatePost=Math.floor(clock*2)%2;
+        const state=effects();
         const stride = pace*Math.min(.5,Math.max(0,(now-lastTick)/1000));
         lastTick = now;
         for (const npc of roster) {
             if (npc === hold) continue;                      // R17: the person in conversation stays as they were
-            const life = npc.life, slot = slotOf(npc);
+            const life = npc.life, slot = slotOf(npc,clock,state);
             if (life.slot !== slot) {
                 life.slot = slot; life.path = null; life.retry = 0;
-                if (npc.indoors && !slot.home) {            // morning: out of the door
-                    npc.indoors = false; npc.x = npc.homeDoor.x; npc.y = npc.homeDoor.y;
+                if (npc.indoors && !slot.home) {            // out of the same door used to enter
+                    npc.indoors = false;
                     if (!npcs.includes(npc)) { npcs.push(npc); listChanged = true; }
                 }
             }
             if (npc.indoors) continue;
             // R17: a guard's road post alternates with the post beyond it every half hour (both deterministic)
-            const goal = slot.beat && Math.floor(hour()*2)%2 ? usable(npc,slot.beat) : usable(npc,slot);
+            const goal = slot.beat && alternatePost ? usable(npc,slot.beat) : usable(npc,slot);
             if (Math.hypot(hero.x-npc.x,hero.y-npc.y) > DISTANT && (npc.x!==goal.x || npc.y!==goal.y)) {
                 npc.x = goal.x; npc.y = goal.y; life.path = null;
             }
             if (npc.x===goal.x && npc.y===goal.y) {
-                if (slot.home) {                             // night: in at the door
+                if (slot.home || slot.room) {                // arrived at this room's door
                     npc.indoors = true;
                     const at = npcs.indexOf(npc);
                     if (at>=0) { npcs.splice(at,1); listChanged = true; }
@@ -16090,7 +16783,7 @@ const ebLife = (() => {
         'Ivo, the Millwright':{6:'work',11:'trade',17:'rest'},
         'Tamsin, the Herbalist':{18:'tend'},
         'Bram, the Storyteller':{8:'story',13:'story',18:'story'},
-        'Hale, the Wheelwright':{6:'work',12:'work',19:'rest'},
+        'Hale, the Wheelwright':{6:'repair',12:'repair',19:'rest'},
         'Wren, a Pilgrim':{6:'pray',10:'rest',16:'pray'}
     };
     const NAMED_LOOK = {'Ivo, the Millwright':'Mason','Hale, the Wheelwright':'Mason','Nessa, the Orchard Keeper':'Merchant',
@@ -16102,37 +16795,68 @@ const ebLife = (() => {
         const kind = plan[Math.floor(slot.from)];
         if (!kind) return null;
         if (kind === 'trade') return {kind,face:Math.hypot(hero.x-npc.x,hero.y-npc.y) <= 3 ? [hero.x,hero.y] : null};
-        if (kind === 'story') return {kind:'speak',face:null};
+        if (kind === 'story') {
+            const listener=roster.find(other=>other.restNeighbour && standing(other,now) &&
+                Math.hypot(other.x-npc.x,other.y-npc.y)<=2.6);
+            return {kind:'speak',face:listener ? [listener.x,listener.y] : null};
+        }
         return {kind,face:null};
     }
     const storyteller = now => roster.find(o => o.name === 'Bram, the Storyteller' && named(o,now)?.kind === 'speak');
+    // A work detail follows the resident's current stop, including the transition between stops.
+    function localWork(npc,now) {
+        if (!standing(npc,now)) return null;
+        const slot=npc.life?.slot;
+        if (!slot || Math.hypot(npc.x-slot.x,npc.y-slot.y)>.15) return null;
+        if (npc.ebSite==='settlement-rest-0' && npc.ebRole==='Farmer' && slot.where==='field')
+            return {kind:'harvest',note:'I gather the ripe crop a row at a time. The granary is east of the square, and the market takes what we can spare.'};
+        if (npc.ebSite==='settlement-lantern-0' && npc.ebRole==='Provisioner' && slot.where==='market')
+            return {kind:'sortCatch',landmark:'pearl',note:'I grade the shell baskets from Pearl Banks here. Follow the path to the tide board by the landing if you’re heading out on the bay.'};
+        return null;
+    }
     function activity(npc, now) {
         if (!npc.ebRole) return NAMED[npc.name] ? named(npc, now) : null;
         const life = npc.life, slot = life?.slot;
         if (!slot || slot.home || npc.indoors) return null;
         const hero = gameState.player;
+        const role=npc.ebRole;
         // guards turn to face a hostile within nine tiles, wherever they are
         if (GUARDS.has(npc.ebRole)) {
             const foe = enemies.find(e => Math.hypot(e.x-npc.x,e.y-npc.y) <= 9);
             if (foe) return {kind:'alert',face:[foe.x,foe.y]};
         }
+        const close= Math.hypot(hero.x-npc.x,hero.y-npc.y)<=2.5;
+        if (!close) life.nearHero=false;
+        if (close && !life.nearHero && GUARDS.has(role) && now>(life.nextGreeting ?? 0)) {
+            life.nearHero=true; life.nextGreeting=now+18000; life.waveUntil=now+1100;
+        }
         // people who know what you have done here wave once when you come close
         if (life.waveUntil > now) return {kind:'wave',face:[hero.x,hero.y]};
-        if (!life.greeted && Math.hypot(hero.x-npc.x,hero.y-npc.y) <= 2.5 && typeof ebRpgQuests !== 'undefined' &&
+        if (!life.greeted && npc.ebSite && close && now>(life.checkDeeds ?? 0) && typeof ebRpgQuests !== 'undefined' &&
             typeof ebRpgQuests.deeds === 'function' && ebRpgQuests.deeds(Farlands.byId.get(npc.ebSite)).length) {
             life.greeted = true; life.waveUntil = now + 2200;
             return {kind:'wave',face:[hero.x,hero.y]};
         }
+        if (close && !life.greeted && now>(life.checkDeeds ?? 0)) life.checkDeeds=now+1500;
         if (!standing(npc,now)) {
+            if (role==='Farmer' && (slot.where==='barn'||slot.where==='market')) return {kind:'carry',face:null};
             // two residents passing on the road nod to each other
             const other = roster.find(o => o !== npc && !o.indoors && Math.hypot(o.x-npc.x,o.y-npc.y) < 1.3);
             return other ? {kind:'nod',face:[other.x,other.y]} : null;
         }
         const near = (r, pick) => roster.filter(o => o !== npc && standing(o,now) && Math.hypot(o.x-npc.x,o.y-npc.y) <= r && (!pick || pick(o)))
             .sort((a,b) => Math.hypot(a.x-npc.x,a.y-npc.y)-Math.hypot(b.x-npc.x,b.y-npc.y));
-        const where = slot.where, role = npc.ebRole;
+        const work = localWork(npc,now);
+        if (work) return {kind:work.kind,face:null};
+        const where = slot.where;
+        if (where==='landing') return {kind:role==='Fisher'?'sortCatch':'carry',face:null};
+        if (where==='field') return {kind:'harvest',face:null};
+        if (where==='rest') return {kind:'rest',face:null};
         if (where === 'market') {
             if (TRADERS.has(role)) {
+                const next=slot.event ? null : npc.routine[npc.routine.indexOf(slot)+1];
+                if (npc.ebSite!=='rest' && next && (next.home||next.where==='inn') &&
+                    next.from-localHour<=.4) return {kind:'pack',face:null};
                 const buyer = Math.hypot(hero.x-npc.x,hero.y-npc.y) <= 3 ? hero : near(3, o => !TRADERS.has(o.ebRole))[0];
                 return {kind:'trade',face:buyer ? [buyer.x,buyer.y] : null};
             }
@@ -16149,7 +16873,8 @@ const ebLife = (() => {
             return {kind:'rest',face:cook ? [cook.x,cook.y] : null};
         }
         if (where === 'temple') return {kind:'pray',face:null};
-        if (where === 'work' || where === 'field' || where === 'garden') return {kind:'work',face:null};
+        if (where === 'work') return {kind:['Mason','Craftsperson','Dockworker'].includes(role)?'repair':'work',face:null};
+        if (where === 'garden') return {kind:'tend',face:null};
         if (where === 'pasture' || where === 'barn') return {kind:'tend',face:null};
         if ((where === 'roadA' || where === 'roadB') && GUARDS.has(role)) return {kind:'watch',face:null};
         // Bram telling a story close by: those standing within three tiles turn to listen
@@ -16163,7 +16888,27 @@ const ebLife = (() => {
         }
         return null;
     }
-    return { enroll, tick, roster:() => roster, hour, activity, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
+    function followup(npc) {
+        if (!npc || !ebFarlands.inRealm() || sharedWorld.active() || npc.fauna) return null;
+        const state=effects(), late=hour()>=17;
+        if (state.bread && npc.name==='Nell, the Baker') return {line:late?
+            'There’s an extra batch on the stall before supper. I saved you a heel.' :
+            'You got the inn its bread. I can keep the stall open for another batch now.'};
+        if (state.supper && npc.name==='Piper, a Road Fiddler') return {line:late?
+            'The watch has supper, and you have the first request. I only know three tunes.' :
+            'Come back before supper. I promised Osric a tune after you sorted out the bread.'};
+        if (state.supper && npc.name==='Osric, the Watchman') return {line:
+            'Hot bread on watch was your doing. Hale still keeps the sounding board for anyone taking the Millbend road.',lead:'mill'};
+        if (state.quay && npc.name==='Shellwick Waykeeper') return {line:
+            'We loaded dry baskets for once. The collectors at Pearl Banks put the tide marks beside the landing road.',lead:'pearl'};
+        if (state.cargo && npc.name==='Lantern Quay Waykeeper') return {line:late?
+            'They’re still loading at the quay. The late berth is worth keeping after all.' :
+            'Your instructions reached Shellwick. We can take another load after the ferry clears.'};
+        if (state.cargo && ['Lantern Quay Fisher','Lantern Quay Dockworker'].includes(npc.name)) return {line:
+            'You’re the one who got us that late berth. The inn has set our supper aside.',lead:'pearl'};
+        return null;
+    }
+    return { followup, restPatrons, roomPatrons, enroll, tick, roster:() => roster, hour, activity, localWork, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
         drawn:npc => Boolean(npc.ebRole || NAMED[npc.name]) };
 })();
 </script>
@@ -16541,8 +17286,24 @@ const ebRpgAccess=(()=>{
     function response(npc,topic){
         const region=Farlands.regions[Farlands.regionAt(npc.x,npc.y)];
         const site=Farlands.nearbySite(npc.x,npc.y);
-        if(topic==='work')return work[roleOf(npc)];
+        if(topic==='work'){
+            const current=ebLife.localWork(npc,performance.now());
+            if(current)return current.note;
+            if(npc.ebRole&&npc.life?.slot?.says&&!npc.indoors&&Math.hypot(npc.x-npc.life.slot.x,npc.y-npc.life.slot.y)<.15)
+                return npc.life.slot.says;
+            return work[roleOf(npc)];
+        }
         if(topic==='news'){
+            if (npc.ebRole && npc.ebSite && npc.ebSite!=='rest') {
+                const late=ebLife.hour()>=18;
+                if (npc.ebRole==='Fisher') return late?'The fish went to the inn hours ago. The gulls are still lodging complaints.':
+                    'The morning tide is fickle here. Ask a dockworker before you trust an empty berth.';
+                if (npc.ebRole==='Dockworker') return worldClimate.season==='winter'?
+                    'Wet rope freezes stiff. The chandlery swears theirs won’t. I’d ask to see it tomorrow morning.':
+                    'The market calls every late crate urgent. Funny how none of them are here to unload one.';
+                if (npc.ebRole==='Market Buyer') return late?'The stalls are winding down. Anything unsold will be in the inn pot.':
+                    'The baker says the ends of the loaves are free. The provisioner says they’re a delicacy.';
+            }
             if(ebFarlands.storyFlag('quest-vault-reward')&&site?.region==='hearth')
                 return 'The Harvest Bell has returned. Even the travelers keep time by it.';
             return region.name+': '+region.note+' The road changes with the season; the waykeeper may know more.';
@@ -16563,6 +17324,17 @@ const ebRpgAccess=(()=>{
         p.style.cssText='line-height:1.5;margin:0 0 8px';box.append(p);
         const choices=document.createElement('div');choices.style.cssText='display:flex;flex-direction:column;gap:8px';
         const add=(label,fn)=>{const b=button(label,fn);b.style.width='100%';choices.append(b);};
+        if(topic==='work'){
+            const job=ebLife.localWork(npc,performance.now());
+            const site=job?.landmark && Farlands.byId.get(job.landmark);
+            if(site)add('Mark '+site.name+' on the Atlas',()=>{
+                if(!active()||!inReach(npc)||ebLife.localWork(npc,performance.now())?.landmark!==site.id)return;
+                if(ebFarlands.pin(site.id)){
+                    chat=null;
+                    closeModal();
+                }
+            });
+        }
         if(topic)add('Ask something else',()=>display(npc));
         else{
             add('About your work',()=>display(npc,'work'));
@@ -16590,16 +17362,32 @@ const ebRpgAccess=(()=>{
 // C relays news to an actual waykeeper and then reports back to the actual provisioner.
 const ebRpgQuests=(()=>{
     const active=()=>ebFarlands.surface()&&!sharedWorld.active()&&!buildingInterior&&!gameState.inBattle;
-    const sites=()=>Farlands.sites.filter(s=>s.station);
+    const stations=Farlands.sites.filter(s=>s.station);
+    const shellwickId='settlement-lantern-0';
+    const orchardTallies=['North orchard tally','South orchard tally'];
+    const restOrders = {
+        h:{title:'Bread for the common room',giver:'Nell, the Baker',receiver:'Fen, the Market Carter',
+            prop:'Exchange order slate',reward:[8,9],
+            description:'Read the Exchange order slate by the market. Tell Fen how many loaves the inn ordered, then report to Nell.'},
+        i:{title:'A share for the watch',giver:'Fen, the Market Carter',receiver:'Osric, the Watchman',
+            prop:'Inn’s supper docket',reward:[10,12],
+            description:'Read the supper docket behind the inn. Tell Osric the watch has a share, then report to Fen.'}
+    };
+    const coastOrders = {
+        [shellwickId]:{target:'lantern',title:'A place at the quay',description:'Shellwick’s shell sellers need dry space for their baskets. Ask the Lantern Quay waykeeper where they can unload, then report to the Shellwick waykeeper.'},
+        lantern:{target:shellwickId,title:'A dry load home',description:'The quay has made room. Carry the quay’s loading instructions to the Shellwick waykeeper, then return to Lantern Quay.'}
+    };
+    const kinds=site=>site.id===shellwickId ? ['a','b','c','d','j'] :
+        site.id==='lantern' && flag(Farlands.byId.get(shellwickId),'j','done') ? ['a','b','c','j'] : site===Farlands.start ? ['a','b','c','e','g','h',...(flag(site,'h','done')?['i']:[]),...(ebFarlands.storyFlag('quest-vault-reward')?['f']:[])] : ['a','b','c'];
     // R16.1: the station a place belongs to, the nearest whose radius covers it. Farlands.nearbySite returns whichever
     // overlapping site it finds first: at Shellwick that is the Pearl Banks landmark, so its waykeeper had no quests.
     const within=(site,x,y)=>Math.max(Math.abs(site.x-x),Math.abs(site.y-y))<=site.radius;
-    const stationAt=(x,y)=>sites().filter(s=>within(s,x,y)).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]??null;
+    const stationAt=(x,y)=>stations.filter(s=>within(s,x,y)).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]??null;
     const flag=(site,kind,part)=>ebFarlands.storyFlag('rq-'+part+'-'+kind+'-'+site.id);
     const mark=(site,kind,part)=>ebFarlands.markRpgQuest('rq-'+part+'-'+kind+'-'+site.id);
     const giverName=(site,kind)=>{
-        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':kind==='b'?'Nessa, the Orchard Keeper':'Ivo, the Millwright';
-        return site.name+(kind==='a'?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
+        if(site===Farlands.start)return kind==='a'?'Mira, the Cartographer':['b','f'].includes(kind)?'Nessa, the Orchard Keeper':kind==='g'?'Hale, the Wheelwright':'Ivo, the Millwright';
+        return site.name+((kind==='a'||kind==='d')?' Waykeeper':kind==='b'?' Trail Warden':' Provisioner');
     };
     const receiver=(site)=>giverName(site,'a');
     const shown=(site,kind)=>ebDisplayNameOf(giverName(site,kind)); // R17.12: the name the player sees
@@ -16609,8 +17397,53 @@ const ebRpgQuests=(()=>{
         entries.sort((a,b)=>Math.hypot(a.x-site.x,a.y-site.y)-Math.hypot(b.x-site.x,b.y-site.y));
         return entries[0]||null;
     };
+    const localStories={
+        rest:[
+            ['A lay of the roads','Mira wants to know what travellers hear before they set out from the square.'],
+            ['Millbend road survey','Nessa wants to know how the approach looks before the next orchard delivery.'],
+            ['A message from the mill','Ivo has news for a neighbouring waykeeper about the mill’s next shipment.']
+        ],
+        'settlement-hearth-0':[
+            ['The harvest rota','The waykeeper is arranging hands for the next load from the fields.'],
+            ['A route for the harvest carts','The warden wants a walker’s account before sending a laden cart out.'],
+            ['Word of the harvest','The provisioner wants a neighbour to know when the next grain shipment is ready.']
+        ],
+        'settlement-lantern-0':[
+            ['The shell traders’ rounds','The waykeeper is checking when the traders and wardens will be in the square.'],
+            ['A foot survey of Pearl Banks','The warden wants a report from the Pearl Banks marker before the collectors set out.'],
+            ['News from the shell market','The provisioner has market news for a neighbouring waykeeper.']
+        ]
+    };
     function plan(site,kind){
-        if(!site?.station||!['a','b','c'].includes(kind))return null;
+        if(!site?.station||!kinds(site).includes(kind))return null;
+        if(site===Farlands.start&&Object.hasOwn(restOrders,kind))return {site,target:site,kind,...restOrders[kind]};
+        if(kind==='j'){
+            const order=coastOrders[site.id],target=Farlands.byId.get(order.target);
+            return {site,target,kind,title:order.title,description:order.description,giver:receiver(site),reward:[12,16]};
+        }
+        if(kind==='g')return {
+            site,target:site,kind,title:'Sounding Mill Creek',
+            description:'Read Hale’s sounding board by the southwest causeway. Board the moored boat and row three tiles west, then land and report to Hale.',
+            giver:giverName(site,kind),reward:[20,25]
+        };
+        if(kind==='f')return {
+            site,target:Farlands.byId.get('orchard'),kind,
+            title:'The first picking',
+            description:'The bell has brought Nessa’s pickers back. Read the north and south tally boards at Bell Orchard, then tell her which rows are ready.',
+            giver:giverName(site,kind),reward:[22,28]
+        };
+        if(kind==='e')return {
+            site,target:Farlands.byId.get('mill'),kind,
+            title:'The millwright’s tally',
+            description:'Inspect the axle crate on the south end of Wayfarer’s Rest. Carry its tally along the creek road to Millbend, then report back to Ivo.',
+            giver:giverName(site,kind),reward:[15,18]
+        };
+        if(kind==='d')return {
+            site,target:Farlands.byId.get('lantern'),kind,
+            title:'Sound the Lantern Channel',
+            description:'Take a boat from the Shellwick landing and follow the bay to Lantern Quay. Come within four tiles of the Quay’s moored boat while afloat, then report back to the Shellwick waykeeper.',
+            giver:giverName(site,kind),reward:[24,25]
+        };
         const target=kind==='a'?site:neighbor(site,kind==='c'?'station':'any');
         if(!target)return null;
         const heading=kind==='a'?'Meet the local team':kind==='b'?'Check the road to '+target.name:'Carry news to '+target.name;
@@ -16618,36 +17451,104 @@ const ebRpgQuests=(()=>{
             'Speak with '+shown(site,'c')+' and '+shown(site,'b')+', then tell '+shown(site,'a')+' what they said.':
             kind==='b'?'Reach '+target.name+' after accepting, then return and tell '+shown(site,'b')+' what you saw.':
             'Take road news to '+ebDisplayNameOf(receiver(target))+'. Speak directly with the recipient and relay it, then report to '+shown(site,'c')+'.';
-        return {site,target,kind,title:heading,description,giver:giverName(site,kind),reward:kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15]};
+        const story=localStories[site.id]?.['abc'.indexOf(kind)];
+        return {site,target,kind,title:story?.[0]??heading,description:story ? story[1]+' '+description : description,giver:giverName(site,kind),reward:kind==='a'?[7,8]:kind==='b'?[11,12]:[14,15]};
     }
     const state=q=>flag(q.site,q.kind,'done')?'done':
         flag(q.site,q.kind,'taken')?(ready(q)?'ready':'active'):'new';
-    const ready=q=>flag(q.site,q.kind,'step1')&&(q.kind!=='a'||flag(q.site,q.kind,'step2'));
+    const ready=q=>flag(q.site,q.kind,'step1')&&(!['a','d','e','f','g','h','i'].includes(q.kind)||flag(q.site,q.kind,'step2'));
     function next(q){
-        if(q.kind==='a'){
+        if(Object.hasOwn(restOrders,q.kind)){
+            if(!flag(q.site,q.kind,'step1'))return {site:q.site,label:'Read the '+q.prop};
+            if(!flag(q.site,q.kind,'step2'))return {site:q.site,label:'Speak to '+q.receiver};
+            return {site:q.site,label:'Report to '+q.giver};
+        }
+        if(q.kind==='j'&&!flag(q.site,'j','step1'))return {site:q.target,label:'Speak to '+ebDisplayNameOf(receiver(q.target))};
+        if(q.kind==='g'){
+            if(!flag(q.site,'g','step1'))return {site:q.site,label:'Read the sounding board by the southwest causeway'};
+            if(!flag(q.site,'g','step2'))return {site:q.site,label:'Board at the causeway and row three tiles west'};
+        }else if(q.kind==='f'){
+            const remaining=orchardTallies.filter((_,i)=>!flag(q.site,'f','step'+(i+1)));
+            if(remaining.length)return {site:q.target,label:'Read '+remaining.join(' and ')};
+        }else if(q.kind==='e'){
+            if(!flag(q.site,'e','step1'))return {site:q.site,label:'Inspect the axle crate at the south landing'};
+            if(!flag(q.site,'e','step2'))return {site:q.target,label:'Carry the tally to Millbend'};
+        }else if(q.kind==='d'){
+            if(!flag(q.site,'d','step1'))return {site:q.site,label:'Board at the Shellwick landing'};
+            if(!flag(q.site,'d','step2'))return {site:q.target,label:'Sail to the Lantern Quay mooring'};
+        }else if(q.kind==='a'){
             if(!flag(q.site,'a','step1'))return {site:q.site,label:'Speak to '+shown(q.site,'c')};
             if(!flag(q.site,'a','step2'))return {site:q.site,label:'Speak to '+shown(q.site,'b')};
         }else if(!flag(q.site,q.kind,'step1'))
             return {site:q.target,label:q.kind==='c'?'Relay news to '+ebDisplayNameOf(receiver(q.target)):'Visit '+q.target.name};
         return {site:q.site,label:'Report to '+ebDisplayNameOf(q.giver)};
     }
-    const activePlans=()=>sites().flatMap(site=>['a','b','c'].map(k=>plan(site,k)).filter(Boolean))
-        .filter(q=>flag(q.site,q.kind,'taken')&&!flag(q.site,q.kind,'done'));
+    const activePlans=()=>stations.flatMap(site=>kinds(site)
+        .filter(kind=>flag(site,kind,'taken')&&!flag(site,kind,'done'))
+        .map(kind=>plan(site,kind)).filter(Boolean));
     function accept(q){
         if(!active()||!q||state(q)!=='new')return false;
         const ok=mark(q.site,q.kind,'taken');
-        if(ok)ebFarlands.pin(q.target.id);
+        if(ok)ebFarlands.pin(next(q).site.id);
         return ok;
     }
     function report(q,npc){
-        if(!active()||!q||state(q)!=='ready'||npc?.name!==q.giver||
+        if(!active()||!q||state(q)!=='ready'||npc?.name!==q.giver||(q.kind==='g'&&gameState.sailingMoves>0)||
             !npcs.includes(npc)||Math.hypot(gameState.player.x-npc.x,gameState.player.y-npc.y)>1.5)return false;
         return ebFarlands.completeRpgQuest(q.site.id,q.kind);
+    }
+    function onProp(prop){
+        const site=Farlands.start;
+        if(!active()||!prop||
+            Math.max(Math.abs(gameState.player.x-prop.x),Math.abs(gameState.player.y-prop.y))>1)return '';
+        if(prop.name===Farlands.creekPilotage.name&&flag(site,'g','taken')&&mark(site,'g','step1')){
+            ebFarlands.refreshStoryHint();
+            return 'Sounding started. Board the creek boat and row three tiles west.';
+        }
+        for (const kind of ['h','i']) {
+            const order=restOrders[kind];
+            if (prop.name===order.prop && flag(site,kind,'taken') && mark(site,kind,'step1')) {
+                ebFarlands.refreshStoryHint();
+                return 'Order noted. Speak to '+order.receiver+'.';
+            }
+        }
+        const tally=orchardTallies.indexOf(prop.name);
+        if(tally!==-1&&flag(site,'f','taken')&&mark(site,'f','step'+(tally+1))){
+            const complete=ready(plan(site,'f'));
+            if(complete)ebFarlands.pin(site.id);
+            ebFarlands.refreshStoryHint();
+            return complete?'Both tallies recorded. Return to Nessa.':'Tally recorded. Read the other board before returning.';
+        }
+        if(prop.name!=='Ivo’s axle crate'||!flag(site,'e','taken')||!mark(site,'e','step1'))return '';
+        ebFarlands.pin('mill');
+        return 'Tally recorded. Follow the creek road to Millbend.';
     }
     function onLocation(site){
         if(!active())return;
         for(const q of activePlans()){
-            if(q.kind==='b'&&within(q.target,gameState.player.x,gameState.player.y)&&!flag(q.site,'b','step1')){
+            if(q.kind==='g'&&gameState.sailingMoves>0&&flag(q.site,'g','step1')){
+                const [x,y]=Farlands.creekPilotage.reach;
+                const player=gameState.player;
+                if(player.x===x&&player.y===y&&mark(q.site,'g','step2')){
+                    ebFarlands.refreshStoryHint();
+                    showFloatingText('Sounding recorded · land and report to Hale',x*32+16,y*32-30,'#e9c987');
+                }
+            }
+            if(q.kind==='e'&&site?.id===q.target.id&&flag(q.site,'e','step1')&&mark(q.site,'e','step2')){
+                ebFarlands.pin(q.site.id);
+                showFloatingText('Tally delivered · return to Ivo',gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
+            }
+            if(q.kind==='d'&&gameState.sailingMoves>0){
+                const departed=flag(q.site,'d','step1');
+                const dock=Farlands.coastalDocks[departed?'lantern':shellwickId];
+                const [x,y]=dock.water, player=gameState.player;
+                if(Math.hypot(player.x-x,player.y-y)<=4&&mark(q.site,'d',departed?'step2':'step1')){
+                    ebFarlands.pin(departed?q.site.id:q.target.id);
+                    showFloatingText(departed?'Channel charted · return to Shellwick':'Underway · sail to Lantern Quay',
+                        player.x*32+16,player.y*32-30,'#e9c987');
+                }
+            }
+            if(q.kind==='b'&&site?.id===q.target.id&&!flag(q.site,'b','step1')){
                 if(mark(q.site,'b','step1')){
                     showFloatingText('Road checked · return to '+ebDisplayNameOf(q.giver),gameState.player.x*32+16,gameState.player.y*32-30,'#e9c987');
                     ebFarlands.refreshStoryHint();
@@ -16659,6 +17560,11 @@ const ebRpgQuests=(()=>{
         if(!active()||!npc||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return '';
         const here=stationAt(npc.x,npc.y),notes=[];
         for(const q of activePlans()){
+            if (Object.hasOwn(restOrders,q.kind) && npc.name===q.receiver &&
+                flag(q.site,q.kind,'step1') && mark(q.site,q.kind,'step2')) {
+                notes.push(q.kind==='h'?'Fen counts six loaves onto the cart.':'Osric grins. He’ll bring the night watch by after supper.');
+                continue;
+            }
             if(q.kind!=='a'||q.site.id!==here?.id)continue;
             if(npc.name===giverName(q.site,'c')&&mark(q.site,'a','step1'))notes.push('You have spoken with '+ebDisplayName(npc)+'.');
             if(npc.name===giverName(q.site,'b')&&mark(q.site,'a','step2'))notes.push('You have spoken with '+ebDisplayName(npc)+'.');
@@ -16688,9 +17594,16 @@ const ebRpgQuests=(()=>{
             if(v==='new')actions.append(button('Accept quest',()=>{
                 if(accept(q)){refresh();ebFarlands.refreshStoryHint();}
             }));
-            else if(v==='ready'&&npc?.name===q.giver)actions.append(button('Report back · collect '+q.reward[0]+' gold',()=>{
-                if(report(q,npc)){refresh();status.textContent='Quest completed · +'+q.reward[0]+' gold · +'+q.reward[1]+' XP';}
-            }));
+            else if(v==='ready'&&npc?.name===q.giver){
+                const pay=()=>{if(report(q,npc)){refresh();status.textContent='Quest completed · +'+q.reward[0]+' gold · +'+q.reward[1]+' XP';}};
+                if(q.kind==='f'){
+                    status.textContent='Nessa asks which rows are ready for the pickers.';
+                    status.setAttribute('aria-live','polite');
+                    actions.append(button('Pick the north rows',pay),button('Pick the south rows',()=>{
+                        status.textContent='The south tally asked for another day. Which rows carried the white cloth?';
+                    }));
+                }else actions.append(button('Report back · collect '+q.reward[0]+' gold',pay));
+            }
             else if(v!=='done')actions.append(button('Track next step',()=>{ebFarlands.pin(next(q).site.id);status.textContent='Tracking · '+next(q).label;}));
         };
         refresh();return box;
@@ -16700,20 +17613,24 @@ const ebRpgQuests=(()=>{
         const content=document.getElementById('modalContent');
         const here=stationAt(npc.x,npc.y);
         if(here){
-            for(const kind of ['a','b','c']){
+            for(const kind of kinds(here)){
                 const q=plan(here,kind);
                 if(q&&npc.name===q.giver){const c=card(q,npc);c.dataset.ebPane='quests';if(state(q)==='ready')c.dataset.ebReady='1';content.append(c);}
             }
         }
         // A courier message requires a deliberate handover to the destination's actual waykeeper.
         for(const q of activePlans()){
-            if(q.kind!=='c'||q.target.id!==here?.id||flag(q.site,'c','step1')||npc.name!==receiver(q.target))continue;
+            if(!['c','j'].includes(q.kind)||q.target.id!==here?.id||flag(q.site,q.kind,'step1')||npc.name!==receiver(q.target))continue;
             const box=document.createElement('section');box.dataset.ebPane='quests';box.dataset.ebReady='1';box.style.cssText='margin-top:12px;text-align:left;padding:12px;border:1px solid rgba(214,185,108,.4);border-radius:10px';
-            const p=document.createElement('p');p.textContent='News from '+q.site.name+' for '+ebDisplayName(npc)+'.';
-            box.append(p,button('Relay the road news',()=>{
+            const p=document.createElement('p');p.textContent=q.kind==='j' ? q.title+' · a message from '+q.site.name :
+                'News from '+q.site.name+' for '+ebDisplayName(npc)+'.';
+            box.append(p,button(q.kind==='j'?'Discuss the loading arrangements':'Relay the road news',()=>{
                 if(!active()||!npcs.includes(npc)||Math.hypot(npc.x-gameState.player.x,npc.y-gameState.player.y)>1.5)return;
-                if(mark(q.site,'c','step1')){
-                    p.textContent='Message received. Return to '+ebDisplayNameOf(q.giver)+' at '+q.site.name+'.';
+                if(mark(q.site,q.kind,'step1')){
+                    const reply=q.kind!=='j'?'Message received.':q.site.id===shellwickId?
+                        'Use the sheltered berth after the midday ferry. I’ll mark it for the shell baskets.':
+                        'We’ll lash the baskets before departure. Tell the quay we’ll wait for the ferry to clear.';
+                    p.textContent=reply+' Return to '+ebDisplayNameOf(q.giver)+' at '+q.site.name+'.';
                     box.querySelector('button')?.remove();ebFarlands.pin(q.site.id);
                     ebFarlands.refreshStoryHint();
                 }
@@ -16752,7 +17669,7 @@ const ebRpgQuests=(()=>{
         const content=document.getElementById('modalContent');content.replaceChildren();
         const intro=document.createElement('p');intro.textContent='Talk to local residents to follow these quests, or accept one here. Report to the actual giver for a reward.';
         content.append(intro);
-        for(const kind of ['a','b','c']){const q=plan(site,kind);if(q)content.append(card(q,null));}
+        for(const kind of kinds(site)){const q=plan(site,kind);if(q)content.append(card(q,null));}
         releaseMovement();document.getElementById('interactionModal').style.display='flex';
     }
     document.getElementById('eb-farlands-quests')?.addEventListener('click',board);
@@ -16763,17 +17680,24 @@ const ebRpgQuests=(()=>{
         const out=[];
         if(site.station){
             const done=k=>flag(site,k,'done')&&plan(site,k);
+            if(done('i'))out.push('The night watch got a hot supper. Osric is trying very hard to look unimpressed.');
+            else if(done('h'))out.push('Nell says you kept count better than Fen. He says that isn’t a fair contest.');
+            if(done('g'))out.push('Hale marked the safe reach from your sounding. The next timber boat can take the inside bend.');
+            if(done('f'))out.push('Nessa sent the first baskets down from Bell Orchard. Your tally kept the pickers on the right rows.');
+            if(done('j'))out.push(site.id==='lantern'?'The extra berth is loading after the ferry clears.':
+                'The shell baskets went out dry because you found us a berth.');
+            if(done('d'))out.push('The route you charted keeps our shell boats clear of the banks.');
             if(done('c'))out.push('You carried our news to '+plan(site,'c').target.name+' and came back to tell us.');
             if(done('b'))out.push('You walked the road to '+plan(site,'b').target.name+' for our warden.');
             if(done('a'))out.push('You met our people here; the waykeeper speaks well of you.');
-            const from=sites().find(o=>o!==site&&plan(o,'c')?.target===site&&flag(o,'c','step1'));
+            const from=stations.find(o=>o!==site&&plan(o,'c')?.target===site&&flag(o,'c','step1'));
             if(from)out.push('You brought us word from '+from.name+'.');
             if(ebFarlands.storyFlag('errand-'+site.id))out.push('You did our provisioner’s errand on the road.');
         }
         if(site.region==='hearth'&&ebFarlands.storyFlag('quest-vault-reward'))out.push('The Harvest Bell rings again because of you.');
         return out;
     }
-    return {plan,accept,onTalk,onLocation,attach,board,journal,track,goal,deeds};
+    return {plan,accept,onTalk,onLocation,onProp,attach,board,journal,track,goal,deeds};
 })();
 </script>
 <script data-source="r14-adventure-journal.js">
@@ -16799,11 +17723,11 @@ const ebJournal = (() => {
                 return `<section style="padding:12px;margin:10px 0;border:1px solid rgba(180,200,180,.25);border-radius:10px;text-align:left"><strong>${escapeMapText(chapter.title)}</strong> <small>(${done}/${sites.length})</small><p style="margin:8px 0">${escapeMapText(chapter.intro)}</p><ul style="padding-left:20px">${entries}</ul><small>${done===sites.length?'✓ Chapter explored. ':''}${escapeMapText(chapter.note)}</small></section>`;
             }).join('');
             document.getElementById('modalTitle').textContent = '📖 Explorer’s Journal';
-            const quest=ebStory.objective();
+            const quest=ebStory.harvestObjective();
             const storyCard=quest ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.5);border-radius:10px;text-align:left"><strong>🔔 The Silent Harvest · Story Quest</strong><p style="margin:8px 0">The Harvest Bell lies in the locked archive beneath the Old Tollhouse. Find the ward key at Millbend, defeat the Archive Warden, recover the bell and return it to Mira at Wayfarer’s Rest.</p><p style="margin:0"><strong>Now:</strong> ${escapeMapText(quest.label)}</p></section>` : '';
             const errands=ebFarlands.errandsInHand().map(e=>`<li style="margin:6px 0">${escapeMapText(e.label)} <button type="button" class="btn" style="min-height:40px;margin-left:6px" onclick="ebFarlands.pin('${e.site.id}');closeModal()">Show</button></li>`).join('');
             const errandCard=errands ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.35);border-radius:10px;text-align:left"><strong>📜 Errands</strong><ul style="margin:6px 0 0;padding-left:18px">${errands}</ul></section>` : '';
-            document.getElementById('modalContent').innerHTML = storyCard+errandCard+(typeof ebRpgQuests!=='undefined'?ebRpgQuests.journal():'')+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
+            document.getElementById('modalContent').innerHTML = storyCard+errandCard+(typeof ebRpgQuests!=='undefined'?ebRpgQuests.journal():'')+ebStory.ledgerNote()+ebStory.crossingNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
         }
         releaseMovement();
         document.getElementById('interactionModal').style.display='flex';
@@ -16845,6 +17769,12 @@ const ebJournal = (() => {
         const local=typeof ebRpgQuests!=='undefined'?ebRpgQuests.goal():null;
         if(local)return {quest:{label:local.label},next:local.site,errand:true};
         if (!ebFarlands.surface()) return null;
+        const rest=Farlands.byId.get('rest'), hero=gameState.player;
+        if (quest?.done && !ebFarlands.storyFlag('rq-taken-f-rest') &&
+            Math.hypot(hero.x-rest.x,hero.y-rest.y)<=14)
+            return {quest:{label:'Ask Nessa about the first picking'},person:'Find Nessa'};
+        if (!quest && Math.hypot(hero.x-rest.x,hero.y-rest.y)<=14)
+            return {quest:{label:'Speak to Mira by the square'},person:'Meet Mira'};
         const visited=ebFarlands.discoveries();
         for (const chapter of chapters) {
             const sites=chapter.ids.map(id=>Farlands.byId.get(id)).filter(Boolean);
@@ -16858,6 +17788,16 @@ const ebJournal = (() => {
         if (!chip) return;
         const goal = visible ? nextGoal() : null;
         chip.hidden = !goal;
+        const people=document.getElementById('eb-people-quick');
+        if(people){
+            const label=goal?.person??'People nearby';
+            if(people.getAttribute('aria-label')!==label){
+                people.textContent=goal?.person??'👥';
+                people.setAttribute('aria-label',label);
+                people.title=label;
+                people.toggleAttribute('data-goal',Boolean(goal?.person));
+            }
+        }
         if (!goal) return;
         const text = goal.errand ? '📜 '+goal.quest.label : goal.quest ? (goal.next && ebFarlands.pinned()===goal.next.id ? '📍 ' : '🔔 ')+goal.quest.label
             : (ebFarlands.pinned()===goal.next.id ? '📍 ' : '📖 ')+goal.chapter.title.replace(/^The /,'')+' '+goal.done+'/'+goal.total+' · '+goal.next.name;
@@ -16876,6 +17816,7 @@ const ebJournal = (() => {
         event.stopPropagation();
         const goal = nextGoal();
         if (!goal) return;
+        if (goal.person) {ebRpgAccess.openNearby();return;}
         if (!goal.next || !ebFarlands.surface() || ebFarlands.pinned()===goal.next.id) open(); else ebFarlands.pin(goal.next.id);
         syncVisibility();
     });
@@ -18081,11 +19022,20 @@ const sharedWorld = (() => {
         if (busy || sending) { showStatus('Finishing your last action.'); return; }
         pending = [];
         releaseMovement();
-        const solo = session.solo;
+        const connection = session;
+        const {solo,book:home} = connection;
+        connection.leaving = true;
+        let written;
         try {
-            const home = session.book;
-            session.leaving = true;
-            const written = home ? await leaveSeat() : await action(24);
+            written = home ? await leaveSeat() : await action(24);
+        } finally {
+            connection.leaving = false;
+        }
+        if (written === false && me()) {
+            showStatus('Could not confirm leaving the shared world. Reconnect and try Leave world again.');
+            return;
+        }
+        try {
             // Ask for a save of this visit's changes now, or once the two minutes since the last save have passed,
             // while the page stays open. The character's book changed too.
             if (home && written) saveBook(home);

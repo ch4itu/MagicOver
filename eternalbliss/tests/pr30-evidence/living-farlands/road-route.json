@@ -1,0 +1,38 @@
+{
+  "environment": "Node with production resident logic and sampled terrain; building approximation",
+  "identity": "road-r16-101-101",
+  "route": [
+    {
+      "hour": "08:30",
+      "where": "roadA",
+      "distance": 9,
+      "indoors": false,
+      "x": 4888,
+      "y": 4889
+    },
+    {
+      "hour": "14:30",
+      "where": "rest",
+      "distance": 9,
+      "indoors": false,
+      "x": 4880,
+      "y": 4890
+    },
+    {
+      "hour": "18:30",
+      "where": "roadB",
+      "distance": 5,
+      "indoors": false,
+      "x": 4878,
+      "y": 4893
+    },
+    {
+      "hour": "23:00",
+      "where": "home",
+      "distance": 5,
+      "indoors": true,
+      "x": 4880,
+      "y": 4890
+    }
+  ]
+}

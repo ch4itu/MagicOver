@@ -1,0 +1,14 @@
+PASS unknown Farlands version protection
+PASS Farlands v1 round trip
+AssertionError [ERR_ASSERTION]: version
+
+2 !== 1
+
+    at /workspace/EternalBliss-RC/eternalbliss/tests/automation-save-version.cjs:89:26 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 2,
+  expected: 1,
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}

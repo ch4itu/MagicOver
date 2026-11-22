@@ -1,0 +1,16 @@
+landscape false guard {
+  eye: true,
+  mode: true,
+  combatEye: true,
+  hand: true,
+  enemy: [ 0, -0.06859354916269572, 0.9495948920824127 ],
+  camera: [ 5064, 1.135, 4869 ],
+  hero: [ 5064, 0.055, 4869 ],
+  hud: { top: 212, bottom: 324 },
+  canvas: { top: 0, height: 332 },
+  hp: 80,
+  mp: 50,
+  foe: 500,
+  potions: 2
+}
+PASS combat landscape:false 9cebdf7920b20d96e71b9604bf29173e6ad443098af796de2f9ed1590132d589

@@ -1,0 +1,481 @@
+{
+  "9cbb061a692f9a8e9ae520d56204988ce9e672ba38a4f696d855bfc57f8cf190": {
+    "2d": {
+      "inputToSigned": {
+        "n": 4,
+        "median": 53.2,
+        "p95": 54.9,
+        "raw": [
+          53.7,
+          54.9,
+          52.8,
+          46.4
+        ]
+      },
+      "signedToSubmit": {
+        "n": 4,
+        "median": 0.2,
+        "p95": 0.2,
+        "raw": [
+          0.2,
+          0.1,
+          0.2,
+          0.1
+        ]
+      },
+      "submitToHttpHeaders": {
+        "n": 4,
+        "median": 200.8,
+        "p95": 212.6,
+        "raw": [
+          205.1,
+          196.5,
+          189.4,
+          212.6
+        ]
+      },
+      "submitToAccount": {
+        "n": 4,
+        "median": 206.1,
+        "p95": 246.3,
+        "raw": [
+          198.8,
+          213.4,
+          246.3,
+          187.4
+        ]
+      },
+      "decodeAndReconcile": {
+        "n": 4,
+        "median": 0.2,
+        "p95": 3.5,
+        "raw": [
+          0.2,
+          0.2,
+          0.2,
+          3.5
+        ]
+      },
+      "ingestedToPlacement": {
+        "n": 4,
+        "median": 235.6,
+        "p95": 312.4,
+        "raw": [
+          176.4,
+          193.6,
+          277.6,
+          312.4
+        ]
+      },
+      "submitToPlacement": {
+        "n": 4,
+        "median": 455.2,
+        "p95": 524.1,
+        "raw": [
+          375.4,
+          407.2,
+          524.1,
+          503.3
+        ]
+      },
+      "inputToPlacement": {
+        "n": 4,
+        "median": 506.0,
+        "p95": 577.1,
+        "raw": [
+          429.3,
+          462.2,
+          577.1,
+          549.8
+        ]
+      },
+      "placementFrameIntervals": {
+        "n": 280,
+        "median": 30.8,
+        "p95": 47.0
+      },
+      "triangles": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "raw": []
+      },
+      "drawCalls": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "raw": []
+      },
+      "worldReadHeaders": {
+        "n": 8,
+        "median": 210.7,
+        "p95": 215.0,
+        "raw": [
+          204.0,
+          195.1,
+          213.1,
+          210.4,
+          213.3,
+          211,
+          199.3,
+          215.0
+        ]
+      },
+      "sourceCounts": {
+        "wsToWorld": 8
+      }
+    },
+    "fp": {
+      "inputToSigned": {
+        "n": 4,
+        "median": 738.0,
+        "p95": 749.0,
+        "raw": [
+          717.4,
+          745.7,
+          749.0,
+          730.4
+        ]
+      },
+      "signedToSubmit": {
+        "n": 4,
+        "median": 0.2,
+        "p95": 0.3,
+        "raw": [
+          0.2,
+          0.1,
+          0.3,
+          0.1
+        ]
+      },
+      "submitToHttpHeaders": {
+        "n": 4,
+        "median": 712.7,
+        "p95": 717.1,
+        "raw": [
+          702.0,
+          711.5,
+          717.1,
+          713.9
+        ]
+      },
+      "submitToAccount": {
+        "n": 4,
+        "median": 1061.1,
+        "p95": 1080.3,
+        "raw": [
+          1059.9,
+          1062.3,
+          1080.3,
+          351.9
+        ]
+      },
+      "decodeAndReconcile": {
+        "n": 4,
+        "median": 0.2,
+        "p95": 0.3,
+        "raw": [
+          0.3,
+          0.2,
+          0.2,
+          0.1
+        ]
+      },
+      "ingestedToPlacement": {
+        "n": 4,
+        "median": 727.3,
+        "p95": 756.5,
+        "raw": [
+          723.9,
+          725.0,
+          756.5,
+          729.6
+        ]
+      },
+      "submitToPlacement": {
+        "n": 4,
+        "median": 1785.8,
+        "p95": 1837.0,
+        "raw": [
+          1784.1,
+          1787.5,
+          1837.0,
+          1081.6
+        ]
+      },
+      "inputToPlacement": {
+        "n": 4,
+        "median": 2517.5,
+        "p95": 2586.3,
+        "raw": [
+          2501.7,
+          2533.3,
+          2586.3,
+          1812.1
+        ]
+      },
+      "placementFrameIntervals": {
+        "n": 64,
+        "median": 723.4,
+        "p95": 752.6
+      },
+      "triangles": {
+        "n": 66,
+        "median": 435934.0,
+        "p95": 436084
+      },
+      "drawCalls": {
+        "n": 66,
+        "median": 124.5,
+        "p95": 131
+      },
+      "worldReadHeaders": {
+        "n": 12,
+        "median": 729.5,
+        "p95": 750.1
+      },
+      "sourceCounts": {
+        "wsToWorld": 8
+      }
+    }
+  },
+  "5d5dc2f1b638d2643a1ec5a4a890a48861c31923d76f12d16622e48cbebaf9b3": {
+    "2d": {
+      "inputToSigned": {
+        "n": 4,
+        "median": 57.1,
+        "p95": 70.5,
+        "raw": [
+          70.5,
+          58.8,
+          55.4,
+          50.4
+        ]
+      },
+      "signedToSubmit": {
+        "n": 4,
+        "median": 0.2,
+        "p95": 0.2,
+        "raw": [
+          0.2,
+          0.2,
+          0.1,
+          0.0
+        ]
+      },
+      "submitToHttpHeaders": {
+        "n": 4,
+        "median": 223.9,
+        "p95": 240.2,
+        "raw": [
+          208.5,
+          239.4,
+          203.8,
+          240.2
+        ]
+      },
+      "submitToAccount": {
+        "n": 4,
+        "median": 236.8,
+        "p95": 260.5,
+        "raw": [
+          259.0,
+          200.1,
+          214.6,
+          260.5
+        ]
+      },
+      "decodeAndReconcile": {
+        "n": 4,
+        "median": 0.3,
+        "p95": 0.3,
+        "raw": [
+          0.3,
+          0.3,
+          0.2,
+          0.3
+        ]
+      },
+      "ingestedToPlacement": {
+        "n": 4,
+        "median": 237.3,
+        "p95": 332.9,
+        "raw": [
+          157.6,
+          185.7,
+          289.0,
+          332.9
+        ]
+      },
+      "submitToPlacement": {
+        "n": 4,
+        "median": 460.4,
+        "p95": 593.7,
+        "raw": [
+          416.9,
+          386.1,
+          503.8,
+          593.7
+        ]
+      },
+      "inputToPlacement": {
+        "n": 4,
+        "median": 523.5,
+        "p95": 644.1,
+        "raw": [
+          487.6,
+          445.1,
+          559.3,
+          644.1
+        ]
+      },
+      "placementFrameIntervals": {
+        "n": 271,
+        "median": 34.3,
+        "p95": 44.4
+      },
+      "triangles": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "raw": []
+      },
+      "drawCalls": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "raw": []
+      },
+      "worldReadHeaders": {
+        "n": 7,
+        "median": 215.1,
+        "p95": 235.0,
+        "raw": [
+          216.9,
+          212.2,
+          218.3,
+          235.0,
+          200.5,
+          215.1,
+          206.2
+        ]
+      },
+      "sourceCounts": {
+        "wsToWorld": 8
+      }
+    },
+    "fp": {
+      "inputToSigned": {
+        "n": 4,
+        "median": 476.8,
+        "p95": 478.6,
+        "raw": [
+          470.7,
+          478.6,
+          478.0,
+          475.6
+        ]
+      },
+      "signedToSubmit": {
+        "n": 4,
+        "median": 0.1,
+        "p95": 0.1,
+        "raw": [
+          0.1,
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      "submitToHttpHeaders": {
+        "n": 4,
+        "median": 455.2,
+        "p95": 458.4,
+        "raw": [
+          456.9,
+          458.4,
+          452.7,
+          453.6
+        ]
+      },
+      "submitToAccount": {
+        "n": 4,
+        "median": 684.1,
+        "p95": 691.4,
+        "raw": [
+          691.4,
+          226.8,
+          685.1,
+          683.1
+        ]
+      },
+      "decodeAndReconcile": {
+        "n": 4,
+        "median": 0.3,
+        "p95": 1.0,
+        "raw": [
+          0.2,
+          0.2,
+          1.0,
+          0.3
+        ]
+      },
+      "ingestedToPlacement": {
+        "n": 4,
+        "median": 491.0,
+        "p95": 504.6,
+        "raw": [
+          474.5,
+          504.6,
+          498.7,
+          483.4
+        ]
+      },
+      "submitToPlacement": {
+        "n": 4,
+        "median": 1166.4,
+        "p95": 1184.8,
+        "raw": [
+          1166.1,
+          731.6,
+          1184.8,
+          1166.8
+        ]
+      },
+      "inputToPlacement": {
+        "n": 4,
+        "median": 1639.7,
+        "p95": 1662.9,
+        "raw": [
+          1636.9,
+          1210.3,
+          1662.9,
+          1642.5
+        ]
+      },
+      "placementFrameIntervals": {
+        "n": 66,
+        "median": 465.3,
+        "p95": 492.1
+      },
+      "triangles": {
+        "n": 68,
+        "median": 216668.0,
+        "p95": 218186
+      },
+      "drawCalls": {
+        "n": 68,
+        "median": 183.0,
+        "p95": 190
+      },
+      "worldReadHeaders": {
+        "n": 11,
+        "median": 465.9,
+        "p95": 918.6
+      },
+      "sourceCounts": {
+        "wsToWorld": 8
+      }
+    }
+  }
+}

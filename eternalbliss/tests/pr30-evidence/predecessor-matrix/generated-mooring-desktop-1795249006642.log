@@ -1,0 +1,3 @@
+MOORING RAY desktop {"mooring":{"x":5044,"y":4874,"land":{"x":5044,"y":4876},"wetTiles":103},"hit":{"distance":2.452161890602719,"actor":null}}
+BOARDED desktop { x: 5044, y: 4874, land: { x: 5044, y: 4876 }, wetTiles: 103 } [ 5044, 4874 ]
+PASS vehicles desktop

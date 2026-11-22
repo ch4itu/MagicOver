@@ -1,0 +1,7 @@
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('#eb-vehicle-title').filter({ hasText: 'Embark' }) to be visible[22m
+
+    at /workspace/EternalBliss-RC/eternalbliss/tests/release/vehicles.cjs:34:179 {
+  name: 'TimeoutError'
+}

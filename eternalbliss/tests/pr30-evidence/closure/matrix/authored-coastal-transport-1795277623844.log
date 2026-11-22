@@ -1,0 +1,6 @@
+desktop mooring ray {"aim":{"centre":[8496.038983586495,0.07593374291094535,8544.059713889834],"bounds":[2.700643441059583,0.30187499057501554,3.078521804383854],"distance":2.3163683569102185},"hit":{"camera":[8496,1.135,8542],"distance":1.900598021185464,"actorHit":null}}
+PASS desktop {"samples":30,"frameIntervals":{"medianMs":31,"p95Ms":409,"maxMs":464},"cpuSubmission":{"medianMs":2,"p95Ms":29,"maxMs":31}}
+portrait mooring ray {"aim":{"centre":[8496.0388160549,0.08553946527272688,8544.059822926516],"bounds":[2.6964101897501678,0.30187499057501554,3.079329924959893],"distance":2.312086630874627},"hit":{"camera":[8496,1.135,8542],"distance":1.8815747643756824,"actorHit":null}}
+PASS portrait {"samples":30,"frameIntervals":{"medianMs":27,"p95Ms":227,"maxMs":240},"cpuSubmission":{"medianMs":2,"p95Ms":8,"maxMs":16}}
+landscape mooring ray {"aim":{"centre":[8496.038856787185,0.08367950380096095,8544.059796477693],"bounds":[2.697440668105628,0.30187499057501554,3.0791358053302247],"distance":2.3129085942070637},"hit":{"camera":[8496,1.135,8542],"distance":1.8965695332351578,"actorHit":null}}
+PASS landscape {"samples":30,"frameIntervals":{"medianMs":29,"p95Ms":289,"maxMs":299},"cpuSubmission":{"medianMs":3,"p95Ms":5,"maxMs":25}}

@@ -1,0 +1,15 @@
+Both independent clients see each other
+Step predicted 0 A { x: 75, y: 75 } [ 76, 75 ]
+Step predicted 0 B { x: 75, y: 75 } [ 76, 75 ]
+Step predicted 1 A { x: 76, y: 75 } [ 76, 76 ]
+Step predicted 1 B { x: 76, y: 75 } [ 76, 76 ]
+Step predicted 2 A { x: 76, y: 76 } [ 75, 76 ]
+Step predicted 2 B { x: 76, y: 76 } [ 75, 76 ]
+Step predicted 3 A { x: 75, y: 76 } [ 75, 75 ]
+Step predicted 3 B { x: 75, y: 76 } [ 75, 75 ]
+Step predicted 4 A { x: 75, y: 75 } [ 76, 75 ]
+Step predicted 4 B { x: 75, y: 75 } [ 76, 75 ]
+Movement confirmed on both clients
+Shared camera-relative keyboard movement and diagonal steering confirmed
+Same-room and separate-room visibility confirmed
+{"cameraRelativeKeyboard":true,"diagonalSteering":true,"transport":"local Node bridge, signed LiteSVM ledger; browser session and signer provided by fixture","accountBytes":5380,"base64Bytes":7176,"samples":12,"deliveryMs":{"p50":236.58074699999997,"p95":295.5341600000029},"updatesPerSecond":0.36931065102004157,"frameMs":{"p50":550,"p95":616.5999999999985},"mapFrameMs":{"p50":100,"p95":183.39999999999418},"failedLeave":{"shared":true,"status":"Could not confirm leaving the shared world. Reconnect and try Leave world again."}}

@@ -1,0 +1,5 @@
+portrait 3d {"point":{"left":120.8618944865317,"top":442.18506439364944,"x":5064,"y":4867},"diagnostic":{"position":[5064,4865],"hit":"","blocked":false,"events":[{"type":"pointerdown","id":"eb-scene","primary":true,"x":120.86189270019531,"y":442.18505859375,"button":0},{"type":"pointermove","id":"eb-scene","primary":true,"x":143.8618927001953,"y":442.18505859375,"button":-1},{"type":"pointerup","id":"eb-scene","primary":true,"x":143.8618927001953,"y":442.18505859375,"button":0},{"type":"pointerdown","id":"eb-scene","primary":true,"x":120.86189270019531,"y":442.18505859375,"button":0},{"type":"pointerup","id":"eb-scene","primary":true,"x":120.86189270019531,"y":442.18505859375,"button":0}]}}
+page.waitForFunction: Timeout 8000ms exceeded.
+    at /workspace/EternalBliss-RC/eternalbliss/tests/mobile-touch.cjs:66:32 {
+  name: 'TimeoutError'
+}
