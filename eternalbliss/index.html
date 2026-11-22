@@ -12191,8 +12191,9 @@ window.addEventListener('load', () => {
 
         renderFrame(eyeEnabled) {
             const gl = this.renderer.getContext();
-            const paced = this.swiftShader && eyeEnabled && (ebFarlands.inRealm() || sharedWorld.active());
-            // Keep at most one first-person frame in flight on the software renderer.
+            const paced = this.swiftShader && ((ebFarlands.inRealm() && !sharedWorld.active()) ||
+                (eyeEnabled && sharedWorld.active()));
+            // Keep at most one Farlands frame in flight on the software renderer.
             // Camera, simulation, and input still advance even when a submission is deferred.
             if (this.frameFence) {
                 if (paced && gl.clientWaitSync(this.frameFence, 0, 0) === gl.TIMEOUT_EXPIRED) return;
