@@ -1,0 +1,18 @@
+PASS Shared map header and layout are initialized
+PASS Only matching Smaran signers join, with the original spawn
+PASS Signed cardinal movement advances position once
+PASS Both players see the same taken treasure and only its winner is credited
+PASS Treasure recharges at its original tile for the other player
+PASS Both players read damage to the same enemy
+PASS Only the finishing player receives the win and XP
+PASS Enemy respawns with full health on the shared timer
+PASS All players deplete the same shop stock
+PASS Shared shop stock recharges
+PASS Reconnect preserves progress and invalidates earlier writes
+PASS Movement outside the world is rejected
+PASS Twelve steps a second are accepted (a held key makes about 8), the thirteenth waits
+PASS The next second walking continues
+PASS Every house covers 2x1 tiles
+PASS An inn covers 2x2 tiles and keeps its own tile inside
+PASS Every tile of a building's footprint blocks movement, not only the building's own tile
+PASS A building can be entered from two steps away from its footprint, not three
