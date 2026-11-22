@@ -3442,7 +3442,7 @@ function canMoveTo(x, y) {
     }
 
     if (tileType === 'door' && buildingInterior?.questDungeon) {
-        ebStory.bumpGate(); // R15.55
+        ebStory.bumpGate(tileX,tileY);
         return false;
     }
     if (tileType === 'door') {
@@ -3808,7 +3808,7 @@ function interact() {
     const prop = ebFarlands.surface() && Farlands.propNear(gameState.player.x, gameState.player.y, !sharedWorld.active());
     if (prop) { // R15.56: the well, the signpost, the stall, the shrine
         document.getElementById('modalTitle').textContent = prop.name;
-        const note=ebRpgQuests.onProp(prop);
+        const note=ebStory.crossingClue(prop)||ebRpgQuests.onProp(prop);
         document.getElementById('modalContent').innerHTML = `<div style="font-size: 32px; margin-bottom: 20px;">${streetPropIcons[prop.kind]}</div>
             <p style="line-height: 1.6;">${escapeMapText(prop.text)}</p>${note ? '<p role="status">'+escapeMapText(note)+'</p>' : ''}`;
         document.getElementById('interactionModal').style.display = 'flex';
@@ -4484,6 +4484,8 @@ function enemyDefeated() {
     enemies = enemies.filter(e => e.x !== enemy.x || e.y !== enemy.y);
 
     checkLevelUp();
+    if (enemy.realmId==='quest-vault-crossing-sentinel' && buildingInterior?.questDungeon && !sharedWorld.active())
+        ebFarlands.markStory('quest-vault-crossing-sentinel');
     ebRank.record();
 
     if (!enemy.realmId && Math.random() < 0.4) {
@@ -4523,7 +4525,7 @@ function playerDefeated() {
 }
 
 function endBattle(victory) {
-    const questWin = victory && gameState.currentEnemy?.realmId==='quest-vault-guardian';
+    const questWin = victory && ['quest-vault-guardian','quest-vault-crossing-sentinel'].includes(gameState.currentEnemy?.realmId);
     gameState.inBattle = false;
     gameState.currentEnemy = null;
     document.getElementById('battleModal').style.display = 'none';
@@ -14499,6 +14501,8 @@ const Farlands = (() => {
         [...creekPilotage.board,creekPilotage.name,'Hale’s chalk marks the starting berth. From the moored boat, row three tiles west along the creek. Turn back by the causeway and give Hale the sounding.',0xa8c5c7],
         [5038,4845,'North orchard tally','White cloth marks the trees ready for picking. Two baskets can go down to the stall before noon.',0xeee4c8],
         [5042,4850,'South orchard tally','Red cloth marks the trees that need another day. Leave those branches for the next crew.',0xb64632],
+        [byId.get('mill').x-5,byId.get('mill').y,'Millbend flood marker',
+            'An old brass strip reads: First the boat, then the grain, then the bell. The keeper was counting people before sacks.',0x779d9f],
         [rest.x+6,rest.y+2,'Exchange order slate','Chalk orders for the inn: six rye loaves, a dozen eggs, and no more than one of Fen’s stories.',0xc6a477],
         [rest.x-3,rest.y-7,'Inn’s supper docket','Three benches laid. Spare bread goes to the north road watch after supper.',0x9dba9f],
         [8556,8580,'Shellwick tide board','Shellfish baskets go out past the yellow sand at low tide. The mooring is just southwest. Lantern Quay lies northwest around the head of the bay. Ask the waykeeper about dry space for the shell baskets.'],
@@ -16290,7 +16294,25 @@ const ebStory = (() => {
     const mark=id=>ebFarlands.markStory('quest-vault-'+id);
     const isVault=b=>b?.realmId==='toll-structure';
     const active=()=>ebFarlands.inRealm() && !sharedWorld.active();
-    function objective() {
+    const crossingGate={x:12,y:9}, crossingDesk={x:13,y:12}, crossingMargin={x:10,y:12};
+    const CROSSING_SIGNS=['Boat','Grain','Bell'];
+    const crossingTitle='The Tollkeeper’s Last Crossing';
+    const clueText='First the boat, then the grain, then the bell.';
+    function crossingObjective(){
+        if(!active()||!flag('crossing-started'))return null;
+        if(flag('crossing-done'))return {label:'Mira recorded the names of the rescued ferrymen',done:true};
+        if(!flag('crossing-clue'))return {label:'Read the flood marker by Millbend creek',site:Farlands.byId.get('mill')};
+        if(flag('crossing-chart'))return {label:'Bring the flood chart to Mira',site:Farlands.byId.get('rest')};
+        if(!buildingInterior?.questDungeon)return {label:'Find the flood door beneath the Old Tollhouse',site:Farlands.byId.get('toll')};
+        if(!flag('crossing-lock'))return {label:'Set the flood-door signs in order'};
+        if(!flag('crossing-sentinel'))return {label:'Defeat the Siltbound Keeper'};
+        return {label:'Read the flood chart inside the chamber'};
+    }
+    function objective(){
+        const crossing=crossingObjective();
+        return crossing&&!crossing.done ? crossing : harvestObjective();
+    }
+    function harvestObjective() {
         if(!active())return null;
         if(flag('reward'))return {label:'The Harvest Bell sings again · chapter complete',done:true};
         if(flag('relic'))return {label:'Bring the Harvest Bell to Mira',site:Farlands.byId.get('rest')};
@@ -16305,7 +16327,13 @@ const ebStory = (() => {
     }
     function mira() {
         if (!active())return '';
-        if(flag('reward'))return '<p style="margin:12px 0">The bell rings again at harvest. You have restored the valley’s promise.</p>';
+        if(flag('reward')){
+            const thanks='<p style="margin:12px 0">The bell rings again at harvest. You have restored the valley’s promise.</p>';
+            if(flag('crossing-done'))return thanks+'<p>My grandmother was the smallest name on that chart. You brought her home twice, in a way.</p>';
+            if(flag('crossing-chart'))return thanks+'<section data-eb-pane="quests" data-eb-ready="1"><strong>'+crossingTitle+'</strong><p>These are passengers, not tolls. Let me put their names where the next ferryman can see them.</p><button type="button" class="btn" onclick="ebStory.finishCrossing()">Record the rescued names</button></section>';
+            if(flag('crossing-started'))return thanks+'<p>My grandmother said the old keeper never charged anyone during the flood. I’d like to know who he ferried across.</p>';
+            return thanks+'<section data-eb-pane="quests"><strong>'+crossingTitle+'</strong><p>The bell shook loose a memory. My grandmother said the tollkeeper hid a flood chart behind three brass signs. The marker by Millbend may tell us how to open them.</p><button type="button" class="btn" onclick="ebStory.beginCrossing()">Ask about the flood chart</button></section>';
+        }
         if(flag('relic')) {
             if(!flag('reward')) {
                 gameState.inventory.gold+=65;
@@ -16325,6 +16353,10 @@ const ebStory = (() => {
         const terrain=layout.map(row=>[...row].map(char=>({
             '#':'wall','.':'floor','E':'exit','D':unlocked?'floor':'door','T':'floor'
         })[char]));
+        if(flag('crossing-started')){
+            for(let x=9;x<=15;x++)terrain[crossingGate.y][x]='wall';
+            terrain[crossingGate.y][crossingGate.x]=flag('crossing-lock')?'floor':'door';
+        }
         const outside={map:captureAdventureMap(),x:gameState.player.x,y:gameState.player.y};
         const furniture=[
             {kind:'brazier',x:2,y:2},{kind:'rack',x:6,y:4},
@@ -16336,6 +16368,10 @@ const ebStory = (() => {
             x:11,y:7,hp:55,maxHp:55,attack:10,defense:3,xpReward:75,goldReward:35,
             movable:false
         }];
+        if(flag('crossing-started')){
+            furniture.push({kind:'table',...crossingDesk},{kind:'trunk',...crossingMargin},{kind:'brazier',x:15,y:11});
+            if(flag('crossing-lock')&&!flag('crossing-sentinel'))guardian.push(crossingSentinel());
+        }
         const relic=flag('relic')?[]:[{
             x:13,y:3,type:'vault_relic',value:1,realmId:'quest-vault-relic'
         }];
@@ -16345,9 +16381,10 @@ const ebStory = (() => {
             npcs:[],enemies:guardian,items:relic,buildings:[]};
         const door={...EB_VAULT_EXIT};
         const interior={building,outside,door,service:{x:-10,y:-10},furniture,
-            decorTiles:new Set(),questDungeon:true};
+            decorTiles:new Set(),questDungeon:true,crossingSequence:0};
         setInteriorState(interior);
-        const valid=position && Number.isInteger(position.x)&&Number.isInteger(position.y)&&
+        const valid=position && (flag('crossing-lock')||!flag('crossing-started')||position.y<=9||position.x<=8) &&
+            Number.isInteger(position.x)&&Number.isInteger(position.y)&&
             position.x>0&&position.y>0&&position.x<layout[0].length-1&&position.y<layout.length-1&&
             terrain[position.y][position.x]!=='wall'&&terrain[position.y][position.x]!=='door'&&
             (unlocked || position.x<EB_VAULT_GATE.x);
@@ -16390,6 +16427,94 @@ const ebStory = (() => {
         releaseMovement();document.getElementById('interactionModal').style.display='flex';return true;
     }
     function ledgerNote(){return active()&&flag('ledger')?'<section id="eb-archive-copy" style="padding:12px;margin:10px 0;border:1px solid rgba(180,200,180,.25);border-radius:10px;text-align:left"><strong>'+ledgerTitle+'</strong>'+ledgerPage+'</section>':'';}
+    function crossingSentinel(){
+        return {name:'Siltbound Keeper',class:'enemy-spawn enemy-goblin',realmId:'quest-vault-crossing-sentinel',
+            x:13,y:11,hp:68,maxHp:68,attack:12,defense:4,xpReward:30,goldReward:18,movable:false};
+    }
+    function nearMira(){
+        return active()&&ebFarlands.surface()&&!gameState.inBattle&&npcs.some(n=>n.name==='Mira, the Cartographer'&&
+            Math.hypot(n.x-gameState.player.x,n.y-gameState.player.y)<=1.5);
+    }
+    function beginCrossing(){
+        if(!nearMira()||!flag('reward')||!mark('crossing-started'))return;
+        ebFarlands.pin('mill');closeModal();
+    }
+    function finishCrossing(){
+        if(!nearMira()||!flag('crossing-chart')||flag('crossing-done'))return;
+        gameState.inventory.gold+=24;gameState.player.xp+=30;
+        checkLevelUp();updateUI();mark('crossing-done');
+        document.getElementById('modalTitle').textContent='The river remembers';
+        document.getElementById('modalContent').textContent='Mira reads her grandmother’s name aloud, then copies the chart into the village record. “She always said the boat was too small. Apparently so was the tollkeeper’s handwriting.” You earned 24 gold and 30 XP.';
+    }
+    function crossingClue(prop){
+        if(!active()||!flag('crossing-started')||prop.name!=='Millbend flood marker')return '';
+        if(mark('crossing-clue')){ebFarlands.pin('toll');return 'You copy the order of the three signs. Follow the old road to the Tollhouse.';}
+        return 'The sign order is in your Explorer’s Journal.';
+    }
+    function nearCrossing(at,r=1.35){
+        const p=gameState.player;
+        return active()&&buildingInterior?.questDungeon&&flag('crossing-started')&&!gameState.inBattle&&Math.hypot(p.x-at.x,p.y-at.y)<=r;
+    }
+    function crossingModal(title,text){
+        document.getElementById('modalTitle').textContent=title;
+        const content=document.getElementById('modalContent');content.textContent=text;
+        releaseMovement();document.getElementById('interactionModal').style.display='flex';
+        return content;
+    }
+    function floodDoor(){
+        if(!nearCrossing(crossingGate)||flag('crossing-lock'))return;
+        if(!flag('crossing-clue')){
+            crossingModal('The flood door','Three brass signs are worn smooth. Mira mentioned a flood marker by the creek at Millbend.');
+            return;
+        }
+        const room=buildingInterior;
+        room.crossingSequence=0;
+        const content=crossingModal('The flood door','A boat, a sack of grain, and a bell. Set the signs in the order you found at Millbend.');
+        const status=document.createElement('p');status.setAttribute('role','status');content.append(status);
+        const signs=document.createElement('div');content.append(signs);
+        for(const label of ['Bell','Boat','Grain']){
+            const button=document.createElement('button');button.type='button';button.className='btn';
+            button.textContent=label;
+            button.addEventListener('click',()=>{
+                if(buildingInterior!==room||!nearCrossing(crossingGate)||flag('crossing-lock'))return;
+                if(label!==CROSSING_SIGNS[room.crossingSequence]){
+                    room.crossingSequence=0;status.textContent='The signs spring back. Start again.';return;
+                }
+                if(++room.crossingSequence<CROSSING_SIGNS.length){
+                    status.textContent=room.crossingSequence+' of 3 signs set.';return;
+                }
+                changeAdventureTile(crossingGate.x,crossingGate.y,'floor');
+                enemies.push(crossingSentinel());
+                mark('crossing-lock');closeModal();
+                resetWorldRenderCache();initializeMinimap();renderWorld();ebSound.play('pickup');
+            });
+            signs.append(button);
+        }
+    }
+    function readCrossing(){
+        if(nearCrossing(crossingGate)&&!flag('crossing-lock')){floodDoor();return true;}
+        if(!flag('crossing-sentinel'))return false;
+        if(nearCrossing(crossingDesk)){
+            const first=mark('crossing-chart');
+            if(first)ebFarlands.pin('rest');
+            crossingModal('The rescued names','A dry chart lists nineteen passengers, two goats, and one child marked “too small for a fare.” The tollkeeper crossed out every debt. Take this record back to Mira.');
+            return true;
+        }
+        if(nearCrossing(crossingMargin)){
+            mark('crossing-margin');
+            crossingModal('A private tally','The keeper wrote a second list inside his coat: “One blanket, one wet dog, and one excellent excuse for being late to supper.” Copied to the Explorer’s Journal.');
+            return true;
+        }
+        return false;
+    }
+    function crossingNote(){
+        const q=crossingObjective();
+        if(!q)return '';
+        const clue=flag('crossing-clue')?'<p>Millbend marker: '+clueText+'</p>':'';
+        const secret=flag('crossing-margin')?'<p>Private tally discovered: one blanket, one wet dog, and one excellent excuse for being late to supper.</p>':'';
+        const track=q.site?`<button type="button" class="btn" onclick="ebFarlands.pin('${q.site.id}');closeModal()">Mark ${escapeMapText(q.site.name)} on the Atlas</button>`:'';
+        return '<section style="padding:12px;margin:10px 0;border:1px solid rgba(180,200,180,.25);border-radius:10px;text-align:left"><strong>'+crossingTitle+'</strong><p>'+q.label+'</p>'+clue+secret+track+'</section>';
+    }
     function interactDungeon() {
         if(!buildingInterior?.questDungeon)return;
         const {x,y}=gameState.player;
@@ -16404,7 +16529,7 @@ const ebStory = (() => {
             else collectItem(items.indexOf(relic));
             return;
         }
-        if(readLedger())return;
+        if(readCrossing()||readLedger())return;
         showFloatingText(flag('guardian')?'Find the bell in the eastern chamber':'The archive still has a guardian',x*32+16,y*32,'#d3b483');
     }
     // The pin follows the quest: if the place just finished was pinned, the next place is pinned instead.
@@ -16419,13 +16544,22 @@ const ebStory = (() => {
             if(enemy){at=enemy;text='Challenge '+enemy.name;}
             else if(!flag('gate')&&near(EB_VAULT_GATE,1.5)){at=EB_VAULT_GATE;text=flag('key')?'Iron gate nearby · use ward key':'Iron gate nearby · needs ward key';}
             else {const relic=items.find(i=>i.type==='vault_relic'&&near(i,1));if(relic){at=relic;text=flag('guardian')?'Harvest Bell nearby · take it':'Harvest Bell nearby · still guarded';}
+                else if(nearCrossing(crossingGate)&&!flag('crossing-lock')){at=crossingGate;text='Flood door nearby · set the signs';}
+                else if(flag('crossing-sentinel')&&nearCrossing(crossingDesk)){at=crossingDesk;text='Flood chart nearby · read';}
+                else if(flag('crossing-sentinel')&&nearCrossing(crossingMargin)){at=crossingMargin;text='Small trunk nearby · inspect';}
                 else {const rack=nearbyLedger();if(rack){at=rack;text='Archive ledger nearby · read';}}}
         }
         if(!at)return '';const dx=at.x-p.x,dy=at.y-p.y,d=Math.hypot(dx,dy);
         return d<.01||(-Math.sin(yaw)*dx-Math.cos(yaw)*dy)/d>=.6?text:'';
     }
-    const bumpGate=()=>openGate(true); // walking into the gate: opens with the ward key, a short note without it
-    return {isVault,objective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon,eyeHint,ledgerNote};
+    const bumpGate=(x,y)=>{
+        if(x===crossingGate.x&&y===crossingGate.y){
+            showFloatingText('Use the three brass signs',x*32+16,y*32,'#fbbf24');return;
+        }
+        openGate(true);
+    };
+    return {isVault,objective,harvestObjective,mira,openDungeon,openGate,bumpGate,movePin,interactDungeon,eyeHint,ledgerNote,
+        beginCrossing,finishCrossing,crossingClue,crossingNote};
 })();
 </script>
 <script data-source="farlands-life.js">
@@ -17557,11 +17691,11 @@ const ebJournal = (() => {
                 return `<section style="padding:12px;margin:10px 0;border:1px solid rgba(180,200,180,.25);border-radius:10px;text-align:left"><strong>${escapeMapText(chapter.title)}</strong> <small>(${done}/${sites.length})</small><p style="margin:8px 0">${escapeMapText(chapter.intro)}</p><ul style="padding-left:20px">${entries}</ul><small>${done===sites.length?'✓ Chapter explored. ':''}${escapeMapText(chapter.note)}</small></section>`;
             }).join('');
             document.getElementById('modalTitle').textContent = '📖 Explorer’s Journal';
-            const quest=ebStory.objective();
+            const quest=ebStory.harvestObjective();
             const storyCard=quest ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.5);border-radius:10px;text-align:left"><strong>🔔 The Silent Harvest · Story Quest</strong><p style="margin:8px 0">The Harvest Bell lies in the locked archive beneath the Old Tollhouse. Find the ward key at Millbend, defeat the Archive Warden, recover the bell and return it to Mira at Wayfarer’s Rest.</p><p style="margin:0"><strong>Now:</strong> ${escapeMapText(quest.label)}</p></section>` : '';
             const errands=ebFarlands.errandsInHand().map(e=>`<li style="margin:6px 0">${escapeMapText(e.label)} <button type="button" class="btn" style="min-height:40px;margin-left:6px" onclick="ebFarlands.pin('${e.site.id}');closeModal()">Show</button></li>`).join('');
             const errandCard=errands ? `<section style="padding:12px;margin:10px 0;border:1px solid rgba(230,190,100,.35);border-radius:10px;text-align:left"><strong>📜 Errands</strong><ul style="margin:6px 0 0;padding-left:18px">${errands}</ul></section>` : '';
-            document.getElementById('modalContent').innerHTML = storyCard+errandCard+(typeof ebRpgQuests!=='undefined'?ebRpgQuests.journal():'')+ebStory.ledgerNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
+            document.getElementById('modalContent').innerHTML = storyCard+errandCard+(typeof ebRpgQuests!=='undefined'?ebRpgQuests.journal():'')+ebStory.ledgerNote()+ebStory.crossingNote()+`<p>Discover landmarks to fill these chapters.</p>${cards}<button type="button" class="btn btn-primary" onclick="closeModal();ebJournal.atlas()">Open Farlands Atlas</button>`;
         }
         releaseMovement();
         document.getElementById('interactionModal').style.display='flex';
