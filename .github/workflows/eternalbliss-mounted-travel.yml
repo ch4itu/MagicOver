@@ -1,0 +1,43 @@
+name: EternalBliss mounted travel
+on:
+  push:
+    branches: [automation/eternalbliss-release-candidate]
+permissions:
+  contents: read
+jobs:
+  trial:
+    if: "contains(github.event.head_commit.message, '[profile mount]')"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare isolated browser
+        run: |
+          npm install --prefix /tmp/eb-playwright --no-audit --no-fund playwright@1.56.1
+          /tmp/eb-playwright/node_modules/.bin/playwright install --with-deps chromium
+          echo NODE_PATH=/tmp/eb-playwright/node_modules >> "$GITHUB_ENV"
+      - name: Measure mounted travel
+        env:
+          EB_EVIDENCE: ${{ runner.temp }}/ride
+        run: |
+          export EB_CHROMIUM_PATH=$(node -p "require('playwright').chromium.executablePath()")
+          mkdir -p "$EB_EVIDENCE"
+          for mode in 2d overhead first; do
+            EB_RIDE_VIEW=$mode node eternalbliss/tests/release/mounted-travel.cjs
+            if test "$mode" != 2d; then
+              for trial in pixels shadow; do
+                EB_RIDE_VIEW=$mode EB_RIDE_TRIAL=$trial node eternalbliss/tests/release/mounted-travel.cjs
+              done
+            fi
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mounted-travel
+          path: ${{ runner.temp }}/ride/
