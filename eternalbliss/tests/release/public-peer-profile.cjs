@@ -8,6 +8,7 @@ const {chromium} = require('playwright');
 
 const out = process.env.EB_EVIDENCE;
 const rpc = 'https://devnet-as.magicblock.app';
+const visibleTrial = process.env.EB_VISIBLE_PEERS === '1';
 if (process.env.EB_PUBLIC_TRIAL !== '1' || !out) throw Error('Set EB_PUBLIC_TRIAL=1 and EB_EVIDENCE for a public Devnet trial');
 fs.mkdirSync(out,{recursive:true});
 const accounts = ['a','b'].map(letter => ({name:'ebperf-'+randomBytes(5).toString('hex')+'-'+letter,pass:randomBytes(24).toString('hex')}));
@@ -27,17 +28,72 @@ function instrument(source) {
             trace('ingested',{revision,slot,peers:remote.map(p=>[p.name,p.seq,p.x,p.y])});
             if (!connection.presentationFrame)`);
     insert('        renderFrame(eyeEnabled) {', "if(eyeEnabled) trace('raf',{});");
+    const render='this.renderer.render(this.scene, eyeEnabled ? this.eyeCamera : this.camera);';
+    if(visibleTrial){
+        assert.equal(source.split(render).length,2);
+        source=source.replace(render,`if(eyeEnabled && window.collect) {
+            for(const r of this.actors.values()){
+                if(r.kind!=='remote')continue;
+                r.drewPeer=false;
+                if(r.traceInstalled)continue;
+                r.traceInstalled=true;
+                r.model.group.traverse(mesh=>{
+                    if(!mesh.isMesh)return;
+                    const prior=mesh.onAfterRender;
+                    const eye=this.eyeCamera;
+                    mesh.onAfterRender=function(renderer,scene,camera,...rest){
+                        if(camera===eye)r.drewPeer=true;
+                        prior.call(this,renderer,scene,camera,...rest);
+                    };
+                });
+            }
+        }
+        `+render);
+    }
     insert('this.renderer.render(this.scene, eyeEnabled ? this.eyeCamera : this.camera);', `if(eyeEnabled) {
-        const peers=[...this.actors.values()].filter(r=>r.kind==='remote').map(r=>[r.data.name,r.data.seq,r.model.group.position.x,r.model.group.position.z]);
+        const peers=[...this.actors.values()].filter(r=>r.kind==='remote').map(r=>[r.data.name,r.data.seq,r.model.group.position.x,r.model.group.position.z,r.drewPeer]);
         trace('scene',{peers,triangles:this.renderer.info.render.triangles,calls:this.renderer.info.render.calls});
     }`);
     insert('if (element.style.top !== top) element.style.top = top;', "trace('classic',{peers:[[player.name,player.seq,pose.x,pose.y]]});");
     return source;
 }
+// The separate read-only Node client keeps polling even while either page is drawing.
+// Its first finalized observation is an upper bound from the browser request event.
+async function observeStatus(sha,request){
+    const start=Date.now();
+    const wire=Buffer.from(request.postDataJSON().params[0],'base64');
+    if(wire[0]!==1)return;
+    const bytes=wire.subarray(1,65);
+    const alphabet='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let n=BigInt('0x'+bytes.toString('hex')),sig='';
+    while(n){sig=alphabet[Number(n%58n)]+sig;n/=58n;}
+    for(const byte of bytes){if(byte!==0)break;sig='1'+sig;}
+    const probes=[];
+    for(let i=0;i<8;i++){
+        const sent=Date.now();
+        const response=await fetch(rpc,{method:'POST',headers:{'Content-Type':'application/json'},
+            signal:AbortSignal.timeout(6000),body:JSON.stringify({jsonrpc:'2.0',id:1,method:'getSignatureStatuses',params:[[sig]]})});
+        const value=(await response.json()).result?.value?.[0];
+        probes.push({sent,returned:Date.now(),status:value?.confirmationStatus||null,slot:value?.slot});
+        if(value?.confirmationStatus==='finalized'||value?.err)break;
+        await sleep(250);
+    }
+    log('independent-status',{sha,sig,start,probes});
+}
+async function shiftSouth(page,dy){
+    for(let step=0;step<3;step++){
+        const y=await page.evaluate(dy=>{
+            if(!sharedWorld.move(0,dy))throw Error('Approach to facing position blocked');
+            return gameState.player.y;
+        },dy);
+        await page.waitForFunction(y=>sharedWorld.ranks().some(r=>r.name===gameState.player.name&&r.y===y),y);
+    }
+}
 async function run(browser, file, index, last) {
     const raw=fs.readFileSync(file,'utf8'), html=instrument(raw);
     const sha=createHash('sha256').update(raw).digest('hex');
-    const clients=[], writes=[], responses=[], errors=[];
+    const clients=[], writes=[], responses=[], errors=[], statusReads=[];
+    let measuredActor;
     log('start',{sha,browser:browser.version(),viewport:[900,560]});
     try {
         for (const account of accounts) {
@@ -45,6 +101,11 @@ async function run(browser, file, index, last) {
             const page=await ctx.newPage();
             clients.push(page);
             page.on('pageerror',e=>errors.push(e.message));
+            page.on('request',req=>{
+                if(page!==measuredActor||req.method()!=='POST'||new URL(req.url()).origin!==rpc||
+                    req.postDataJSON()?.method!=='sendTransaction')return;
+                statusReads.push(observeStatus(sha,req).catch(e=>log('status-probe-error',{sha,message:e.message})));
+            });
             page.on('response',async res=>{
                 try{
                     const req=res.request();
@@ -68,8 +129,14 @@ async function run(browser, file, index, last) {
                     return result;
                 };
                 const Native=window.WebSocket;
+                const sockets=new Set();
+                window.forcePolling=()=>{window.pollOnly=true;for(const s of sockets)s.close();};
                 window.WebSocket=class extends Native{
-                    constructor(...args){super(...args);this.addEventListener('message',e=>{
+                    constructor(...args){
+                        if(window.pollOnly)throw Error('Test-only WebSocket outage');
+                        super(...args);sockets.add(this);
+                        this.addEventListener('close',()=>sockets.delete(this));
+                        this.addEventListener('message',e=>{
                         try{const m=JSON.parse(e.data);if(m.method==='accountNotification')trace('ws',{slot:m.params.result.context.slot});}catch{}
                     });}
                 };
@@ -91,29 +158,39 @@ async function run(browser, file, index, last) {
             log('join',{sha,name:account.name,owner:await page.evaluate(()=>sharedWorld.ranks().find(r=>r.name===gameState.player.name).owner)});
         }
         for(const p of clients)await p.waitForFunction(()=>sharedWorld.remote().length===1);
+        if(visibleTrial){
+            await shiftSouth(clients[1],1);
+            await clients[0].waitForFunction(()=>sharedWorld.remote()[0].y===gameState.player.y+3);
+        }
         for(const mode of ['2d','fp']){
-            if(mode==='fp')for(const p of clients)await p.evaluate(()=>{
+            if(mode==='fp')for(const p of clients)await p.evaluate(visible=>{
                 document.querySelector('#eb-view-toggle').click();document.querySelector('#eb-immersive-toggle').click();
-            });
+                if(visible){
+                    const peer=sharedWorld.remote()[0],self=gameState.player;
+                    __view.eyeYaw=__view.eyeRenderYaw=Math.atan2(self.x-peer.x,self.y-peer.y);
+                }
+            },visibleTrial);
             await sleep(2500);
             for(const p of clients)await p.evaluate(()=>{window.collect=true});
             for(let step=0;step<4;step++){
                 const i=step%2, actor=clients[i], peer=clients[1-i];
                 const dx=step<2?1:-1;
                 const before=await peer.evaluate(()=>{const p=sharedWorld.remote()[0];return {x:p.x,y:p.y,seq:p.seq,name:p.name};});
+                measuredActor=actor;
                 const start=await actor.evaluate(dx=>{
                     const time=performance.timeOrigin+performance.now();
                     if(!sharedWorld.move(dx,0)) throw Error('Ordinary cardinal input refused');
                     return time;
                 },dx);
-                const handle=await peer.waitForFunction(({before,dx,mode,start})=>{
+                const handle=await peer.waitForFunction(({before,dx,mode,start,visibleTrial})=>{
                     const stream=mode==='fp'?'scene':'classic';
                     const hit=events.find(e=>e.kind==='ingested'&&e.t>=start&&e.peers.some(([name,seq,x,y])=>name===before.name&&seq>before.seq&&x===before.x+dx&&y===before.y));
                     if(!hit)return false;
-                    const placed=events.find(e=>e.kind===stream&&e.t>=hit.t&&e.peers.some(([name,seq,x])=>name===before.name&&seq>before.seq&&Math.abs(x-(before.x+dx))<.48));
+                    const placed=events.find(e=>e.kind===stream&&e.t>=hit.t&&e.peers.some(([name,seq,x,y,drew])=>(!visibleTrial||mode!=='fp'||drew)&&name===before.name&&seq>before.seq&&Math.abs(x-(before.x+dx))<.48));
                     return placed&&{hit,placed};
-                },{before,dx,mode,start},{timeout:45000,polling:100});
+                },{before,dx,mode,start,visibleTrial},{timeout:45000,polling:100});
                 const {hit,placed}=await handle.jsonValue();
+                measuredActor=null;
                 const sender=await actor.evaluate(start=>events.filter(e=>e.t>=start),start);
                 const sign=sender.find(e=>e.kind==='signed'&&e.op===19);
                 assert(sign);
@@ -129,8 +206,30 @@ async function run(browser, file, index, last) {
                 fs.writeFileSync(path.join(out,sha.slice(0,8)+'-'+mode+'-'+i+'.json'),JSON.stringify(rows));
             }
             await clients[0].screenshot({path:path.join(out,sha.slice(0,8)+'-'+mode+'.png')});
+            if(visibleTrial && last && mode==='fp'){
+                const [a,b]=clients;
+                await b.evaluate(()=>{events.length=0;window.collect=true;forcePolling();});
+                for(const dx of [1,-1]){
+                    const from=await a.evaluate(()=>gameState.player.x);
+                    const t=await a.evaluate(dx=>{
+                        if(!sharedWorld.move(dx,0))throw Error('Real move during fallback refused');
+                        return performance.timeOrigin+performance.now();
+                    },dx);
+                    await b.waitForFunction(({x,t})=>events.some(e=>e.kind==='scene'&&e.t>=t&&
+                        e.peers.some(p=>p[4]&&Math.abs(p[2]-x)<.1)),{x:from+dx,t},{timeout:30000});
+                }
+                const counts=await b.evaluate(()=>({notifications:events.filter(e=>e.kind==='ws').length,
+                    polls:events.filter(e=>e.kind==='http'&&e.method==='getMultipleAccounts').length,
+                    ingestions:events.filter(e=>e.kind==='ingested').length}));
+                assert.equal(counts.notifications,0);assert(counts.polls>0 && counts.ingestions>=2);
+                log('http-fallback',{sha,...counts});
+            }
         }
-        if(last && index>0){
+        if(visibleTrial){
+            for(const p of clients)await p.evaluate(()=>document.querySelector('#eb-view-toggle').click());
+            await shiftSouth(clients[1],-1);
+        }
+        if(last && index>0 && !visibleTrial){
             for(const p of clients)await p.evaluate(()=>document.querySelector('#eb-view-toggle').click());
             const [a,b]=clients;
             const owner=await b.evaluate(()=>sharedWorld.ranks().find(p=>p.name===gameState.player.name).owner);
@@ -201,6 +300,7 @@ async function run(browser, file, index, last) {
                 }
             }catch(e){log('cleanup-error',{sha,error:e.message});process.exitCode=1;}
         }
+        await Promise.all(statusReads);
         for(const p of clients)await p.context().close();
         if(writes.length){
             const result=await fetch(rpc,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'getSignatureStatuses',params:[writes,{searchTransactionHistory:true}]})});
