@@ -34,7 +34,7 @@ function instrument(source) {
     insert('if (element.style.top !== top) element.style.top = top;', "trace('classic',{peers:[[player.name,player.seq,pose.x,pose.y]]});");
     return source;
 }
-async function run(browser, file, index) {
+async function run(browser, file, index, last) {
     const raw=fs.readFileSync(file,'utf8'), html=instrument(raw);
     const sha=createHash('sha256').update(raw).digest('hex');
     const clients=[], writes=[], responses=[], errors=[];
@@ -130,6 +130,63 @@ async function run(browser, file, index) {
             }
             await clients[0].screenshot({path:path.join(out,sha.slice(0,8)+'-'+mode+'.png')});
         }
+        if(last && index>0){
+            for(const p of clients)await p.evaluate(()=>document.querySelector('#eb-view-toggle').click());
+            const [a,b]=clients;
+            const owner=await b.evaluate(()=>sharedWorld.ranks().find(p=>p.name===gameState.player.name).owner);
+            const from=await a.evaluate(()=>({x:gameState.player.x,y:gameState.player.y}));
+            await b.context().setOffline(true);
+            try{
+                await b.evaluate(()=>sharedWorld.leave());
+                assert(await b.evaluate(()=>sharedWorld.active()));
+                assert(await a.evaluate(()=>sharedWorld.move(1,0)));
+                await a.waitForFunction(x=>sharedWorld.ranks().find(p=>p.name===gameState.player.name).x===x,from.x+1);
+            }finally{await b.context().setOffline(false);}
+            await b.waitForFunction(x=>sharedWorld.remote().some(p=>p.x===x),from.x+1);
+            log('reconnected',{sha});
+            await b.evaluate(()=>sharedWorld.leave());
+            await a.waitForFunction(()=>!sharedWorld.remote().length);
+            await b.reload();
+            await b.locator('#eb-menu-world').click();
+            await b.evaluate(()=>{if(__view.active)document.querySelector('#eb-view-toggle').click()});
+            await b.locator('#eb-player-name').fill(accounts[1].name);
+            await b.locator('#eb-passphrase').fill(accounts[1].pass);
+            await b.locator('#eb-smaran-submit').click();
+            await b.waitForFunction(()=>sharedWorld.active(),null,{timeout:90000});
+            await a.waitForFunction(key=>sharedWorld.remote().some(p=>p.owner===key),owner);
+            log('reload-rejoin',{sha,owner});
+            // Follow a real route to the same accessible inn with ordinary signed cardinal moves.
+            for(const p of clients){
+                const route=await p.evaluate(()=>{
+                    const inn=buildings.find(b=>b.type==='inn'&&b.x===68&&b.y===65);
+                    const start=gameState.player,q=[[start.x,start.y,[]]],seen=new Set();
+                    for(let i=0;i<q.length;i++){
+                        const [x,y,path]=q[i];
+                        const f=buildingFootprint(inn);
+                        if(Math.max(f.x0-x,0,x-f.x0-f.w+1)+Math.max(f.y0-y,0,y-f.y0-f.h+1)<=2)return path;
+                        if(path.length>=35)continue;
+                        for(const [dx,dy] of [[-1,0],[0,-1],[1,0],[0,1]]){
+                            const X=x+dx,Y=y+dy,k=X+','+Y,tile=worldMap[Y]?.[X];
+                            if(seen.has(k)||!tile||['water','door','mountain'].includes(tile)||solidStructure(X,Y)||
+                                enemies.some(e=>Math.round(e.x)===X&&Math.round(e.y)===Y))continue;
+                            seen.add(k);q.push([X,Y,[...path,[dx,dy,X,Y]]]);
+                        }
+                    }
+                    throw Error('No ordinary route to inn');
+                });
+                for(const [dx,dy,x,y] of route){
+                    await p.waitForFunction(()=>sharedWorld.readyToMove());
+                    assert(await p.evaluate(([dx,dy])=>sharedWorld.move(dx,dy),[dx,dy]));
+                    await p.waitForFunction(([x,y])=>sharedWorld.ranks().some(r=>r.name===gameState.player.name&&r.x===x&&r.y===y),[x,y]);
+                }
+                assert(await p.evaluate(()=>sharedWorld.toggleRoom(buildings.find(b=>b.type==='inn'&&b.x===68&&b.y===65))));
+                if(p===a)await b.waitForFunction(()=>!sharedWorld.remote().length);
+            }
+            for(const p of clients)await p.waitForFunction(()=>buildingInterior && sharedWorld.remote().some(r=>r.room>0));
+            for(const p of clients)assert(await p.evaluate(()=>sharedWorld.toggleRoom(buildingInterior.building)));
+            for(const p of clients)await p.waitForFunction(()=>!buildingInterior&&sharedWorld.remote().some(r=>r.room===0));
+            log('room-roundtrip',{sha});
+        }
         assert.deepEqual(errors,[]);
     }finally{
         for(const page of clients){
@@ -155,6 +212,6 @@ async function run(browser, file, index) {
 }
 (async()=>{
     const browser=await chromium.launch({executablePath:process.env.EB_CHROMIUM_PATH,args:['--no-sandbox','--enable-unsafe-swiftshader']});
-    try{for(const [i,source] of process.argv.slice(2).entries())await run(browser,source,i);}
+    try{for(const [i,source] of process.argv.slice(2).entries())await run(browser,source,i,i===process.argv.length-3);}
     finally{await browser.close();}
 })().catch(e=>{console.error(e.message);process.exitCode=1});

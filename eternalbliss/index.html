@@ -10334,7 +10334,21 @@ window.addEventListener('load', () => {
             this.terrainPatches = null;
             this.terrainQueue = [];
             this.terrainSignature = signature;
-            this.replaceLand(this.buildTerrain(left, top, right, bottom));
+            if (this.swiftShader && this.eyeMode && sharedWorld.active() && !this.room) {
+                // Bound each batch independently so both the eye and shadow cameras
+                // can omit terrain outside their frusta. Keep the exact tile window.
+                const land = new T.Group();
+                for (let z = top; z < bottom; z += terrainPatchSize) {
+                    for (let x = left; x < right; x += terrainPatchSize) {
+                        const patch = this.buildTerrain(x, z, Math.min(x + terrainPatchSize, right),
+                            Math.min(z + terrainPatchSize, bottom), true);
+                        for (const mesh of [...patch.children]) land.add(mesh);
+                    }
+                }
+                this.replaceLand(land);
+            } else {
+                this.replaceLand(this.buildTerrain(left, top, right, bottom));
+            }
         }
 
         disposeTerrainMesh(mesh) {

@@ -8,7 +8,7 @@ jobs:
   trial:
     if: "contains(github.event.head_commit.message, '[run peer trial]')"
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,9 +27,33 @@ jobs:
           EB_EVIDENCE: ${{ runner.temp }}/peer-evidence
           EB_PUBLIC_TRIAL: '1'
         run: |
-          node eternalbliss/tests/release/public-peer-profile.cjs eternalbliss/index.html
+          git show a2fee97c962c566a0071409f841d32378167658b:eternalbliss/index.html > /tmp/eb-prev.html
+          node eternalbliss/tests/release/public-peer-profile.cjs /tmp/eb-prev.html eternalbliss/index.html
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: public-peer-timings
           path: ${{ runner.temp }}/peer-evidence/
+      - name: Verify final candidate in sequence
+        if: always()
+        env:
+          EB_EVIDENCE: ${{ runner.temp }}/peer-regression
+          EB_SCOPE_LIVING_REST: multiplayer-2
+          EB_SCOPE_BASELINE: /tmp/eb-prev.html
+          EB_QUEST_BASELINE: /tmp/eb-quest.html
+          EB_ARCHITECTURE_BASELINE: /tmp/eb-arch.html
+          EB_ROLLBACK_SOURCE: /tmp/eb-rollback.html
+        run: |
+          git show 76664bf:eternalbliss/index.html > "$EB_QUEST_BASELINE"
+          git show 12ecd8d:eternalbliss/index.html > "$EB_ARCHITECTURE_BASELINE"
+          git show 047b3c9:eternalbliss/index.html > "$EB_ROLLBACK_SOURCE"
+          export EB_RC_CANDIDATE=$(sha256sum eternalbliss/index.html | cut -d' ' -f1)
+          export EB_CHROMIUM_PATH=$(node -p "require('playwright').chromium.executablePath()")
+          python3 -m http.server 8091 --bind 127.0.0.1 >/tmp/eb-http.log 2>&1 &
+          node eternalbliss/tests/clean-room-exit.cjs
+          node eternalbliss/tests/release/pr30-matrix.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: peer-release-matrix
+          path: ${{ runner.temp }}/peer-regression/
