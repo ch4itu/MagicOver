@@ -18990,11 +18990,20 @@ const sharedWorld = (() => {
         if (busy || sending) { showStatus('Finishing your last action.'); return; }
         pending = [];
         releaseMovement();
-        const solo = session.solo;
+        const connection = session;
+        const {solo,book:home} = connection;
+        connection.leaving = true;
+        let written;
         try {
-            const home = session.book;
-            session.leaving = true;
-            const written = home ? await leaveSeat() : await action(24);
+            written = home ? await leaveSeat() : await action(24);
+        } finally {
+            connection.leaving = false;
+        }
+        if (written === false && me()) {
+            showStatus('Could not confirm leaving the shared world. Reconnect and try Leave world again.');
+            return;
+        }
+        try {
             // Ask for a save of this visit's changes now, or once the two minutes since the last save have passed,
             // while the page stays open. The character's book changed too.
             if (home && written) saveBook(home);
