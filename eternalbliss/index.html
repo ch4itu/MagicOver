@@ -3834,10 +3834,12 @@ function talkToNPC(npc) {
     const opener = typeof ebLivingRest !== 'undefined' ? ebLivingRest.opener(npc) : null;
     const rpgNote = typeof ebRpgQuests !== 'undefined' ? ebRpgQuests.onTalk(npc) : '';
     const unified = ebFarlands.surface() && !sharedWorld.active() && !buildingInterior;
+    const followup = ebLife.followup(npc);
     document.getElementById('modalContent').innerHTML = `
         ${unified ? ebTalkHead(npc) : `<div style="font-size: 24px; margin-bottom: 20px;">${npc.fauna ? escapeMapText(npc.glyph) : '💬'}</div>`}
         <div style="font-style: italic; line-height: 1.6;">"${escapeMapText(opener ?? npc.dialogue)}"</div>
         ${rpgNote ? '<p role="status">'+escapeMapText(rpgNote)+'</p>' : ''}
+        ${followup ? '<p data-eb-followup>'+escapeMapText(followup.line)+'</p>' : ''}
         ${storyLine ? (storyReady ? '<div role="status">'+storyLine+'</div>' : '<div data-eb-pane="quests">'+storyLine+'</div>') : ''}
         ${ebFarlands.errandTalk(npc)}
         ${typeof ebJournal !== 'undefined' ? ebJournal.hint(npc) : ''}
@@ -3853,6 +3855,14 @@ function talkToNPC(npc) {
     if (typeof ebRpgAccess !== 'undefined') ebRpgAccess.attach(npc);
     if (typeof ebRpgQuests !== 'undefined') ebRpgQuests.attach(npc);
     if (unified) ebTradeAttach(npc);
+    if (unified && followup?.lead) {
+        const site=Farlands.byId.get(followup.lead);
+        const button=document.createElement('button');
+        button.type='button'; button.className='btn';
+        button.textContent='Mark '+site.name+' on the Atlas';
+        button.addEventListener('click',()=>{if(ebFarlands.pin(site.id))button.textContent=site.name+' marked';});
+        document.querySelector('[data-eb-followup]').append(document.createElement('br'),button);
+    }
     if (unified) ebOrganizeTalk(npc);
     createParticleEffect(npc.x * 32 + 16, npc.y * 32, '#3b82f6');
 }
@@ -16427,7 +16437,42 @@ const ebLife = (() => {
     const pace = .85;                    // tiles per second: an unhurried walk, the same on a slow or a fast device
     let roster = [], lastTick = 0, localHour = 0;
     const hour = () => { const [h,m] = worldClimate.time.split(':').map(Number); return h + m/60; };
-    function slotOf(npc, now = hour()) {
+    // Event destinations reuse places each resident already knows how to reach. Completion flags are the
+    // entire durable state; opening the game after a missed shift derives the right schedule from the clock.
+    const effects = () => ({
+        bread:ebFarlands.storyFlag('rq-done-h-rest'),
+        supper:ebFarlands.storyFlag('rq-done-i-rest'),
+        quay:ebFarlands.storyFlag('rq-done-j-settlement-lantern-0'),
+        cargo:ebFarlands.storyFlag('rq-done-j-lantern')
+    });
+    function eventSlot(npc, now, state) {
+        if (state.bread && now>=17.95 && now<19.75 &&
+            ['nell','fen'].includes(npc.restNeighbour)) {
+            return npc.marketService ??= {...npc.routine.find(s=>s.from===(npc.restNeighbour==='nell'?13:12)),
+                event:'late-market',says:npc.restNeighbour==='nell'?
+                    'The late loaves are out. Fen can take the end piece if he stops counting it.' :
+                    'Six loaves. I can do six without taking my boots off now.'};
+        }
+        if (state.supper && now>=17 && now<18.5 && ['piper','osric'].includes(npc.restNeighbour)) {
+            const fiddler=npc.restNeighbour==='piper';
+            return npc.watchSupper ??= {...npc.routine.find(s=>s.from===(fiddler?18.25:21)),
+                event:'watch-supper',where:'square',says:fiddler?
+                    'I promised the watch a tune. They asked for a short one, which is rude and fair.' :
+                    'They sent me a hot heel of bread. I can sit through a tune without calling it loitering.'};
+        }
+        const opened = (npc.ebSite==='lantern' && state.cargo) ||
+            (npc.ebSite==='settlement-lantern-0' && state.quay);
+        if (opened && now>=18.95 && now<21.25 && ['Fisher','Dockworker'].includes(npc.ebRole)) {
+            const shore=npc.routine.find(s=>s.where==='landing'&&s.from>=14);
+            if (shore) return npc.lateCargo ??= {...shore,event:'late-cargo',
+                says:npc.ebRole==='Fisher'?'Set the dry baskets down first. The inn can wait another bell.' :
+                    'One more load while the berth is free. Mind the trailing rope.'};
+        }
+        return null;
+    }
+    function slotOf(npc, now, state) {
+        const event=eventSlot(npc,now,state);
+        if (event) return event;
         let slot = npc.routine[npc.routine.length-1];
         for (const entry of npc.routine) if (entry.from <= now) slot = entry;
         return slot;
@@ -16480,8 +16525,9 @@ const ebLife = (() => {
     function enroll(all) {
         roster = all.filter(npc => npc.routine);
         // first sight of a resident: they are simply where the hour says, not marching in from somewhere
+        const now=hour(), state=effects();
         for (const npc of roster) if (!npc.life) {
-            const slot = slotOf(npc), goal = npc.restNeighbour || slot.room || npc.realmId?.startsWith('road-r16-') || ['Fisher','Dockworker','Market Buyer'].includes(npc.ebRole) ? usable(npc,slot) : goalOf(npc,slot);
+            const slot = slotOf(npc,now,state), goal = npc.restNeighbour || slot.room || npc.realmId?.startsWith('road-r16-') || ['Fisher','Dockworker','Market Buyer'].includes(npc.ebRole) ? usable(npc,slot) : goalOf(npc,slot);
             npc.life = {slot,path:null,retry:0};
             npc.indoors = !!(slot.home || slot.room);
             npc.x = goal.x; npc.y = goal.y;
@@ -16502,11 +16548,12 @@ const ebLife = (() => {
         const hero = gameState.player;
         const clock=localHour=hour();
         const alternatePost=Math.floor(clock*2)%2;
+        const state=effects();
         const stride = pace*Math.min(.5,Math.max(0,(now-lastTick)/1000));
         lastTick = now;
         for (const npc of roster) {
             if (npc === hold) continue;                      // R17: the person in conversation stays as they were
-            const life = npc.life, slot = slotOf(npc,clock);
+            const life = npc.life, slot = slotOf(npc,clock,state);
             if (life.slot !== slot) {
                 life.slot = slot; life.path = null; life.retry = 0;
                 if (npc.indoors && !slot.home) {            // out of the same door used to enter
@@ -16641,7 +16688,7 @@ const ebLife = (() => {
         if (where==='rest') return {kind:'rest',face:null};
         if (where === 'market') {
             if (TRADERS.has(role)) {
-                const next=npc.routine[npc.routine.indexOf(slot)+1];
+                const next=slot.event ? null : npc.routine[npc.routine.indexOf(slot)+1];
                 if (npc.ebSite!=='rest' && next && (next.home||next.where==='inn') &&
                     next.from-localHour<=.4) return {kind:'pack',face:null};
                 const buyer = Math.hypot(hero.x-npc.x,hero.y-npc.y) <= 3 ? hero : near(3, o => !TRADERS.has(o.ebRole))[0];
@@ -16675,7 +16722,27 @@ const ebLife = (() => {
         }
         return null;
     }
-    return { restPatrons, roomPatrons, enroll, tick, roster:() => roster, hour, activity, localWork, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
+    function followup(npc) {
+        if (!npc || !ebFarlands.inRealm() || sharedWorld.active() || npc.fauna) return null;
+        const state=effects(), late=hour()>=17;
+        if (state.bread && npc.name==='Nell, the Baker') return {line:late?
+            'There’s an extra batch on the stall before supper. I saved you a heel.' :
+            'You got the inn its bread. I can keep the stall open for another batch now.'};
+        if (state.supper && npc.name==='Piper, a Road Fiddler') return {line:late?
+            'The watch has supper, and you have the first request. I only know three tunes.' :
+            'Come back before supper. I promised Osric a tune after you sorted out the bread.'};
+        if (state.supper && npc.name==='Osric, the Watchman') return {line:
+            'Hot bread on watch was your doing. Hale still keeps the sounding board for anyone taking the Millbend road.',lead:'mill'};
+        if (state.quay && npc.name==='Shellwick Waykeeper') return {line:
+            'We loaded dry baskets for once. The collectors at Pearl Banks put the tide marks beside the landing road.',lead:'pearl'};
+        if (state.cargo && npc.name==='Lantern Quay Waykeeper') return {line:late?
+            'They’re still loading at the quay. The late berth is worth keeping after all.' :
+            'Your instructions reached Shellwick. We can take another load after the ferry clears.'};
+        if (state.cargo && ['Lantern Quay Fisher','Lantern Quay Dockworker'].includes(npc.name)) return {line:
+            'You’re the one who got us that late berth. The inn has set our supper aside.',lead:'pearl'};
+        return null;
+    }
+    return { followup, restPatrons, roomPatrons, enroll, tick, roster:() => roster, hour, activity, localWork, look:npc => npc.ebRole || NAMED_LOOK[npc.name] || null,
         drawn:npc => Boolean(npc.ebRole || NAMED[npc.name]) };
 })();
 </script>
@@ -17451,6 +17518,8 @@ const ebRpgQuests=(()=>{
             else if(done('h'))out.push('Nell says you kept count better than Fen. He says that isn’t a fair contest.');
             if(done('g'))out.push('Hale marked the safe reach from your sounding. The next timber boat can take the inside bend.');
             if(done('f'))out.push('Nessa sent the first baskets down from Bell Orchard. Your tally kept the pickers on the right rows.');
+            if(done('j'))out.push(site.id==='lantern'?'The extra berth is loading after the ferry clears.':
+                'The shell baskets went out dry because you found us a berth.');
             if(done('d'))out.push('The route you charted keeps our shell boats clear of the banks.');
             if(done('c'))out.push('You carried our news to '+plan(site,'c').target.name+' and came back to tell us.');
             if(done('b'))out.push('You walked the road to '+plan(site,'b').target.name+' for our warden.');
