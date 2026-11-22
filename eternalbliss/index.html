@@ -14743,7 +14743,7 @@ const Farlands = (() => {
         'Storyteller':[[9,'centre','Telling stories to anyone who stops in the square.'],[14,'inn','Trading tales with the travellers at the inn.'],[23,'home']],
         'Craftsperson':[[7,'work','Mending tools at the workshop.'],[12,'market','Trading repaired tools at the market.'],[14,'work','Back at the bench, fitting a new handle.'],[19,'inn','Resting tired hands at the inn.'],[22,'home']],
         'Pilgrim':[[6,'temple','Saying the morning prayers at the hall.'],[10,'centre','Asking travellers about the old roads.'],[15,'temple','Resting at the hall before the evening walk.'],[21,'home']],
-        'Farmer':[[6,'field','Working the fields while it is cool.'],[12,'barn','Hauling the morning’s harvest to the granary.'],[14,'field','Back in the fields until the light goes.'],[19,'inn','Supper at the inn after a long day.'],[21,'home']],
+        'Farmer':[[6,'field','Working the fields while it is cool.'],[12,'barn','Hauling the morning’s harvest to the granary.'],[14,'field','Back in the fields while the light holds.'],[17,'market','A basket of leeks for the inn and another for the market. They can argue over which is heavier.'],[19,'inn','Supper at the inn after a long day.'],[21,'home']],
         'Shepherd':[[6,'pasture','Taking the herd out to pasture.'],[17,'barn','Bringing the herd back to the barn.'],[20,'home']],
         'Baker':[[5,'market','Baking bread for the morning travellers.'],[13,'home'],[16,'market','Selling the afternoon loaves.'],[20,'home']],
         'Gardener':[[7,'garden','Weeding the vegetable plots.'],[12,'centre','Drawing water for the gardens.'],[14,'garden','Picking what is ripe for the market.'],[19,'home']],
@@ -15041,7 +15041,7 @@ const Farlands = (() => {
                     roadStops.push({x,y});
                 }
                 const first=roadStops[0], last=roadStops.at(-1), offset=Math.floor(hash(cx,cy,200)*3);
-                const routine=first&&last ? [
+                const routine=first&&last&&Math.hypot(last.x-first.x,last.y-first.y)>=4 ? [
                     {from:0,home:true},{from:7+offset,...first,fit:true,where:'roadA',says:words[role]},
                     {from:12+offset,x:point.x,y:point.y,fit:true,where:'rest',says:words[role]},
                     {from:15+offset,...last,fit:true,where:'roadB',says:words[role]},{from:21,home:true}
@@ -16626,7 +16626,7 @@ const ebLife = (() => {
         }
         if (close && !life.greeted && now>(life.checkDeeds ?? 0)) life.checkDeeds=now+1500;
         if (!standing(npc,now)) {
-            if (role==='Farmer' && slot.where==='barn') return {kind:'carry',face:null};
+            if (role==='Farmer' && (slot.where==='barn'||slot.where==='market')) return {kind:'carry',face:null};
             // two residents passing on the road nod to each other
             const other = roster.find(o => o !== npc && !o.indoors && Math.hypot(o.x-npc.x,o.y-npc.y) < 1.3);
             return other ? {kind:'nod',face:[other.x,other.y]} : null;

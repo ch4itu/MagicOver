@@ -43,7 +43,7 @@ async function verify(browser){
     const coverage=await page.evaluate(()=>{
         const towns=Farlands.sites.filter(s=>s.station);
         const cells=new Map();
-        let ports=0,buyers=0,roadWalkers=0,maxLocal=0;
+        let ports=0,buyers=0,roadWalkers=0,maxLocal=0,farmMarkets=0;
         for(const site of towns){
             const cx=Math.floor(site.x/Farlands.cellSize),cy=Math.floor(site.y/Farlands.cellSize);
             const key=cx+','+cy;
@@ -52,6 +52,7 @@ async function verify(browser){
             maxLocal=Math.max(maxLocal,npcs.length);
             if(npcs.some(n=>n.ebRole==='Fisher') && npcs.some(n=>n.ebRole==='Dockworker'))ports++;
             if(npcs.some(n=>n.ebRole==='Market Buyer'))buyers++;
+            if(npcs.some(n=>n.ebRole==='Farmer'&&n.routine.some(stop=>stop.where==='market')))farmMarkets++;
         }
         for(const route of Farlands.roads)for(let i=1;i<route.length;i++){
             const x=(route[i][0]+route[i-1][0])/2,y=(route[i][1]+route[i-1][1])/2;
@@ -63,10 +64,10 @@ async function verify(browser){
             if(travelers.length>1)throw Error('more than one traveler in a cell');
             roadWalkers+=travelers.filter(n=>n.routine?.some(s=>s.where==='roadB')).length;
         }
-        return {stations:towns.length,ports,buyers,roadWalkers,maxLocal};
+        return {stations:towns.length,ports,buyers,farmMarkets,roadWalkers,maxLocal};
     });
     t.assert.equal(coverage.stations,54);
-    t.assert(coverage.ports>=3 && coverage.buyers>0 && coverage.roadWalkers>0);
+    t.assert(coverage.ports>=3 && coverage.buyers>0 && coverage.farmMarkets>0 && coverage.roadWalkers>0);
     await siteAt(page,'lantern');
     const harbor=await page.evaluate(()=>{
         const roles=ebLife.roster().filter(n=>n.ebSite==='lantern'&&['Fisher','Dockworker'].includes(n.ebRole));
