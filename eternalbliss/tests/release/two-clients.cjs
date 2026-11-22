@@ -19,6 +19,7 @@ intercept('    function refresh(connection = session) {',
 intercept('    async function send(op, sequence, payload = [], registry = null, expected = null, books = []) {',
     '    async function send(op, sequence, payload = []) { const row=await window.ledgerWrite({op,sequence,payload:[...payload]}); window.worldFixture.feed(row); }\n    async function liveSend(op, sequence, payload = [], registry = null, expected = null, books = []) {');
 intercept('    return {\n        active:() => Boolean(session?.entered),',`    window.worldFixture = {
+        idle:()=>!pending.length&&!sending,
         feed(row){
             if(!session)return;
             const bytes=new Uint8Array(40);
@@ -142,7 +143,39 @@ const quantile=(samples,p)=>[...samples].sort((a,b)=>a-b)[Math.ceil(samples.leng
         console.log('Movement confirmed on both clients');
         const throughput=samples.length*1000/(performance.now()-started);
         t.assert.equal(await a.evaluate(()=>sharedWorld.move(1,1)),false);
-        t.assert(await a.locator('#eb-immersive-toggle').isHidden());
+        const eye = a.locator('#eb-immersive-toggle');
+        await eye.click();
+        await a.waitForFunction(()=>__view.eyeActive());
+        const yaw = await a.evaluate(()=>__view.eyeYaw);
+        for (let turn=0; turn<6; turn++) await a.keyboard.press('KeyQ');
+        t.assert(Math.abs(await a.evaluate(()=>__view.eyeYaw)-yaw-1.44)<.001);
+        await a.waitForFunction(()=>worldFixture.idle());
+        const eyeStart = await pos(a);
+        time++;
+        await a.keyboard.press('KeyW');
+        await b.waitForFunction(({x,y})=>sharedWorld.remote().some(p=>p.x===x-1&&p.y===y),eyeStart);
+        await a.waitForFunction(()=>worldFixture.idle());
+        await t.shot(a,'shared-first-person-'+t.sha.slice(0,8));
+        await eye.click();
+        t.assert.equal(await a.evaluate(()=>__view.eyeMode),false);
+        const diagonalStart = await pos(a);
+        time++;
+        await a.keyboard.down('KeyD');
+        await a.keyboard.down('KeyS');
+        try {
+            await b.waitForFunction(({x,y})=>sharedWorld.remote().some(p=>p.x>x&&p.y>y),diagonalStart);
+        } finally {
+            await a.keyboard.up('KeyD');
+            await a.keyboard.up('KeyS');
+        }
+        await a.waitForFunction(()=>worldFixture.idle());
+        await b.waitForFunction(()=>{
+            const [peer]=sharedWorld.remote();
+            const record=[...__view.actors.values()].find(({kind})=>kind==='remote');
+            return peer && record && Math.abs(record.model.group.position.x-peer.viewX)<.01 &&
+                Math.abs(record.model.group.position.z-peer.viewY)<.01;
+        });
+        console.log('Shared camera-relative keyboard movement and diagonal steering confirmed');
         t.assert(await a.locator('#eb-farlands-horse').isHidden());
 
         // Put the same two signed records at a valid inn approach, then publish the placement
@@ -200,20 +233,26 @@ const quantile=(samples,p)=>[...samples].sort((a,b)=>a-b)[Math.ceil(samples.leng
         await b.evaluate(row=>worldFixture.feed(row),rejoined);
         t.assert.equal((await remote(b)).length,1);
         t.assert.equal(await identity(a),owner);
-        const frameTimes=await a.evaluate(async()=>{
-            const frames=[];
-            let last=performance.now();
-            for(let i=0;i<36;i++){
-                const now=await new Promise(requestAnimationFrame);
-                if(i>=4)frames.push(now-last);
-                last=now;
-            }
-            return frames;
-        });
-        const result={transport:'local Node bridge, signed LiteSVM ledger; browser session and signer provided by fixture',
+        async function frames(page) {
+            return page.evaluate(async()=>{
+                const frames=[];
+                let last=await new Promise(requestAnimationFrame);
+                for(let i=0;i<36;i++){
+                    const now=await new Promise(requestAnimationFrame);
+                    if(i>=4)frames.push(now-last);
+                    last=now;
+                }
+                return frames;
+            });
+        }
+        const frameTimes=await frames(a);
+        // Same account state and browser processes, with both WebGL scenes disabled.
+        for(const page of clients)await page.locator('#eb-view-toggle').click();
+        const mapTimes=await frames(a);
+        const result={cameraRelativeKeyboard:true,diagonalSteering:true,transport:'local Node bridge, signed LiteSVM ledger; browser session and signer provided by fixture',
             accountBytes:Buffer.from(joined.data,'base64').length,base64Bytes:joined.data.length,
             samples:samples.length,deliveryMs:{p50:quantile(samples,.5),p95:quantile(samples,.95)},updatesPerSecond:throughput,
-            frameMs:{p50:quantile(frameTimes,.5),p95:quantile(frameTimes,.95)},failedLeave:retained};
+            frameMs:{p50:quantile(frameTimes,.5),p95:quantile(frameTimes,.95)},mapFrameMs:{p50:quantile(mapTimes,.5),p95:quantile(mapTimes,.95)},failedLeave:retained};
         console.log(JSON.stringify(result));
         t.assert.deepEqual(a.fixtureErrors,[]);
         t.assert.deepEqual(b.fixtureErrors,[]);

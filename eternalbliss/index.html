@@ -2031,7 +2031,6 @@ body.eb-capture-clean #eb-immersive-look {display:none!important;}
 }
 [data-eb-immersive="first"] #eb-eye-reticle{font-size:20px;opacity:.75;}
 #eb-eye-reticle[hidden],#eb-eye-actions[hidden]{display:none!important}
-#eb-immersive-toggle.eb-solo-only-off{display:none!important}
 [data-eb-eye-battle] :is(#eb-eye-reticle,#eb-eye-actions,#eb-immersive-look){display:none!important}
 #eb-eye-reticle{position:absolute;z-index:9;left:50%;top:49%;transform:translate(-50%,-50%);
  pointer-events:none;color:#f8e9c7;text-shadow:0 1px 5px #10252a;font:26px system-ui}
@@ -4784,7 +4783,7 @@ function ebRelativeDirections(directions) {
     const x=-Math.sin(yaw)*forward+Math.cos(yaw)*strafe;
     const y=-Math.cos(yaw)*forward-Math.sin(yaw)*strafe;
     if(Math.abs(x)<.001&&Math.abs(y)<.001){ebRelativeDirections.lastOctant=null;return directions;}
-    // 8 sectors in solo mode; shared rollup supports cardinal actions only.
+    // Quantize the camera-relative input to eight sectors.
     const angle=Math.atan2(x,-y);
     const rawOctant=angle/(Math.PI/4);
     const nearest=Math.round(rawOctant);
@@ -4794,10 +4793,7 @@ function ebRelativeDirections(directions) {
     ebRelativeDirections.lastOctant=stable;
     const sectors=[['up'],['up','right'],['right'],['down','right'],
       ['down'],['down','left'],['left'],['up','left']];
-    const chosen=sectors[octant];
-    if(sharedWorld.active()&&chosen.length===2)
-        return Math.abs(x)>=Math.abs(y)?[x>0?'right':'left']:[y>0?'down':'up'];
-    return chosen;
+    return sectors[octant];
 }
 ebRelativeDirections.lastOctant=null;
 const heldMovement = new Map();
@@ -4850,7 +4846,14 @@ function repeatMovement() {
     const input = [...heldMovement.values()].at(-1);
     if(!input)ebRelativeDirections.lastOctant=null;
     if (input) {
-        const directions=ebRelativeDirections(input.directions);
+        const shared = sharedWorld.active();
+        let held = input.directions;
+        if (shared && input.keyboard) {
+            held = [...heldMovement.values()].filter(entry => entry.keyboard).flatMap(entry => entry.directions);
+            held = held.filter(direction => !held.includes({up:'down',down:'up',left:'right',right:'left'}[direction]));
+            held = [...new Set(held)];
+        }
+        const directions=ebRelativeDirections(held);
         if (directions.length === 2 && !sharedWorld.active()) {
             // One actual diagonal grid step in solo mode, not a zig-zag.
             const a = moveDirections[directions[0]], b = moveDirections[directions[1]];
@@ -4870,10 +4873,14 @@ function repeatMovement() {
                     if (run([sx, sy]) && movePlayer(sx, sy)) break;
                 }
             }
-        } else {
-            // R14.3: shared rollup supports cardinal steps only. Never alternate
-            // axes for a held diagonal: that produces the unwanted zig-zag.
-            // The joystick selects a stable dominant cardinal direction instead.
+        } else if (directions.length === 2) {
+            // Keep one validated cardinal step per input tick. Alternating axes
+            // gives diagonal steering without increasing the movement budget.
+            const axis = input.step % 2;
+            if (movePlayer(...moveDirections[directions[axis]])) input.step++;
+            else if (!gameState.inBattle) movePlayer(...moveDirections[directions[1-axis]]);
+        } else if (directions.length) {
+            input.step = 0;
             movePlayer(...moveDirections[directions[0]]);
         }
     } else if (walkRoute) {
@@ -4894,7 +4901,7 @@ function repeatMovement() {
     if (heldMovement.size || walkRoute) movementTimer = setTimeout(repeatMovement, ebHorseMounted && ebFarlands.surface() && !sharedWorld.active() ? 65 : 120);
 }
 
-function holdMovement(id, directions, button) {
+function holdMovement(id, directions, button, keyboard = false) {
     if (movementBlocked()) return;
     if (typeof directions === 'string') directions = [directions];
     const current = heldMovement.get(id);
@@ -4905,7 +4912,7 @@ function holdMovement(id, directions, button) {
         current.directions = directions;
         current.step = 0;
     } else {
-        heldMovement.set(id, { directions, button, step: 0 });
+        heldMovement.set(id, { directions, button, keyboard, step: 0 });
         button?.classList.add('active');
         repeatMovement();
     }
@@ -4930,7 +4937,7 @@ function handleKeyboard(event) {
         event.target.closest?.('input, textarea, select, [contenteditable]') || movementBlocked()) return;
     if (movementKeys[key]) {
         event.preventDefault();
-        if (!event.repeat) holdMovement(key, movementKeys[key]);
+        if (!event.repeat) holdMovement(key, movementKeys[key], null, true);
     } else if ((key === ' ' || key === 'enter') && !event.target.closest?.('button, a')) {
         event.preventDefault();
         if (!event.repeat) interact();
@@ -5037,17 +5044,8 @@ function joystickDirections(x, y) {
     // Hysteresis: entering diagonal requires a stronger angle than staying in it.
     const wasDiagonal = lastJoystickDirections.length === 2;
     const diagonal = ratio >= (wasDiagonal ? .34 : .48);
-    if (sharedWorld.active()) {
-        // Preserve the previously chosen axis until the finger clearly crosses
-        // the other axis. This avoids oscillation near 45 degrees.
-        const previous = lastJoystickDirections[0];
-        const previousHorizontal = previous === 'left' || previous === 'right';
-        const horizontal = previous ? (previousHorizontal ? ax >= ay * .72 : ax > ay * 1.38) : ax >= ay;
-        lastJoystickDirections = [horizontal ? primaryX : primaryY];
-    } else {
-        lastJoystickDirections = diagonal ? [primaryX, primaryY] :
-            ax >= ay ? [primaryX] : [primaryY];
-    }
+    lastJoystickDirections = diagonal ? [primaryX, primaryY] :
+        ax >= ay ? [primaryX] : [primaryY];
     return lastJoystickDirections;
 }
 
@@ -11212,7 +11210,7 @@ window.addEventListener('load', () => {
                 // latter can have two nonzero axes even for a cardinal step.
                 const soloSpeed = ebHorseMounted && ebFarlands.surface() ? 15.38 : 8.33;
                 const speed = soloHero ? soloSpeed * (model.soloStepDiagonal ? Math.SQRT2 : 1) :
-                    (sharedActor && model.ebRemotePlayer) ? 40 : sharedActor ? 8.33 : 13;
+                    sharedActor ? 8.33 : 13;
                 const distance = Math.hypot(dx, dz);
                 if (model === this.hero && sharedActor && location.search.includes('ebMovementDebug=1')) {
                     window.__ebMoveDiagnostics = {renderGap:distance,frameMs:Math.round(dt*1000),
@@ -11229,10 +11227,10 @@ window.addEventListener('load', () => {
             // This changes joint poses only; authoritative locations and the movement interpolation above stay intact.
             const localGait=ebFarlands.inRealm()&&!sharedWorld.active()&&!gameState.inBattle&&
                 (model===this.hero||model.ebResidentGait)&&!(model===this.hero&&(ebHorseMounted||gameState.sailingMoves>0));
-            if(localGait){
+            if(localGait || model.ebRemotePlayer){
                 const moved=jump||this.reduced?0:(walkDistance??Math.hypot(position.x-beforeX,position.z-beforeZ));
                 if(jump||this.reduced){model.gaitPhase=0;model.gaitBlend=0;}
-                model.gaitPhase=((model.gaitPhase||0)+moved*(model===this.hero?2.28:11))%(Math.PI*2);
+                model.gaitPhase=((model.gaitPhase||0)+moved*(model===this.hero || model.ebRemotePlayer ? 2.28 : 11))%(Math.PI*2);
                 const target=moved>.00001?1:0;
                 model.gaitBlend=(model.gaitBlend||0)+(target-(model.gaitBlend||0))*(1-Math.exp(-14*Math.min(dt,.1)));
                 const phase=model.gaitPhase,b=this.reduced?0:model.gaitBlend,swing=Math.sin(phase)*(model===this.hero ? .44 : .33)*b;
@@ -11586,10 +11584,10 @@ window.addEventListener('load', () => {
         useEyeTarget() {
             if(!this.active || !this.eyeMode || gameState.inBattle)return;
             // A reachable archive action must not lose to a distant actor picked through a wall.
-            if(ebStory.eyeHint(this.eyeYaw)){interact();return;}
+            if(!sharedWorld.active() && ebStory.eyeHint(this.eyeYaw)){interact();return;}
             this.ray.setFromCamera(new T.Vector2(0,0),this.eyeCamera);
             const hits=this.ray.intersectObjects(this.targets||[],false);
-            const hit=hits.find(h=>h.distance<=4.4);
+            const hit=hits.find(h=>h.distance<=4.4 && h.object.userData.record?.kind!=='remote');
             if(hit?.object?.userData?.record){
                 this.activate(hit.object.userData.record);
                 return;
@@ -12088,12 +12086,11 @@ window.addEventListener('load', () => {
                 if (model.wheel && !this.reduced) model.wheel.rotation.z=time*.78;
                 const lift = kind === 'item' && !this.reduced ? .055 * Math.sin(time * 3 + data.x) + .06 : 0;
                 const pose = kind === 'building' ? buildingCentre(data) : sharedWorld.actorPose(data,now);
-                // Remote player poses may be interpolated by the shared-world buffer.
-                // Do not force-snap those poses on every frame: that defeats 3D smoothing.
+                // The remote track already interpolates confirmed samples at frame time.
                 model.ebRemotePlayer = kind === 'remote';
                 model.ebResidentGait=kind==='npc'&&/^rest-resident-[0-6]$/.test(data.realmId||'');
                 if (model !== this.combat?.model) // R15.37: a battle poses its enemy itself
-                    this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data && kind !== 'remote');
+                    this.animateActor(model,pose.x,pose.y,tileTop+lift,time,dt,pose.walking,pose!==data || kind==='remote');
                 // Real resident, real scheduled location: only the idle hand pose changes while bundling herbs.
                 if(kind==='npc' && data.realmId==='rest-resident-0' && model.arms?.length){
                     const target=ebVillageWork.working(data)?1:0;
@@ -12167,7 +12164,7 @@ window.addEventListener('load', () => {
                 this.eyeCamera.updateMatrixWorld();
             }
             if(!this.lastEyeHint || now-this.lastEyeHint>=140){
-                const hint=this.eyeMode?ebStory.eyeHint(this.eyeYaw):'',node=document.getElementById('eb-eye-context');
+                const hint=this.eyeMode&&!sharedWorld.active()?ebStory.eyeHint(this.eyeYaw):'',node=document.getElementById('eb-eye-context');
                 if(node.textContent!==hint)node.textContent=hint;
                 node.hidden=!hint;this.lastEyeHint=now;
             }
@@ -12194,7 +12191,7 @@ window.addEventListener('load', () => {
 
         renderFrame(eyeEnabled) {
             const gl = this.renderer.getContext();
-            const paced = this.swiftShader && eyeEnabled && ebFarlands.inRealm() && !sharedWorld.active();
+            const paced = this.swiftShader && eyeEnabled && (ebFarlands.inRealm() || sharedWorld.active());
             // Keep at most one first-person frame in flight on the software renderer.
             // Camera, simulation, and input still advance even when a submission is deferred.
             if (this.frameFence) {
@@ -12297,12 +12294,7 @@ window.addEventListener('load', () => {
             toggle.setAttribute('aria-label', 'Switch to 3D view');
         });
         toggle.addEventListener('click', () => display(root.dataset.ebView === '3d' ? '2d' : '3d'));
-        immersiveButton.addEventListener('click',()=>{ if(!sharedWorld.active())immersive(!view?.eyeMode); });
-        setInterval(()=>{
-            const shared=sharedWorld.active();
-            if(shared && view?.eyeMode)immersive(false);
-            immersiveButton.classList.toggle('eb-solo-only-off',shared);
-        },500);
+        immersiveButton.addEventListener('click',()=>immersive(!view?.eyeMode));
         document.getElementById('eb-eye-use').addEventListener('click',()=>view?.useEyeTarget());
         // Swipe on the canvas to look, without stealing the movement joystick.
         // Do not alter world coordinates or the accepted movement cadence.

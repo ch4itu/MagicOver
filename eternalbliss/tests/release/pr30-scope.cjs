@@ -16,9 +16,10 @@ if(['1','2'].includes(process.env.EB_SCOPE_LIVING_REST)){
     for(const name of ['world.js','gui-models.js','interiors.js'])expected.add(name);
 }
 if(process.env.EB_SCOPE_LIVING_REST==='2')expected.add('rpg-access.js');
-if(process.env.EB_SCOPE_LIVING_REST==='multiplayer'){
+if(['multiplayer','multiplayer-2'].includes(process.env.EB_SCOPE_LIVING_REST)){
     expected.clear();
-    expected.add('shared-world.js');
+    if(process.env.EB_SCOPE_LIVING_REST==='multiplayer') expected.add('shared-world.js');
+    else for(const name of ['navigation.js','gui.js']) expected.add(name);
 }
 for(const [name,body] of after){
     new vm.Script(body,{filename:String(name)});
