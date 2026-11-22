@@ -147,6 +147,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { .banner, .toast { transition: none; } }
 </style>
+<link rel="stylesheet" href="./relics/relics.css">
 </head>
 <body>
 <canvas id="stage" aria-label="3D cricket stadium"></canvas>
@@ -219,6 +220,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <button id="joinGo" class="teal" type="submit">Join</button>
     </form>
     <div class="stack"><button id="lobbyLeaderboard" type="button">Leaderboard</button></div>
+    <div id="relicLobby"></div>
     <label>Open matches</label>
     <div id="openList"></div>
     <div class="stack"><button type="button" data-back="home">Back</button></div>
@@ -292,6 +294,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <div class="eyebrow">Result</div>
       <h2 id="finishTitle">Match over</h2>
       <div id="finishLines" class="muted"></div>
+      <div id="relicFinish"></div>
       <p id="rematchStatus" class="muted" role="status"></p>
       <p id="leaderboardSave" class="muted" role="status"></p>
       <button id="retryLeaderboard" type="button">Retry leaderboard save</button>
@@ -3796,6 +3799,12 @@ globalThis.SOCompetition = (() => {
 
   // ------------------------------------------------------------ lobby
   let lobbyTimer = 0;
+  void import("./relics/relics.mjs").then(({createRelicReader, mountRelicPanels}) => {
+    const reader = createRelicReader({ rpcUrl: "https://api.devnet.solana.com", programId: "3Nuw244n383T7CF8bTVaQqAw8Yt3aPnjgAGf68QRbhk4" });
+    const currentPlayer = () => N.player?.guest ? null : N.player?.b58;
+    mountRelicPanels({ root: $('relicLobby'), read: reader, currentPlayer });
+    mountRelicPanels({ root: $('relicFinish'), read: reader, currentPlayer });
+  }).catch(() => {});
   async function openLobby() {
     show('lobby');
     refreshLobby();
@@ -3807,6 +3816,7 @@ globalThis.SOCompetition = (() => {
       const [tables, slot] = await Promise.all([N.readTables(), N.currentSlot()]);
       const open = tables.filter(t => t && t.phase === 'WAITING' && t.mode === 'PVP' && slot <= t.deadline && t.a !== N.player.b58);
       const list = $('openList');
+      const expanded = [...list.querySelectorAll('details[open]')].map(d => d.dataset.match);
       list.replaceChildren();
       if (!open.length) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'No open matches right now. Create one and share the code.'; list.appendChild(p); }
       for (const t of open) {
@@ -3819,6 +3829,18 @@ globalThis.SOCompetition = (() => {
         verifyName(t.aName, t.a).then(ok => { row.querySelector('.vf').textContent = ok ? '✓ Magic Over player' : 'unverified name'; });
         row.onclick = () => joinMatch(t.idx, t.matchId, row);
         list.appendChild(row);
+        const challenge = document.createElement('details');
+        challenge.className = 'relic-challenge';
+        challenge.dataset.match = t.idx + '-' + t.matchId;
+        challenge.open = expanded.includes(challenge.dataset.match);
+        const title = document.createElement('summary');
+        title.textContent = 'Relic Challenge';
+        const details = document.createElement('p');
+        details.textContent = 'Friend match ' + t.idx + '-' + t.matchId + ' · Six balls per side. Both players must approve the same terms.';
+        const offer = document.createElement('p');
+        offer.textContent = 'Relic offers are closed in this preview.';
+        challenge.append(title, details, offer);
+        list.appendChild(challenge);
       }
       $('freeCount').textContent = `${tables.filter(t => t && N.reclaimable(t, slot)).length} of ${tables.length} tables free`;
     } catch (e) { $('freeCount').textContent = 'Could not read tables: ' + (e.message || e); }

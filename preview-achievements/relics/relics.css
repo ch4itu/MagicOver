@@ -1,0 +1,10 @@
+.relic-controls { display:flex; gap:.5rem; flex-wrap:wrap; }
+.relic-controls button,.relic-dialog button { min-height:44px; }
+.relic-dialog { color:#fff3d2; background:#211d34; padding:1rem; border:2px solid #a97845; border-radius:8px;
+  box-sizing:border-box; width:min(36rem,calc(100vw - 32px)); max-height:85dvh; overflow:auto; overflow-wrap:anywhere; }
+.relic-dialog::backdrop { background:#10101bbb; }
+.relic-dialog button { margin:.3rem; }
+.relic-cards { padding:0; list-style:none; display:grid; gap:.5rem; }
+.relic-cards li { border:1px solid #a97845; padding:.6rem; border-radius:8px; }
+.relic-cards img { float:inline-end; margin:.25rem; }
+.relic-challenge { margin:.2rem 0 .65rem; padding:.5rem; border:1px solid var(--muted,#665571); border-radius:6px; overflow-wrap:anywhere; }
