@@ -1,0 +1,25 @@
+[package]
+name = "smaran_play"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Achievements, MagicBlock VRF relic draws and an owner-signed relic ledger for games with Smaran login. Deployed on Solana Devnet as HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+solana-compiler-builtins = "=0.3.0"
+
+[profile.release]
+overflow-checks = true
+codegen-units = 1
+opt-level = 3
+lto = true
+
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1
+
+[workspace]
