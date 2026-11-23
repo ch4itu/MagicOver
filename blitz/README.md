@@ -91,6 +91,8 @@ Running cost on top: 0.0001 SOL per save to Solana once an account passes its 25
 | SmaranWorld | [`HPEA1Ht9rBnqEQVdaEQ9QuqwiWAbY6fgCKs2ZPuQvcCW`](https://explorer.solana.com/address/HPEA1Ht9rBnqEQVdaEQ9QuqwiWAbY6fgCKs2ZPuQvcCW?cluster=devnet) | public (devnet-as) |
 | EternalBliss | [`6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb`](https://explorer.solana.com/address/6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb?cluster=devnet) | public |
 
+Source: [`programs/`](../programs) (relics: [`programs/play`](../programs/play), which rebuilds byte for byte into the deployed binary) and [`eternalbliss/program`](../eternalbliss/program).
+
 No server: the pages are static files on GitHub Pages and talk straight to Solana and MagicBlock.
 
 ## Limits
@@ -101,7 +103,6 @@ No server: the pages are static files on GitHub Pages and talk straight to Solan
 - **No password reset.** The locked copy of each key is public, so a weak password can be guessed offline. Smaran accounts hold no money.
 - **Our upgrade key** can still change the programs' rules.
 - **Built to outlive us, not promised to.** Logins and relics live on Solana and the pages are open source, but new sign-ups, matches and relic claims need MagicBlock's rollups.
-- **The relic program's source** is not in this repository yet.
 
 ## Next (designed, not built)
 
