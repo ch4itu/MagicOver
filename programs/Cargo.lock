@@ -31,6 +31,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "smaran_city"
+version = "0.1.0"
+dependencies = [
+ "solana-compiler-builtins",
+]
+
+[[package]]
 name = "solana-compiler-builtins"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

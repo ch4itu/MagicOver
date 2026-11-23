@@ -2475,6 +2475,151 @@ function installSmaranCity({ engine, config, doc, global, toast, spriteUrl }) {
   return access;
 }
 
+// ---- city/shared.js
+// Shared city. Every signed-in player's position lives in one MagicBlock rollup account (program HPEA1Ht9..., room PDA
+// ["city-room", 0] on devnet-as.magicblock.app), written by that player's own Smaran key (the rollup charges nothing, so
+// no SOL) and read by every page, guests included. A name is shown only after the Smaran registry confirms it belongs to
+// the key that wrote it; anything else shows as "Visitor". No server anywhere.
+function installSharedCity({ engine, global, onCount }) {
+  const W = global.solanaWeb3;
+  if (!W || !engine) return { join() {}, leave() {} };
+  const PROGRAM = new W.PublicKey("HPEA1Ht9rBnqEQVdaEQ9QuqwiWAbY6fgCKs2ZPuQvcCW");
+  const conn = new W.Connection("https://devnet-as.magicblock.app", { commitment: "confirmed", wsEndpoint: "wss://devnet-as.magicblock.app" });
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const ROOM = W.PublicKey.findProgramAddressSync([enc.encode("city-room"), Uint8Array.of(0)], PROGRAM)[0];
+  const HEADER = 16, SLOT = 96, SLOTS = 42, FRESH = 45;
+  const COLORS = ["#c9796b", "#6f9fc7", "#7fb070", "#d1b05a", "#a383c4", "#c98fae", "#6fb3ad", "#d39a5c"];
+  const remotes = new Map(), checked = new Map();
+  let me = null, lastSlot = 0, count = -1;
+  const colorOf = (key) => { let h = 0; for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; };
+  function verified(name, key) {
+    const id = name + ":" + key;
+    if (!checked.has(id)) {
+      checked.set(id, null);
+      Promise.resolve(global.Smaran?.lookup(name)).then((f) => checked.set(id, !!f && f.publicKey === key)).catch(() => checked.delete(id));
+    }
+    return checked.get(id) === true;
+  }
+  function apply(data, slot) {
+    if (slot !== undefined) { if (slot < lastSlot) return; lastSlot = slot; }
+    const d = data instanceof Uint8Array ? data : new Uint8Array(data);
+    if (d.length < HEADER + SLOTS * SLOT || dec.decode(d.subarray(0, 8)) !== "SMCITY01") return;
+    const v = new DataView(d.buffer, d.byteOffset, d.byteLength), now = Date.now() / 1000, seen = new Set();
+    for (let i = 0; i < SLOTS; i++) {
+      const o = HEADER + i * SLOT;
+      if (!(d[o + 41] & 1) || now - v.getUint32(o + 92, true) > FRESH) continue;
+      const key = new W.PublicKey(d.subarray(o, o + 32)).toBase58();
+      if (me && key === me.publicKey) continue;
+      const x = v.getUint32(o + 32, true) / 256, y = v.getUint32(o + 36, true) / 256;
+      if (!(x >= 0 && y >= 0 && x < engine.city.width && y < engine.city.height)) continue;
+      seen.add(key);
+      let a = remotes.get(key);
+      if (!a) {
+        a = { x, y, tx: x, ty: y, wait: 1e9, remote: true, key, seed: i, identity: "smaran:" + key, role: "Smaran player", age: "adult", outfit: colorOf(key), color: colorOf(key), facing: d[o + 40] & 7, stepDistance: 0, name: "Visitor" };
+        remotes.set(key, a);
+      }
+      a.goalX = x; a.goalY = y; a.netFacing = d[o + 40] & 7;
+      a.claimed = dec.decode(d.subarray(o + 43, o + 43 + Math.min(32, d[o + 42])));
+    }
+    for (const k of [...remotes.keys()]) if (!seen.has(k)) remotes.delete(k);
+    if (remotes.size !== count) { count = remotes.size; onCount?.(count); }
+  }
+  conn.onAccountChange(ROOM, (acc, ctx) => apply(acc.data, ctx.slot), "confirmed");
+  const poll = () => conn.getAccountInfoAndContext(ROOM).then((r) => r.value && apply(r.value.data, r.context.slot)).catch(() => {});
+  poll();
+  setInterval(poll, 1500);
+
+  // other players walk where their pages say, smoothly; the city's own residents keep their routines
+  const update0 = engine.update.bind(engine);
+  engine.update = (dt) => {
+    update0(dt);
+    if (!engine.agents) return;
+    let stale = false;
+    for (const a of engine.agents) if (a.remote && remotes.get(a.key) !== a) { stale = true; break; }
+    if (stale) engine.agents = engine.agents.filter((a) => !a.remote || remotes.get(a.key) === a);
+    for (const a of remotes.values()) {
+      if (!engine.agents.includes(a)) engine.agents.push(a);
+      const x0 = a.x, y0 = a.y, dx = a.goalX - a.x, dy = a.goalY - a.y, d = Math.hypot(dx, dy);
+      if (d > 6) { a.x = a.goalX; a.y = a.goalY; }
+      else if (d > 0.01) { const step = Math.min(d, Math.max(3.2, d * 4) * dt); a.x += dx / d * step; a.y += dy / d * step; }
+      a.tx = a.x; a.ty = a.y; a.wait = 1e9;
+      engine.recordMotion(a, x0, y0);
+      if (!a.moving) a.facing = a.netFacing;
+      a.name = a.claimed && verified(a.claimed, a.key) ? a.claimed : "Visitor";
+    }
+  };
+  const draw0 = engine.draw.bind(engine);
+  engine.draw = () => {
+    draw0();
+    if (!remotes.size || !engine.art?.readyFlag) return;
+    const ctx = engine.ctx;
+    ctx.save();
+    ctx.font = "600 11px system-ui,sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const a of remotes.values()) {
+      const p = engine.screen(a.x, a.y);
+      if (p.x < -80 || p.x > engine.W + 80 || p.y < -40 || p.y > engine.H + 80) continue;
+      const y = Math.round(p.y - 40 * engine.zoom - 9), w = Math.round(ctx.measureText(a.name).width + 10);
+      ctx.fillStyle = "rgba(23,32,40,.8)"; ctx.fillRect(Math.round(p.x - w / 2), y - 8, w, 16);
+      ctx.fillStyle = a.name === "Visitor" ? "#c9d2c4" : "#f7e3a3"; ctx.fillText(a.name, Math.round(p.x), y);
+    }
+    ctx.restore();
+  };
+  const interact0 = engine.interact.bind(engine);
+  engine.interact = () => {
+    const p = engine.player, t = engine.mission?.target;
+    if (p && remotes.size && !(t && Math.hypot(t.point.x - p.x, t.point.y - p.y) < 1.7)) {
+      let best = null, bestD = Infinity;
+      for (const a of engine.agents) { const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < bestD) { best = a; bestD = d; } }
+      if (best?.remote && bestD < 2.5) return { reward: false, text: best.name + " · another player exploring this city." };
+    }
+    return interact0();
+  };
+
+  // this page's own player: sends where it walks, signed with its Smaran key, at most a few times a second
+  let hash = null, hashAt = 0, sending = false, last = null, lastAt = 0;
+  async function blockhash() {
+    if (!hash || Date.now() - hashAt > 20000) { hash = (await conn.getLatestBlockhash("confirmed")).blockhash; hashAt = Date.now(); }
+    return hash;
+  }
+  function ix(who, data) {
+    return new W.TransactionInstruction({ programId: PROGRAM, data, keys: [{ pubkey: new W.PublicKey(who.publicKey), isSigner: true, isWritable: false }, { pubkey: ROOM, isSigner: false, isWritable: true }] });
+  }
+  // the key pair is taken before any await: signing out wipes the player's key from memory right after leave()
+  function send(who, data) {
+    const sk = Uint8Array.from(who.secretKey), kp = W.Keypair.fromSecretKey(sk); // a copy: sign-out wipes the original in place
+    return blockhash().then((recentBlockhash) => {
+      const tx = new W.Transaction({ feePayer: kp.publicKey, recentBlockhash }).add(ix(who, data));
+      tx.sign(kp);
+      return conn.sendRawTransaction(tx.serialize(), { skipPreflight: true });
+    }).finally(() => sk.fill(0));
+  }
+  function moveData(s) {
+    const name = enc.encode(me.name).slice(0, 32), d = new Uint8Array(13 + name.length), v = new DataView(d.buffer);
+    d[0] = 2; d[1] = 0;
+    v.setUint32(2, Math.max(0, Math.round(s.x * 256)), true); v.setUint32(6, Math.max(0, Math.round(s.y * 256)), true);
+    d[10] = (s.facing ?? 2) & 7; d[11] = 1 | (s.moving ? 2 : 0); d[12] = name.length; d.set(name, 13);
+    return d;
+  }
+  setInterval(async () => {
+    const p = engine.player;
+    if (!me || !p || sending) return;
+    const s = { x: p.x, y: p.y, facing: p.facing, moving: !!p.moving };
+    if (last && Math.hypot(s.x - last.x, s.y - last.y) < 0.04 && s.facing === last.facing && s.moving === last.moving && Date.now() - lastAt < 15000) return;
+    sending = true;
+    const who = me;
+    try { await send(who, moveData(s)); if (who === me) { last = s; lastAt = Date.now(); } } catch (_e) { hash = null; } finally { sending = false; }
+  }, 150);
+  return {
+    join(player) { me = player; last = null; remotes.delete(player.publicKey); },
+    leave() {
+      const who = me;
+      me = null; last = null;
+      if (who) try { send(who, Uint8Array.of(3, 0)).catch(() => {}); } catch (_e) { /* already signed out */ }
+    },
+    get count() { return Math.max(0, count); }
+  };
+}
+
 function installCityIdentity({ engine, config, doc, global, toast }) {
   const panel = doc.createElement("section");
   panel.setAttribute("aria-label", "Smaran player");
@@ -2483,6 +2628,7 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
     <button type="button" data-account>Sign in / Create player</button>
     <button type="button" data-relic hidden>Your collectibles</button>
     <p role="status" hidden></p>
+    <p data-online hidden style="margin:0;font-size:13px;color:#f9edc8;text-shadow:0 1px 2px #000"></p>
     <dialog aria-labelledby="city-account-title" style="max-width:min(24rem,calc(100vw - 32px));color:#f9edc8;background:#252137;border:2px solid #a97845;border-radius:8px;padding:16px">
       <h2 id="city-account-title">Sign in to Smaran</h2>
       <form style="display:grid;gap:10px">
@@ -2507,6 +2653,11 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
   const name = form.elements.namedItem("name");
   const password = form.elements.namedItem("passphrase");
   let player = null, loading, creating = false, version = 0;
+  const online = panel.querySelector("[data-online]");
+  const shared = installSharedCity({ engine, global, onCount: (n) => {
+    online.hidden = false;
+    online.textContent = n === 0 ? "No other players in the city right now" : n + (n === 1 ? " other player" : " other players") + " in the city";
+  } });
   const access = new RelicAccess({ engine, config: { ...config, origin: global.location.origin },
     connect: async () => {
       if (!player) throw new Error("Sign in to check your collectibles.");
@@ -2536,6 +2687,7 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
   function signOut() {
     version++;
     access.reset();
+    shared.leave();
     player?.forget();
     player = null;
     status.hidden = relic.hidden = true;
@@ -2572,10 +2724,11 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
       const signed = creating ? await smaran.signUp(credentials) : await smaran.signIn(credentials);
       if (current !== version) { signed.forget(); return; }
       player = signed;
+      shared.join(player);
       account.textContent = "Sign out · " + player.name;
       relic.hidden = false;
       status.hidden = false;
-      status.textContent = "Signed in as " + player.name + ". You are exploring solo.";
+      status.textContent = "Signed in as " + player.name + ". Other players in the city can see you.";
       account.title = player.name;
       dialog.close();
     } catch (error) {

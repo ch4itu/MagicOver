@@ -6847,13 +6847,16 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 #eb-transport-help{font-size:12px;line-height:1.4;max-width:420px;margin:8px auto;color:#f1d8a5}
 </style>
 <style>.relic-controls { display:flex; gap:.5rem; flex-wrap:wrap; }
-.relic-controls button,.relic-dialog button { min-height:44px; }
-.relic-dialog { color:#fff3d2; background:#211d34; padding:1rem; border:2px solid #a97845; border-radius:8px;
+#eb-menu-relics .relic-controls { margin-top:10px; }
+.relic-controls button,.relic-dialog button { appearance:none; cursor:pointer; min-height:44px; padding:8px 14px; border-radius:7px;
+  border:1px solid #82987d; background:#29483d; color:#f4dfaf; font:600 14px system-ui,sans-serif; }
+.relic-controls button:is(:hover,:focus-visible),.relic-dialog button:is(:hover,:focus-visible) { border-color:#efcb88; background:#3a5a4d; }
+.relic-dialog { color:#f4dfaf; background:#1d332d; padding:1rem; border:2px solid #8e805f; border-radius:8px;
   box-sizing:border-box; width:min(36rem,calc(100vw - 32px)); max-height:85dvh; overflow:auto; overflow-wrap:anywhere; }
 .relic-dialog::backdrop { background:#10101bbb; }
 .relic-dialog button { margin:.3rem; }
 .relic-cards { padding:0; list-style:none; display:grid; gap:.5rem; }
-.relic-cards li { border:1px solid #a97845; padding:.6rem; border-radius:8px; }
+.relic-cards li { border:1px solid #82987d; padding:.6rem; border-radius:8px; }
 .relic-cards img { float:inline-end; margin:.25rem; }
 </style>
 <script>
