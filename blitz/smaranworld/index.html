@@ -3049,6 +3049,7 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
   function setMode(value) {
     creating = value;
     dialog.querySelector("h2").textContent = value ? "Create a username and password" : "Sign in";
+    dialog.querySelector("small").textContent = "One username and password for every app with Smaran login." + (value ? " There is no password reset, so choose one you will remember." : "");
     submit.textContent = value ? "Create account" : "Sign in";
     mode.textContent = value ? "Sign in instead" : "Create an account instead";
     password.autocomplete = value ? "new-password" : "current-password";

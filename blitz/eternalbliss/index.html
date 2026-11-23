@@ -19994,7 +19994,7 @@ const sharedWorld = (() => {
         function setMode(create) {
             registering = create;
             byId('eb-smaran-title').textContent = create ? 'Create an account' : 'Sign in';
-            byId('eb-sign-in-copy').textContent = create ? 'Choose a username and password. They will work in every app with Smaran login.' :
+            byId('eb-sign-in-copy').textContent = create ? 'Choose a username and password. They will work in every app with Smaran login. There is no password reset, so choose one you will remember.' :
                 'Enter your username and password. The same username and password work in every app with Smaran login.';
             submit.textContent = create ? 'Create player' : 'Sign in';
             switchMode.textContent = create ? 'Use an existing name' : 'Create a player';

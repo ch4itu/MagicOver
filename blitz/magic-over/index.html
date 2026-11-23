@@ -1051,6 +1051,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <label for="authPassword">Password</label>
       <input id="authPassword" name="password" type="password" autocomplete="current-password" required minlength="16">
       <div id="confirmRow" hidden><label for="authConfirm">Confirm password</label><input id="authConfirm" name="new-password" type="password" autocomplete="new-password" minlength="16"></div>
+      <p id="authResetNote" class="muted" hidden>There is no password reset, so choose one you will remember.</p>
       <div class="stack"><button id="authGo" class="teal" type="submit">Sign in</button><button type="button" data-back="home">Back</button></div>
       <div id="authMsg" class="msg" role="status"></div>
     </form>
@@ -4788,6 +4789,7 @@ globalThis.SOCompetition = (() => {
     $('authTabIn').classList.toggle('on', which === 'in');
     $('authTabNew').classList.toggle('on', which === 'new');
     $('confirmRow').hidden = which === 'in';
+    $('authResetNote').hidden = which === 'in';
     $('authGo').textContent = which === 'in' ? 'Sign in' : 'Create account';
     $('authForm').dataset.mode = which;
   }
