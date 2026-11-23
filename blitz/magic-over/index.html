@@ -4832,7 +4832,7 @@ globalThis.SOCompetition = (() => {
       busy(b, true, 'Claiming…');
       try {
         const r = await N.claimSixHitter(session.idx, s.matchId, t => { hint.textContent = t; });
-        hint.textContent = r.saved ? 'Six Hitter relic saved on Solana. It shows in My Relics in every Smaran game.' : 'Your relic is minted. Solana is still finalizing it; My Relics shows it within a minute.';
+        hint.textContent = r.saved ? 'Six Hitter relic saved on Solana. It shows in My Relics in every Smaran game, and its holder keeps a town in SmaranWorld.' : 'Your relic is minted. Solana is still finalizing it; My Relics shows it within a minute.';
         b.hidden = true;
         if (r.saved) finishRelics?.openMine();
       } catch (e) {

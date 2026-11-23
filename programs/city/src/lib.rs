@@ -6,12 +6,16 @@
 //! A page shows the name a slot claims only after checking it against the Smaran registry.
 //!
 //! Instructions (first data byte):
-//!   0 InitRoom    base [operator s w, room w, system]                                  idx, lamports u64
-//!   1 Delegate    base [operator s w, room w, this program, buffer w, record w, metadata w, delegation, system]
-//!                                                                                       idx, commit_ms u32
+//! Accounts (kind): 0 room ["city-room", 0] who is where; 1 chat ["city-chat", 0] the last 24 messages;
+//! 2 signs ["city-sign", 0] 32 town welcome signs. Each 4,112 bytes, delegated to the devnet rollup.
+//!   0 Init        base [operator s w, account w, system]                               kind, idx, lamports u64
+//!   1 Delegate    base [operator s w, account w, this program, buffer w, record w, metadata w, delegation, system]
+//!                                                                                       kind, idx, commit_ms u32
 //!   2 Move        ER   [player s, room w]             idx, x u32, y u32 (tiles x 256), facing, flags, name_len, name
 //!   3 Leave       ER   [player s, room w]                                               idx
-//!   8 CommitUndelegate ER [operator s w, room w, magic program, magic context w]        idx
+//!   4 Say         ER   [player s, chat w]                       idx, name_len, name, text_len, text (1-80 bytes)
+//!   5 SetSign     ER   [player s, signs w]               idx, town (0-11), name_len, name, text_len, text (0-56)
+//!   8 CommitUndelegate ER [operator s w, account w, magic program, magic context w]     kind, idx
 //!  MagicBlock undelegate callback (8-byte discriminator)
 //! A slot is the signer's own, else a free one, else one not updated for STALE seconds.
 #![cfg_attr(target_arch = "bpf", no_std)]
@@ -120,6 +124,44 @@ const EXTERNAL_UNDELEGATE: [u8; 8] = [196, 28, 41, 206, 48, 37, 51, 167];
 
 // ---------------------------------------------------------------- layout
 const ROOM_SEED: &[u8] = b"city-room";
+const CHAT_SEED: &[u8] = b"city-chat";
+const SIGN_SEED: &[u8] = b"city-sign";
+const KIND_ROOM: u8 = 0;
+const KIND_CHAT: u8 = 1;
+const KIND_SIGN: u8 = 2;
+fn seed_of(kind: u8) -> Option<&'static [u8]> {
+    match kind {
+        KIND_ROOM => Some(ROOM_SEED),
+        KIND_CHAT => Some(CHAT_SEED),
+        KIND_SIGN => Some(SIGN_SEED),
+        _ => None,
+    }
+}
+fn magic_of(kind: u8) -> &'static [u8; 8] {
+    match kind {
+        KIND_CHAT => b"SMCHAT01",
+        KIND_SIGN => b"SMSIGN01",
+        _ => MAGIC,
+    }
+}
+// chat ring: CHAT_N messages of MSG bytes after the header; H_COUNT counts every message ever written
+const CHAT_N: usize = 24;
+const MSG: usize = 160;
+const M_TS: usize = 32; // u32 unix seconds
+const M_NAME: usize = 36; // length + up to 32 bytes
+const M_TEXT: usize = 69; // length + up to 80 bytes
+const TEXT_MAX: usize = 80;
+// town signs: SIGNS entries of SIGN bytes; the signer's own entry for a town is replaced, else an empty one, else the oldest
+const SIGNS: usize = 32;
+const SIGN: usize = 128;
+const G_TS: usize = 32;
+const G_TOWN: usize = 36;
+const G_NAME: usize = 37; // length + up to 32 bytes
+const G_TEXT: usize = 70; // length + up to 56 bytes
+const SIGN_TEXT_MAX: usize = 56;
+const TOWNS: u8 = 12;
+const _: () = assert!(HEADER + CHAT_N * MSG <= ROOM_SIZE && M_TEXT + 1 + TEXT_MAX <= MSG);
+const _: () = assert!(HEADER + SIGNS * SIGN <= ROOM_SIZE && G_TEXT + 1 + SIGN_TEXT_MAX <= SIGN);
 const NROOMS: u8 = 1;
 const SLOTS: usize = 42;
 const SLOT: usize = 96;
@@ -381,13 +423,14 @@ struct Ctx<'a> {
     program_id: &'a [u8; 32],
 }
 
-/// accs[1] must be the room PDA for `idx`, owned by this program, writable and initialised.
-fn room(c: &Ctx, idx: u8) -> Result<&'static mut [u8], u32> {
+/// accs[1] must be this program's account of `kind` for `idx`, writable and initialised.
+fn account(c: &Ctx, kind: u8, idx: u8) -> Result<&'static mut [u8], u32> {
     if c.n < 2 || idx >= NROOMS {
         return Err(ERR_ACCOUNTS);
     }
+    let seed = seed_of(kind).ok_or(ERR_DATA)?;
     let idx_b = [idx];
-    let (pda, _) = find_pda(&[ROOM_SEED, &idx_b], c.program_id);
+    let (pda, _) = find_pda(&[seed, &idx_b], c.program_id);
     let a = &c.accs[1];
     if !eq32(&pda, a.key()) {
         return Err(ERR_PDA);
@@ -396,10 +439,13 @@ fn room(c: &Ctx, idx: u8) -> Result<&'static mut [u8], u32> {
         return Err(ERR_OWNER);
     }
     let t = unsafe { core::slice::from_raw_parts_mut(a.data, a.len()) };
-    if t.len() != ROOM_SIZE || &t[0..8] != MAGIC || t[H_IDX] != idx {
+    if t.len() != ROOM_SIZE || &t[0..8] != magic_of(kind) || t[H_IDX] != idx {
         return Err(ERR_DATA);
     }
     Ok(t)
+}
+fn room(c: &Ctx, idx: u8) -> Result<&'static mut [u8], u32> {
+    account(c, KIND_ROOM, idx)
 }
 
 /// Pure slot choice (tested on the host): the signer's own slot, else a free one, else the stalest stale one.
@@ -445,35 +491,36 @@ fn write_slot(t: &mut [u8], i: usize, who: &[u8], x: u32, y: u32, facing: u8, mo
 
 // ---------------------------------------------------------------- instructions
 #[inline(never)]
-fn ix_init_room(c: &Ctx) -> Result<(), u32> {
-    // [operator s w, room w, system]; data: tag, idx, lamports u64
+fn ix_init(c: &Ctx) -> Result<(), u32> {
+    // [operator s w, account w, system]; data: tag, kind, idx, lamports u64
     let (accs, ix, program_id) = (c.accs, c.ix, c.program_id);
-    if c.n < 3 || ix.len() != 10 {
+    if c.n < 3 || ix.len() != 11 {
         return Err(ERR_DATA);
     }
     if !accs[0].is_signer || !eq32(accs[0].key(), &OPERATOR) {
         return Err(ERR_OPERATOR);
     }
-    let idx = ix[1];
+    let (kind, idx) = (ix[1], ix[2]);
+    let seed = seed_of(kind).ok_or(ERR_DATA)?;
     if idx >= NROOMS {
         return Err(ERR_RANGE);
     }
     let idx_b = [idx];
-    let (pda, bump) = find_pda(&[ROOM_SEED, &idx_b], program_id);
+    let (pda, bump) = find_pda(&[seed, &idx_b], program_id);
     if !eq32(&pda, accs[1].key()) || !eq32(accs[2].key(), &SYSTEM_PROGRAM) {
         return Err(ERR_PDA);
     }
     let bump_b = [bump];
     let mut data = [0u8; 52];
-    data[4..12].copy_from_slice(&ix[2..10]);
+    data[4..12].copy_from_slice(&ix[3..11]);
     data[12..20].copy_from_slice(&(ROOM_SIZE as u64).to_le_bytes());
     data[20..52].copy_from_slice(program_id);
-    invoke(accs, &Cpi { program: &SYSTEM_PROGRAM, metas: &[(0, true, true), (1, true, true)], data: &data, seeds: &[&[ROOM_SEED, &idx_b, &bump_b]] })?;
+    invoke(accs, &Cpi { program: &SYSTEM_PROGRAM, metas: &[(0, true, true), (1, true, true)], data: &data, seeds: &[&[seed, &idx_b, &bump_b]] })?;
     let t = accs[1].data();
-    t[0..8].copy_from_slice(MAGIC);
+    t[0..8].copy_from_slice(magic_of(kind));
     t[H_IDX] = idx;
     t[H_VERSION] = 1;
-    log("city: room ready");
+    log("city: account ready");
     Ok(())
 }
 
@@ -496,6 +543,94 @@ fn ix_move(c: &Ctx) -> Result<(), u32> {
     let who = c.accs[0].key();
     let i = choose_slot(t, who, now).ok_or(ERR_FULL)?;
     write_slot(t, i, who, rd32(ix, 2), rd32(ix, 6), ix[10], ix[11] & 2 == 2, &ix[13..13 + len], now);
+    Ok(())
+}
+
+#[inline(never)]
+fn ix_say(c: &Ctx) -> Result<(), u32> {
+    // [player s, chat w]; data: tag, idx, name_len, name, text_len, text
+    let ix = c.ix;
+    if ix.len() < 4 {
+        return Err(ERR_DATA);
+    }
+    if !c.accs[0].is_signer {
+        return Err(ERR_SIGNER);
+    }
+    let t = account(c, KIND_CHAT, ix[1])?;
+    let nl = ix[2] as usize;
+    if nl > NAME_MAX || ix.len() < 4 + nl {
+        return Err(ERR_DATA);
+    }
+    let tl = ix[3 + nl] as usize;
+    if tl == 0 || tl > TEXT_MAX || ix.len() != 4 + nl + tl {
+        return Err(ERR_DATA);
+    }
+    let n = rd32(t, H_COUNT);
+    let o = HEADER + (n as usize % CHAT_N) * MSG;
+    for b in t[o..o + MSG].iter_mut() {
+        *b = 0;
+    }
+    t[o..o + 32].copy_from_slice(c.accs[0].key());
+    wr32(t, o + M_TS, now_unix() as u32);
+    t[o + M_NAME] = nl as u8;
+    t[o + M_NAME + 1..o + M_NAME + 1 + nl].copy_from_slice(&ix[3..3 + nl]);
+    t[o + M_TEXT] = tl as u8;
+    t[o + M_TEXT + 1..o + M_TEXT + 1 + tl].copy_from_slice(&ix[4 + nl..4 + nl + tl]);
+    wr32(t, H_COUNT, n.wrapping_add(1));
+    Ok(())
+}
+
+#[inline(never)]
+fn ix_set_sign(c: &Ctx) -> Result<(), u32> {
+    // [player s, sign w]; data: tag, idx, town, name_len, name, text_len, text. Pages show a town's sign only when its
+    // signer is the town's current keeper on Solana, so anyone may write here but only a keeper's words are shown.
+    let ix = c.ix;
+    if ix.len() < 5 {
+        return Err(ERR_DATA);
+    }
+    if !c.accs[0].is_signer {
+        return Err(ERR_SIGNER);
+    }
+    let t = account(c, KIND_SIGN, ix[1])?;
+    let town = ix[2];
+    if town >= TOWNS {
+        return Err(ERR_RANGE);
+    }
+    let nl = ix[3] as usize;
+    if nl > NAME_MAX || ix.len() < 5 + nl {
+        return Err(ERR_DATA);
+    }
+    let tl = ix[4 + nl] as usize;
+    if tl > SIGN_TEXT_MAX || ix.len() != 5 + nl + tl {
+        return Err(ERR_DATA);
+    }
+    let who = c.accs[0].key();
+    let (mut pick, mut oldest) = (0usize, u32::MAX);
+    for i in 0..SIGNS {
+        let o = HEADER + i * SIGN;
+        let ts = rd32(t, o + G_TS);
+        if ts != 0 && t[o + G_TOWN] == town && eq32(&t[o..o + 32], who) {
+            pick = i;
+            break;
+        }
+        if ts < oldest {
+            oldest = ts;
+            pick = i;
+        }
+    }
+    let o = HEADER + pick * SIGN;
+    for b in t[o..o + SIGN].iter_mut() {
+        *b = 0;
+    }
+    t[o..o + 32].copy_from_slice(who);
+    wr32(t, o + G_TS, now_unix() as u32);
+    t[o + G_TOWN] = town;
+    t[o + G_NAME] = nl as u8;
+    t[o + G_NAME + 1..o + G_NAME + 1 + nl].copy_from_slice(&ix[4..4 + nl]);
+    t[o + G_TEXT] = tl as u8;
+    t[o + G_TEXT + 1..o + G_TEXT + 1 + tl].copy_from_slice(&ix[5 + nl..5 + nl + tl]);
+    let n = rd32(t, H_COUNT).wrapping_add(1);
+    wr32(t, H_COUNT, n);
     Ok(())
 }
 
@@ -527,7 +662,7 @@ fn ix_leave(c: &Ctx) -> Result<(), u32> {
 fn ix_delegate(c: &Ctx) -> Result<(), u32> {
     // [operator, room, this program, buffer, record, metadata, delegation program, system]
     let (accs, ix, program_id) = (c.accs, c.ix, c.program_id);
-    if c.n < 8 || ix.len() != 6 {
+    if c.n < 8 || ix.len() != 7 {
         return Err(ERR_ACCOUNTS);
     }
     let (payer, pda, buffer) = (&accs[0], &accs[1], &accs[3]);
@@ -540,9 +675,10 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
     if !eq32(pda.owner(), program_id) {
         return Err(ERR_OWNER);
     }
-    let idx = ix[1];
+    let (kind, idx) = (ix[1], ix[2]);
+    let seed = seed_of(kind).ok_or(ERR_DATA)?;
     let idx_b = [idx];
-    let (key, bump) = find_pda(&[ROOM_SEED, &idx_b], program_id);
+    let (key, bump) = find_pda(&[seed, &idx_b], program_id);
     if !eq32(&key, pda.key()) {
         return Err(ERR_PDA);
     }
@@ -570,18 +706,18 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
     let mut assign = [0u8; 36];
     assign[0] = 1;
     assign[4..36].copy_from_slice(&DELEGATION_PROGRAM);
-    invoke(accs, &Cpi { program: &SYSTEM_PROGRAM, metas: &[(1, true, true)], data: &assign, seeds: &[&[ROOM_SEED, &idx_b, &bump_b]] })?;
+    invoke(accs, &Cpi { program: &SYSTEM_PROGRAM, metas: &[(1, true, true)], data: &assign, seeds: &[&[seed, &idx_b, &bump_b]] })?;
     // DelegateArgs: commit frequency ms, seeds Vec<Vec<u8>>, validator Option<Pubkey> (always MagicBlock's devnet rollup)
     let mut args = [0u8; 8 + 4 + 4 + (4 + 16) + (4 + 1) + 1 + 32];
     let mut o = 8;
-    args[o..o + 4].copy_from_slice(&ix[2..6]);
+    args[o..o + 4].copy_from_slice(&ix[3..7]);
     o += 4;
     args[o..o + 4].copy_from_slice(&2u32.to_le_bytes());
     o += 4;
-    args[o..o + 4].copy_from_slice(&(ROOM_SEED.len() as u32).to_le_bytes());
+    args[o..o + 4].copy_from_slice(&(seed.len() as u32).to_le_bytes());
     o += 4;
-    args[o..o + ROOM_SEED.len()].copy_from_slice(ROOM_SEED);
-    o += ROOM_SEED.len();
+    args[o..o + seed.len()].copy_from_slice(seed);
+    o += seed.len();
     args[o..o + 4].copy_from_slice(&1u32.to_le_bytes());
     o += 4;
     args[o] = idx;
@@ -596,7 +732,7 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
             program: &DELEGATION_PROGRAM,
             metas: &[(0, true, true), (1, true, true), (2, false, false), (3, true, false), (4, true, false), (5, true, false), (7, false, false)],
             data: &args[..o],
-            seeds: &[&[ROOM_SEED, &idx_b, &bump_b]],
+            seeds: &[&[seed, &idx_b, &bump_b]],
         },
     )?;
     unsafe {
@@ -613,7 +749,7 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
 fn ix_commit_undelegate(c: &Ctx) -> Result<(), u32> {
     // [operator s w, room w, magic program, magic context w]
     let accs = c.accs;
-    if c.n < 4 || c.ix.len() != 2 {
+    if c.n < 4 || c.ix.len() != 3 {
         return Err(ERR_DATA);
     }
     if !accs[0].is_signer || !eq32(accs[0].key(), &OPERATOR) {
@@ -622,8 +758,9 @@ fn ix_commit_undelegate(c: &Ctx) -> Result<(), u32> {
     if !eq32(accs[2].key(), &MAGIC_PROGRAM) || !eq32(accs[3].key(), &MAGIC_CONTEXT) {
         return Err(ERR_ACCOUNTS);
     }
-    let idx_b = [c.ix[1]];
-    let (key, _) = find_pda(&[ROOM_SEED, &idx_b], c.program_id);
+    let seed = seed_of(c.ix[1]).ok_or(ERR_DATA)?;
+    let idx_b = [c.ix[2]];
+    let (key, _) = find_pda(&[seed, &idx_b], c.program_id);
     if !eq32(&key, accs[1].key()) {
         return Err(ERR_PDA);
     }
@@ -652,11 +789,12 @@ fn ix_undelegate_callback(c: &Ctx) -> Result<(), u32> {
         return Err(ERR_DATA);
     }
     let l0 = rd32(a, 4) as usize;
-    if a.len() != 8 + l0 + 4 + 1 || rd32(a, 8 + l0) != 1 || &a[8..8 + l0] != ROOM_SEED {
+    if a.len() != 8 + l0 + 4 + 1 || rd32(a, 8 + l0) != 1 {
         return Err(ERR_DATA);
     }
+    let seed = [ROOM_SEED, CHAT_SEED, SIGN_SEED].into_iter().find(|s| &a[8..8 + l0] == *s).ok_or(ERR_DATA)?;
     let idx_b = [a[a.len() - 1]];
-    let (key, bump) = find_pda(&[ROOM_SEED, &idx_b], program_id);
+    let (key, bump) = find_pda(&[seed, &idx_b], program_id);
     if !eq32(&key, pda.key()) {
         return Err(ERR_PDA);
     }
@@ -666,7 +804,7 @@ fn ix_undelegate_callback(c: &Ctx) -> Result<(), u32> {
     data[4..12].copy_from_slice(&rent_minimum(space).to_le_bytes());
     data[12..20].copy_from_slice(&(space as u64).to_le_bytes());
     data[20..52].copy_from_slice(program_id);
-    invoke(accs, &Cpi { program: &SYSTEM_PROGRAM, metas: &[(2, true, true), (0, true, true)], data: &data, seeds: &[&[ROOM_SEED, &idx_b, &bump_b]] })?;
+    invoke(accs, &Cpi { program: &SYSTEM_PROGRAM, metas: &[(2, true, true), (0, true, true)], data: &data, seeds: &[&[seed, &idx_b, &bump_b]] })?;
     pda.data().copy_from_slice(buffer.data());
     log("city: returned to Solana");
     Ok(())
@@ -684,10 +822,12 @@ pub unsafe extern "C" fn entrypoint(input: *mut u8) -> u64 {
         ix_undelegate_callback(&c)
     } else {
         match ix[0] {
-            0 => ix_init_room(&c),
+            0 => ix_init(&c),
             1 => ix_delegate(&c),
             2 => ix_move(&c),
             3 => ix_leave(&c),
+            4 => ix_say(&c),
+            5 => ix_set_sign(&c),
             8 => ix_commit_undelegate(&c),
             _ => Err(ERR_TAG),
         }
