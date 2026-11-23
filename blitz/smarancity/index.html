@@ -2476,7 +2476,8 @@ function installSmaranCity({ engine, config, doc, global, toast, spriteUrl }) {
 }
 
 // ---- city/shared.js
-// Shared city. Every signed-in player's position lives in one MagicBlock rollup account (program HPEA1Ht9..., room PDA
+// Shared city. The day, season, residents and cars follow one UTC clock on every page (no network). Every signed-in
+// player's position lives in one MagicBlock rollup account (program HPEA1Ht9..., room PDA
 // ["city-room", 0] on devnet-as.magicblock.app), written by that player's own Smaran key (the rollup charges nothing, so
 // no SOL) and read by every page, guests included. A name is shown only after the Smaran registry confirms it belongs to
 // the key that wrote it; anything else shows as "Visitor". No server anywhere.
@@ -2529,10 +2530,73 @@ function installSharedCity({ engine, global, onCount }) {
   poll();
   setInterval(poll, 1500);
 
-  // other players walk where their pages say, smoothly; the city's own residents keep their routines
+  // One clock and one routine for every page. The day, the season, the residents and the cars follow UTC through
+  // routes every page builds the same way from the same city, so two players looking at one street see the same
+  // people and cars at the same time of day. Nothing is sent for them.
+  const EPOCH = Date.UTC(2026, 10, 1) / 1000;
+  const worldTime = () => Date.now() / 1000 - EPOCH;
+  const STEPS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  const routes = new WeakMap();
+  const residentOk = (p) => engine.walkable(p.x + 0.5, p.y + 0.5) && engine.terrain(p.x, p.y) !== "road";
+  const roadOk = (p) => engine.terrain(p.x, p.y) === "road" && engine.walkable(p.x + 0.5, p.y + 0.5);
+  function route(o, salt, ok, steps, speed, pause) {
+    const start = { x: Math.floor(o.x), y: Math.floor(o.y) }, path = [start];
+    let prev = null, cur = start;
+    for (let k = 0; k < steps; k++) {
+      let next = STEPS.map(([dx, dy]) => ({ x: cur.x + dx, y: cur.y + dy })).filter(ok);
+      if (!next.length) break;
+      const onward = next.filter((p) => !prev || p.x !== prev.x || p.y !== prev.y);
+      if (onward.length) next = onward;
+      prev = cur;
+      cur = next[hash2(salt + k * 7919, 4049) % next.length];
+      path.push(cur);
+    }
+    const pts = path.concat(path.slice(0, -1).reverse()), seg = []; // out and back: a closed walk, nobody jumps
+    let t = 0;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const w = pause ? 0.2 + (hash2(salt, i) % 10) * 0.13 : 0;
+      seg.push({ t0: t, walk: 1 / speed, a: pts[i], b: pts[i + 1] });
+      t += 1 / speed + w;
+    }
+    return { seg, total: t, offset: (hash2(salt, 77) % 10000) / 10000 * t };
+  }
+  function place(o, r, now) {
+    if (!r.seg.length) return;
+    const u = ((now + r.offset) % r.total + r.total) % r.total;
+    let lo = 0, hi = r.seg.length - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (r.seg[m].t0 <= u) lo = m; else hi = m - 1; }
+    const s = r.seg[lo], f = Math.min(1, (u - s.t0) / s.walk);
+    o.x = s.a.x + (s.b.x - s.a.x) * f + 0.5;
+    o.y = s.a.y + (s.b.y - s.a.y) * f + 0.5;
+  }
+  function followClock() {
+    const now = worldTime();
+    engine.time = now;
+    for (const a of engine.agents || []) {
+      if (a.remote) continue;
+      let r = routes.get(a);
+      if (!r) { r = route(a, (a.identity ?? a.seed ?? 0) * 131 + 1, residentOk, 32, a.speed || 0.8, true); routes.set(a, r); }
+      const x0 = a.x, y0 = a.y;
+      place(a, r, now);
+      a.tx = a.x; a.ty = a.y; a.wait = 1e9;
+      engine.recordMotion(a, x0, y0);
+    }
+    (engine.cars || []).forEach((c, i) => {
+      let r = routes.get(c);
+      if (!r) { r = route(c, i * 104729 + 7, roadOk, 60, 1.35, false); routes.set(c, r); }
+      const x0 = c.x, y0 = c.y;
+      place(c, r, now);
+      c.tx = c.x; c.ty = c.y;
+      engine.recordMotion(c, x0, y0);
+    });
+  }
+  followClock();
+
+  // other players walk where their pages say, smoothly
   const update0 = engine.update.bind(engine);
   engine.update = (dt) => {
     update0(dt);
+    followClock();
     if (!engine.agents) return;
     let stale = false;
     for (const a of engine.agents) if (a.remote && remotes.get(a.key) !== a) { stale = true; break; }
