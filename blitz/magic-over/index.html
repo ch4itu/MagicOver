@@ -899,7 +899,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       if (history.length) {
         const section = make("section"), entries = make("ul");
         section.append(make("h3", "Lifetime achievements"), entries);
-        for (const a of history) entries.append(make("li", "Six Hitter \xB7 Magic Over match " + a.matchNumber));
+        for (const a of history) entries.append(make("li", "Boundary Hitter \xB7 Magic Over match " + a.matchNumber));
         body.append(section);
       }
     }
@@ -1004,7 +1004,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
   <div class="card">
     <div class="eyebrow">Magic Over · real-time cricket</div>
     <h1>Magic <span>Over</span></h1>
-    <p class="muted">Six Hitter: sign in, win a match and hit at least one six. Claim it on the result screen and a MagicBlock VRF draw gives you a relic, free.</p>
+    <p class="muted">Boundary Hitter: sign in and hit a four or a six in any match, win or lose. Claim it on the result screen and a MagicBlock VRF draw gives you a relic, free.</p>
     <p class="muted">Six balls. Two wickets. The bowler hides the swing on MagicBlock's private rollup, and you have one tap to read it. Every ball is a transaction signed by you, and you never need SOL.</p>
     <div class="facts"><div><b>0 SOL</b><small>per player</small></div><div><b>10 ms</b><small>timing slots</small></div><div><b>Hidden</b><small>swing and slower balls</small></div></div>
     <div class="stack">
@@ -1148,7 +1148,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <h2 id="finishTitle">Match over</h2>
       <div id="finishLines" class="muted"></div>
       <p id="sixHitterResult" class="muted" hidden></p>
-      <button id="claimSix" type="button" class="primary" hidden>Claim Six Hitter relic</button>
+      <button id="claimSix" type="button" class="primary" hidden>Claim Boundary Hitter relic</button>
       <div id="relicFinish"></div>
       <p id="rematchStatus" class="muted" role="status"></p>
       <p id="leaderboardSave" class="muted" role="status"></p>
@@ -1940,6 +1940,7 @@ globalThis.SONet = (() => {
       target: dv.getUint16(120, true), batFirst: d[122],
       last: { shot: d[124], grade: d[125], result: d[126], variation: d[127], delta: dv.getInt32(128, true), seq: dv.getUint32(132, true), wkind: d[136], pace: d[137], line: d[138], length: d[139], slot: dv.getUint32(140, true) },
       matchSixes: d.length === 384 && d[320] === 1 ? [dv.getUint16(308,true),dv.getUint16(316,true)] : null,
+      matchFours: d.length === 384 && d[320] === 1 ? [dv.getUint16(306,true),dv.getUint16(314,true)] : null,
       hist, fours: [d[240], d[241]], sixes: [d[242], d[243]], created: Number(dv.getBigUint64(248, true)),
     };
   }
@@ -2006,7 +2007,7 @@ globalThis.SONet = (() => {
   async function currentSlot() { return rpc('getSlot', [{ commitment: 'processed' }]); }
 
 
-  // ------------------------------------------------------------ SMARAN PLAY relics (Six Hitter claim, VRF relic, gift)
+  // ------------------------------------------------------------ SMARAN PLAY relics (Boundary Hitter claim, VRF relic, gift)
   // Every step is signed by the player's own Smaran key on the TEE rollup, which charges no fee; saves to Solana go
   // through MagicBlock's fee vault. No server, no SOL.
   const PLAY_ID = 'HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B';
@@ -2017,7 +2018,7 @@ globalThis.SONet = (() => {
   const PLAY_REL = [0, 1, 2, 3].map(i => pdaOf(C.te.encode('play-rel'), Uint8Array.of(i)));
   const FEE_VAULT = A.PublicKey.findProgramAddressSync([C.te.encode('magic-fee-vault'), pk(TEE_VALIDATOR)], new A.PublicKey('DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh'))[0].toBytes();
   const MAGIC_CONTEXT_PK = pk('MagicContext1111111111111111111111111111111');
-  const PLAY_ERRORS = { 5: 'The match is not finished yet.', 6: 'Only the winner can claim Six Hitter.', 7: 'Six Hitter needs a six in this match.', 8: 'This table has moved on to another match.', 14: 'Six Hitter is already claimed.', 15: 'All Six Hitter places are taken.', 16: 'Relics are not open yet.', 18: 'Magic Over relics are switched off.', 19: 'No Six Hitter achievement found.', 20: 'This achievement already has its relic.', 21: 'The relic draw is still running. Try again in a few seconds.', 23: 'Only the current keeper can give this relic.', 24: 'You already keep this relic.', 28: 'That table does not match.', 29: 'Already saved.', 30: 'The save reserve needs a refill.', 33: 'Saved a moment ago.' };
+  const PLAY_ERRORS = { 5: 'The match is not finished yet.', 6: 'Only a player of this match can claim.', 7: 'Boundary Hitter needs a four or a six in this match.', 8: 'This table has moved on to another match.', 14: 'Boundary Hitter is already claimed.', 15: 'All Boundary Hitter places are taken.', 16: 'Relics are not open yet.', 18: 'Magic Over relics are switched off.', 19: 'No Boundary Hitter achievement found.', 20: 'This achievement already has its relic.', 21: 'The relic draw is still running. Try again in a few seconds.', 23: 'Only the current keeper can give this relic.', 24: 'You already keep this relic.', 28: 'That table does not match.', 29: 'Already saved.', 30: 'The save reserve needs a refill.', 33: 'Saved a moment ago.' };
   const playIx = (keys, data) => ({ programId: PLAY, keys, data });
   async function playAccounts(list) {
     const r = await rpc('getMultipleAccounts', [list.map(k => S.b58encode(k)), { encoding: 'base64', commitment: 'processed' }]);
@@ -2057,18 +2058,19 @@ globalThis.SONet = (() => {
     while (performance.now() < end) { if (await finalizedHas(account, key, offset, stride)) return true; await sleep(4000); }
     return false;
   }
-  // Claim Six Hitter for a won match with a six, draw the relic with MagicBlock VRF and save both to Solana.
+  // Claim Boundary Hitter (a four or a six in a finished match, win or lose), draw the relic with MagicBlock VRF and
+  // save both to Solana.
   // step(text) reports progress. Returns { relic: {shard, slot}, saved }.
   async function claimSixHitter(idx, matchId, step = () => {}) {
-    if (!player || player.guest) throw new Error('Sign in to claim Six Hitter.');
+    if (!player || player.guest) throw new Error('Sign in to claim Boundary Hitter.');
     if (!token) await login();
     let at = await findSixHitter();
     if (!at) {
-      step('Recording Six Hitter…');
+      step('Recording Boundary Hitter…');
       const data = new Uint8Array(8); data[0] = 7; data[1] = 1; data[3] = idx; new DataView(data.buffer).setUint32(4, matchId >>> 0, true);
-      await send([playIx([meta(player.key, true, false), meta(PLAY_REG, false, false), ...PLAY_ACH.map(a => meta(a, false, true)), meta(TABLES[idx].state, false, false), meta(MAGIC_PROGRAM, false, false), meta(MAGIC_CONTEXT_PK, false, true), meta(FEE_VAULT, false, true)], data)], { label: 'Six Hitter', errors: PLAY_ERRORS });
+      await send([playIx([meta(player.key, true, false), meta(PLAY_REG, false, false), ...PLAY_ACH.map(a => meta(a, false, true)), meta(TABLES[idx].state, false, false), meta(MAGIC_PROGRAM, false, false), meta(MAGIC_CONTEXT_PK, false, true), meta(FEE_VAULT, false, true)], data)], { label: 'Boundary Hitter', errors: PLAY_ERRORS });
       for (let i = 0; i < 10 && !at; i++) { at = await findSixHitter(); if (!at) await sleep(500); }
-      if (!at) throw new Error('Six Hitter was recorded but could not be read back. Try again.');
+      if (!at) throw new Error('Boundary Hitter was recorded but could not be read back. Try again.');
     }
     const before = new Set((await relicsOf(player.key)).map(r => r.shard + ':' + r.slot));
     if (at.flags !== 2) {
@@ -4821,18 +4823,18 @@ globalThis.SOCompetition = (() => {
 
   // ------------------------------------------------------------ lobby
   let lobbyTimer = 0;
-  // Six Hitter: the player's own decision to claim, signed with their Smaran key; no SOL anywhere.
+  // Boundary Hitter: the player's own decision to claim, signed with their Smaran key; no SOL anywhere.
   let finishRelics = null;
   function offerClaim(session, s, hint) {
     const b = $('claimSix');
     b.hidden = false;
     b.disabled = false;
-    b.textContent = 'Claim Six Hitter relic';
+    b.textContent = 'Claim Boundary Hitter relic';
     b.onclick = async () => {
       busy(b, true, 'Claiming…');
       try {
         const r = await N.claimSixHitter(session.idx, s.matchId, t => { hint.textContent = t; });
-        hint.textContent = r.saved ? 'Six Hitter relic saved on Solana. It shows in My Relics in every Smaran game, and its holder keeps a town in SmaranWorld.' : 'Your relic is minted. Solana is still finalizing it; My Relics shows it within a minute.';
+        hint.textContent = r.saved ? 'Boundary Hitter relic saved on Solana. It shows in My Relics in every Smaran game, and its holder keeps a village in SmaranWorld.' : 'Your relic is minted. Solana is still finalizing it; My Relics shows it within a minute.';
         b.hidden = true;
         if (r.saved) finishRelics?.openMine();
       } catch (e) {
@@ -5407,11 +5409,11 @@ function createBattingGuide(root, playShot) {
       const hint = $('sixHitterResult');
       hint.hidden = watching;
       if (!watching) {
-        if (N.player?.guest) hint.textContent = 'Six Hitter requires a signed-in player. Sign in before your next match.';
-        else if (s.winner !== meSide + 1) hint.textContent = 'Six Hitter needs a win and at least one six in the same match.';
-        else if (!s.matchSixes) hint.textContent = 'Six Hitter: this table has no verifiable six count.';
-        else if (s.matchSixes[meSide] > 0) { hint.textContent = 'You won and hit a six. Six Hitter is yours to claim.'; offerClaim(session, s, hint); }
-        else hint.textContent = 'You won! Hit a six in a winning match for Six Hitter.';
+        const boundaries = s.matchSixes && s.matchFours ? s.matchSixes[meSide] + s.matchFours[meSide] : null;
+        if (N.player?.guest) hint.textContent = 'Boundary Hitter needs a signed-in player. Sign in before your next match.';
+        else if (boundaries === null) hint.textContent = 'Boundary Hitter: this table has no verifiable boundary count.';
+        else if (boundaries > 0) { hint.textContent = 'You hit a boundary. Boundary Hitter is yours to claim, win or lose.'; offerClaim(session, s, hint); }
+        else hint.textContent = 'Hit a four or a six in any match for Boundary Hitter. You do not need to win.';
       }
       const lines = [];
       if (s.mode === 'AI') lines.push(`Target ${s.target}. ${watching ? nameOf(s, 0) : 'You'} scored ${s.runs[0]}/${s.wkts[0]} in ${s.balls[0]} balls.`);
