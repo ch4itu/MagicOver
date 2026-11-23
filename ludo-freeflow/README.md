@@ -5,6 +5,16 @@ Four colours on one board, and no turns: every player rolls and moves whenever t
 - **Local preview** (no sign-in): you are red, three bots play the other colours, dice come from the browser. Fully offline. The bots roll only as often as you do; a bonus roll after a six or a capture is one they do not match.
 - **Online match** (sign in with Smaran): two to four people, one colour each. Every die comes from MagicBlock VRF and is applied on chain before the page shows it. Nobody needs SOL, a wallet or a seed phrase.
 
+- **Capacity:** 8 tables of 4 seats, so 32 players online at once.
+
+## Who it is for, who pays, where it works
+
+- **For Web2 people.** No crypto knowledge and nothing to buy: a username and a password, the same in every app with Smaran login.
+- **Who pays.** Players pay nothing, ever. The operator pays the chain costs, mostly once as account deposits. The plan is to fund that with sponsorship and non-intrusive placements, never ads that interrupt play. There are no ads in this demo, and the plan is not proven yet.
+- **Where it works.** No crypto purchase, wallet or KYC step, and nothing with cash value, so it can be offered across countries wherever its pages, Solana and MagicBlock are reachable, within local rules on data, age and advertising. This is a design note, not legal advice.
+
+More on all four Blitz apps: [blitz/README.md](../blitz/README.md).
+
 ## How an online match works
 
 | Part | What it is |

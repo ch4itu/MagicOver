@@ -12,7 +12,7 @@ It is the sign-up that [Magic Over](../README.md) and [EternalBliss](../eternalb
 
 <p align="center"><sub>The sign-in window, opened by a demo site (game.example) and stepping through sign-in and one signature.</sub></p>
 
-**Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, across three apps (Magic Over, EternalBliss and the Smaran page), and with the sign-in window opened by a site on another address (in a desktop browser; the window is not yet tested on a phone). Not on mainnet yet.
+**Status:** working on Solana Devnet with MagicBlock's Ephemeral Rollup. Tested in fresh browsers with nothing saved, across Magic Over, EternalBliss, SmaranWorld, Ludo Freeflow and the Smaran page, and with the sign-in window opened by a site on another address (in a desktop browser; the window is not yet tested on a phone). Not on mainnet yet.
 
 ## What Smaran is, and what it is not
 
@@ -23,6 +23,14 @@ It is the sign-up that [Magic Over](../README.md) and [EternalBliss](../eternalb
 **It can be disposable.** If a player forgets the passphrase, they lose that player and start a new one. Apps should treat the player key like a username they recognise, not like a bank account.
 
 **It is built to outlive the app.** The login is saved on Solana, not on any login server, and the sign-in page is open source, so anyone can keep and host a copy. If the app that made it shuts down, its players can still sign in with the same name and passphrase and get the same key back. Anyone can refill the registry's save reserves when they run low, without our key, and nothing is held for players, so there is nothing to withdraw. What it still depends on: Solana itself (this deployment is on Devnet, which can be reset, so this only holds once Smaran is on mainnet), MagicBlock's rollup for new sign-ups and passphrase changes, and our upgrade key, which can still change the registry's rules.
+
+## Who it is for, who pays, where it works
+
+- **For Web2 people.** No crypto knowledge and nothing to buy: a username and a password, the same in every app with Smaran login.
+- **Who pays.** Players pay nothing, ever. The operator pays the chain costs, mostly once as account deposits. The plan is to fund that with sponsorship and non-intrusive placements, never ads that interrupt play. [Smaran for founders](FOUNDERS.md) lists other ways an operator can cover it. There are no ads in this demo, and the plan is not proven yet.
+- **Where it works.** No crypto purchase, wallet or KYC step, and nothing with cash value, so it can be offered across countries wherever its pages, Solana and MagicBlock are reachable, within local rules on data, age and advertising. This is a design note, not legal advice.
+
+Apps show it as "username and password"; this guide calls the password a passphrase (at least 16 characters).
 
 ## How it works
 

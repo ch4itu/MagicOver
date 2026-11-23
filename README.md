@@ -1,5 +1,7 @@
 # Magic Over
 
+**Solana Blitz v10:** the same login now runs four games: Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow. Start at [the Blitz page](https://ch4itu.github.io/MagicOver/blitz/). Players at once, capacity, costs and limits: [blitz/README.md](blitz/README.md).
+
 Magic Over shows that a Web2 player can start using a Solana app with just a player name and a passphrase. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same name and passphrase bring the same player back.
 
 The sign-up is called **Smaran**, Sanskrit for remembering: all a player needs is to remember a name and a passphrase. It is also packaged for other web apps, as a sign-in window they open or as one file they load, where a Magic Over player signs in with the same name, passphrase and key: see [Smaran](smaran/).
@@ -21,6 +23,12 @@ Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this rep
 </p>
 
 <p align="center"><sub>Top: two deliveries drawn by the game's own 3D scene. Below: the home screen, sign-up and a Bat vs AI match on the live site, at phone size. The ping is high because these were taken on a test machine far from the rollup.</sub></p>
+
+## Who it is for, who pays, where it works
+
+- **For Web2 people.** No crypto knowledge and nothing to buy: a username and a password, the same in every app with Smaran login.
+- **Who pays.** Players pay nothing, ever. The operator pays the chain costs, mostly once as account deposits. The plan is to fund that with sponsorship and non-intrusive placements, never ads that interrupt play. There are no ads in this demo, and the plan is not proven yet.
+- **Where it works.** No crypto purchase, wallet or KYC step, and nothing with cash value, so it can be offered across countries wherever its pages, Solana and MagicBlock are reachable, within local rules on data, age and advertising. This is a design note, not legal advice.
 
 ## How sign-up works
 
