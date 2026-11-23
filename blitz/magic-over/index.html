@@ -154,7 +154,6 @@ details p, details li { color: var(--muted); font-size: 14px; }
 .relic-cards { padding:0; list-style:none; display:grid; gap:.5rem; }
 .relic-cards li { border:1px solid #a97845; padding:.6rem; border-radius:8px; }
 .relic-cards img { float:inline-end; margin:.25rem; }
-.relic-challenge { margin:.2rem 0 .65rem; padding:.5rem; border:1px solid var(--muted,#665571); border-radius:6px; overflow-wrap:anywhere; }
 </style>
 <script>
 (() => {
@@ -840,7 +839,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       };
     };
   }
-  function mountRelicPanels({ root, read, currentPlayer, signIn }) {
+  function mountRelicPanels({ root, read, currentPlayer, signIn, give }) {
     const doc = root.ownerDocument;
     const make = (tag, text) => {
       const el = doc.createElement(tag);
@@ -892,6 +891,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
         art.alt = relic.name;
         art.width = art.height = 64;
         card.append(art, make("h3", relic.name + " \xB7 " + relic.points + " pts"), make("p", "Earned in " + relic.originGame), make("p", "Finalized owner \xB7 " + relic.owner));
+        if (give) card.append(giveControls(relic, publicKey));
         list.append(card);
       }
       body.append(list);
@@ -902,6 +902,49 @@ details p, details li { color: var(--muted); font-size: 14px; }
         for (const a of history) entries.append(make("li", "Six Hitter \xB7 Magic Over match " + a.matchNumber));
         body.append(section);
       }
+    }
+    function giveControls(relic, publicKey) {
+      const box = make("div"), start = make("button", "Give");
+      box.className = "relic-give";
+      start.type = "button";
+      box.append(start);
+      start.onclick = () => {
+        const field = make("input"), next = make("button", "Next"), cancel = make("button", "Cancel");
+        field.placeholder = "Player name";
+        field.setAttribute("aria-label", "Player name");
+        next.type = cancel.type = "button";
+        box.replaceChildren(field, next, cancel);
+        field.focus();
+        cancel.onclick = () => box.replaceChildren(start);
+        next.onclick = async () => {
+          const name = field.value.trim();
+          if (!name) return;
+          next.disabled = true;
+          status.textContent = "Finding " + name + "\u2026";
+          let to;
+          try { to = await give.find(name); } catch (e) { to = null; }
+          next.disabled = false;
+          if (!to) { status.textContent = "No Smaran player named " + name + "."; return; }
+          if (to.key === publicKey) { status.textContent = "That is you."; return; }
+          status.textContent = "";
+          const ask = make("p", "Give this relic to " + to.name + "?"), yes = make("button", "Give"), no = make("button", "Cancel");
+          yes.type = no.type = "button";
+          box.replaceChildren(ask, yes, no);
+          no.onclick = () => box.replaceChildren(start);
+          yes.onclick = async () => {
+            yes.disabled = no.disabled = true;
+            try {
+              const r = await give.send(relic, to.key, (t) => { status.textContent = t; });
+              status.textContent = r.saved ? "Given to " + to.name + ". Saved on Solana." : "Given to " + to.name + ". Solana is still finalizing; Refresh in a minute.";
+              box.replaceChildren(make("p", "Now kept by " + to.name + "."));
+            } catch (e) {
+              status.textContent = e && e.message || String(e);
+              yes.disabled = no.disabled = false;
+            }
+          };
+        };
+      };
+      return box;
     }
     async function load() {
       const request = ++generation, player = currentPlayer();
@@ -961,7 +1004,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
   <div class="card">
     <div class="eyebrow">Magic Over · real-time cricket</div>
     <h1>Magic <span>Over</span></h1>
-    <p class="muted">Six Hitter: sign in, win a match and hit at least one six. New relic claims are currently unavailable.</p>
+    <p class="muted">Six Hitter: sign in, win a match and hit at least one six. Claim it on the result screen and a MagicBlock VRF draw gives you a relic, free.</p>
     <p class="muted">Six balls. Two wickets. The bowler hides the swing on MagicBlock's private rollup, and you have one tap to read it. Every ball is a transaction signed by you, and you never need SOL.</p>
     <div class="facts"><div><b>0 SOL</b><small>per player</small></div><div><b>10 ms</b><small>timing slots</small></div><div><b>Hidden</b><small>swing and slower balls</small></div></div>
     <div class="stack">
@@ -1105,6 +1148,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <h2 id="finishTitle">Match over</h2>
       <div id="finishLines" class="muted"></div>
       <p id="sixHitterResult" class="muted" hidden></p>
+      <button id="claimSix" type="button" class="primary" hidden>Claim Six Hitter relic</button>
       <div id="relicFinish"></div>
       <p id="rematchStatus" class="muted" role="status"></p>
       <p id="leaderboardSave" class="muted" role="status"></p>
@@ -1807,12 +1851,12 @@ globalThis.SONet = (() => {
     blockhashAt = performance.now();
     return blockhash;
   }
-  function errorText(err) {
+  function errorText(err, map = ERRORS) {
     const code = err?.InstructionError?.[1]?.Custom;
-    if (code !== undefined) return ERRORS[code] || `Program error ${code}.`;
+    if (code !== undefined) return map[code] || `Program error ${code}.`;
     return typeof err === 'string' ? err : JSON.stringify(err);
   }
-  async function send(ixs, { label = 'Action', wait = true, fast = false } = {}) {
+  async function send(ixs, { label = 'Action', wait = true, fast = false, errors = ERRORS } = {}) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const message = S.compileMessage(player.key, ixs, await freshBlockhash(attempt > 0));
       const signature = nacl.sign.detached(message, player.account.sk);
@@ -1822,16 +1866,16 @@ globalThis.SONet = (() => {
         await rpc('sendTransaction', [C.bytesToBase64(wire), { encoding: 'base64', skipPreflight: fast, preflightCommitment: 'processed' }]);
       } catch (e) {
         const code = e?.rpc?.data?.err;
-        const why = code ? errorText(code) : (e.message || String(e));
+        const why = code ? errorText(code, errors) : (e.message || String(e));
         if (attempt === 0 && /blockhash/i.test(why)) continue;
-        throw new Error(`${label}: ${why}`);
+        throw Object.assign(new Error(`${label}: ${why}`), { code: code?.InstructionError?.[1]?.Custom });
       }
       if (!wait) return sig;
       const deadline = performance.now() + 15000;
       while (performance.now() < deadline) {
         const st = (await rpc('getSignatureStatuses', [[sig]])).value[0];
         if (st) {
-          if (st.err) throw new Error(`${label}: ${errorText(st.err)}`);
+          if (st.err) throw Object.assign(new Error(`${label}: ${errorText(st.err, errors)}`), { code: st.err?.InstructionError?.[1]?.Custom });
           if (st.confirmationStatus) return sig;
         }
         await sleep(60);
@@ -1961,7 +2005,102 @@ globalThis.SONet = (() => {
   const reclaimable = (s, slot) => s.phase === 'FREE' || (s.phase === 'FINISHED' && slot > s.deadline) || slot > s.deadline + 6000;
   async function currentSlot() { return rpc('getSlot', [{ commitment: 'processed' }]); }
 
+
+  // ------------------------------------------------------------ SMARAN PLAY relics (Six Hitter claim, VRF relic, gift)
+  // Every step is signed by the player's own Smaran key on the TEE rollup, which charges no fee; saves to Solana go
+  // through MagicBlock's fee vault. No server, no SOL.
+  const PLAY_ID = 'HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B';
+  const PLAY = pk(PLAY_ID);
+  const pdaOf = (...seeds) => A.PublicKey.findProgramAddressSync(seeds, new A.PublicKey(PLAY_ID))[0].toBytes();
+  const PLAY_REG = pdaOf(C.te.encode('play-reg')), PLAY_IDENTITY = pdaOf(C.te.encode('identity'));
+  const PLAY_ACH = [0, 1, 2, 3].map(i => pdaOf(C.te.encode('play-ach'), Uint8Array.of(i)));
+  const PLAY_REL = [0, 1, 2, 3].map(i => pdaOf(C.te.encode('play-rel'), Uint8Array.of(i)));
+  const FEE_VAULT = A.PublicKey.findProgramAddressSync([C.te.encode('magic-fee-vault'), pk(TEE_VALIDATOR)], new A.PublicKey('DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh'))[0].toBytes();
+  const MAGIC_CONTEXT_PK = pk('MagicContext1111111111111111111111111111111');
+  const PLAY_ERRORS = { 5: 'The match is not finished yet.', 6: 'Only the winner can claim Six Hitter.', 7: 'Six Hitter needs a six in this match.', 8: 'This table has moved on to another match.', 14: 'Six Hitter is already claimed.', 15: 'All Six Hitter places are taken.', 16: 'Relics are not open yet.', 18: 'Magic Over relics are switched off.', 19: 'No Six Hitter achievement found.', 20: 'This achievement already has its relic.', 21: 'The relic draw is still running. Try again in a few seconds.', 23: 'Only the current keeper can give this relic.', 24: 'You already keep this relic.', 28: 'That table does not match.', 29: 'Already saved.', 30: 'The save reserve needs a refill.', 33: 'Saved a moment ago.' };
+  const playIx = (keys, data) => ({ programId: PLAY, keys, data });
+  async function playAccounts(list) {
+    const r = await rpc('getMultipleAccounts', [list.map(k => S.b58encode(k)), { encoding: 'base64', commitment: 'processed' }]);
+    return r.value.map(v => v ? C.base64ToBytes(v.data[0]) : null);
+  }
+  async function findSixHitter() {
+    const shards = await playAccounts(PLAY_ACH);
+    for (let i = 0; i < 4; i++) {
+      const d = shards[i];
+      if (!d) continue;
+      for (let o = 16; o + 96 <= d.length; o += 96)
+        if (d[o] === 1 && C.equalBytes(d.slice(o + 20, o + 52), player.key) && d[o + 2] === 1 && d[o + 3] === 0) return { shard: i, slot: (o - 16) / 96, flags: d[o + 1] };
+    }
+    return null;
+  }
+  async function relicsOf(key) {
+    const shards = await playAccounts(PLAY_REL), out = [];
+    shards.forEach((d, i) => {
+      if (!d) return;
+      for (let o = 16; o + 112 <= d.length; o += 112) if (d[o] === 1 && C.equalBytes(d.slice(o + 40, o + 72), key)) out.push({ shard: i, slot: (o - 16) / 112 });
+    });
+    return out;
+  }
+  const saveIx = account => playIx([meta(player.key, true, false), meta(account, false, true), meta(MAGIC_PROGRAM, false, false), meta(MAGIC_CONTEXT_PK, false, true), meta(FEE_VAULT, false, true)], Uint8Array.of(2));
+  async function savePlay(accounts) {
+    for (const a of accounts) await send([saveIx(a)], { label: 'Save', errors: PLAY_ERRORS }).catch(() => {});
+  }
+  async function finalizedHas(account, key, offset, stride) {
+    const r = await S.rpc(S.DEFAULT_BASE, 'getAccountInfo', [S.b58encode(account), { encoding: 'base64', commitment: 'finalized' }]).catch(() => null);
+    if (!r?.value) return false;
+    const d = C.base64ToBytes(r.value.data[0]);
+    for (let o = 16; o + stride <= d.length; o += stride) if (d[o] === 1 && C.equalBytes(d.slice(o + offset, o + offset + 32), key)) return true;
+    return false;
+  }
+  async function waitFinalized(account, key, offset, stride, ms = 120000) {
+    const end = performance.now() + ms;
+    while (performance.now() < end) { if (await finalizedHas(account, key, offset, stride)) return true; await sleep(4000); }
+    return false;
+  }
+  // Claim Six Hitter for a won match with a six, draw the relic with MagicBlock VRF and save both to Solana.
+  // step(text) reports progress. Returns { relic: {shard, slot}, saved }.
+  async function claimSixHitter(idx, matchId, step = () => {}) {
+    if (!player || player.guest) throw new Error('Sign in to claim Six Hitter.');
+    if (!token) await login();
+    let at = await findSixHitter();
+    if (!at) {
+      step('Recording Six Hitter…');
+      const data = new Uint8Array(8); data[0] = 7; data[1] = 1; data[3] = idx; new DataView(data.buffer).setUint32(4, matchId >>> 0, true);
+      await send([playIx([meta(player.key, true, false), meta(PLAY_REG, false, false), ...PLAY_ACH.map(a => meta(a, false, true)), meta(TABLES[idx].state, false, false), meta(MAGIC_PROGRAM, false, false), meta(MAGIC_CONTEXT_PK, false, true), meta(FEE_VAULT, false, true)], data)], { label: 'Six Hitter', errors: PLAY_ERRORS });
+      for (let i = 0; i < 10 && !at; i++) { at = await findSixHitter(); if (!at) await sleep(500); }
+      if (!at) throw new Error('Six Hitter was recorded but could not be read back. Try again.');
+    }
+    const before = new Set((await relicsOf(player.key)).map(r => r.shard + ':' + r.slot));
+    if (at.flags !== 2) {
+      step('Drawing your relic with MagicBlock VRF…');
+      const data = Uint8Array.of(8, at.slot & 255, at.slot >> 8);
+      try {
+        await send([playIx([meta(player.key, true, true), meta(PLAY_ACH[at.shard], false, true), meta(PLAY_IDENTITY, false, false), meta(VRF_PROGRAM, false, false), meta(VRF_QUEUE, false, true), meta(SYSTEM, false, false), meta(SLOT_HASHES, false, false), meta(PLAY_REG, false, false)], data)], { label: 'Relic draw', errors: PLAY_ERRORS });
+      } catch (e) { if (e.code !== 21) throw e; }
+      for (let i = 0; i < 60; i++) { const a = await findSixHitter(); if (a?.flags === 2) { at = a; break; } await sleep(1500); }
+      if (at.flags !== 2) throw new Error('The relic draw has not come back yet. Press Claim again in a few seconds.');
+    }
+    const mine = await relicsOf(player.key);
+    const relic = mine.find(r => !before.has(r.shard + ':' + r.slot)) || mine[mine.length - 1] || null;
+    step('Saving to Solana…');
+    await savePlay([PLAY_ACH[at.shard], ...(relic ? [PLAY_REL[relic.shard]] : [])]);
+    const saved = relic ? await waitFinalized(PLAY_REL[relic.shard], player.key, 40, 112) : false;
+    return { relic, saved };
+  }
+  // Give a relic (shard, slot) to another Smaran player's key. The rollup saves it to Solana in the same transaction.
+  async function giveRelic(shard, slot, to, step = () => {}) {
+    if (!player || player.guest) throw new Error('Sign in to give a relic.');
+    if (!token) await login();
+    const data = new Uint8Array(35); data[0] = 10; data[1] = slot & 255; data[2] = slot >> 8; data.set(to, 3);
+    step('Giving…');
+    await send([playIx([meta(player.key, true, false), meta(PLAY_REL[shard], false, true), meta(MAGIC_PROGRAM, false, false), meta(MAGIC_CONTEXT_PK, false, true), meta(FEE_VAULT, false, true)], data)], { label: 'Give', errors: PLAY_ERRORS });
+    step('Saving to Solana…');
+    let saved = await waitFinalized(PLAY_REL[shard], to, 40, 112, 60000);
+    if (!saved) { await savePlay([PLAY_REL[shard]]); saved = await waitFinalized(PLAY_REL[shard], to, 40, 112, 60000); }
+    return { saved };
+  }
   return Object.freeze({
+    claimSixHitter, giveRelic, PLAY_ID,
     TEE, TABLES, FLIGHT, SLOT_MS, MODES, LEADERBOARD_PROGRAM, LEADERBOARD_ADDRESS, LEADERBOARD_FEE_VAULT, readLeaderboard, readRollupLeaderboard, readCommittedLeaderboard, parseLeaderboard, recordResult, waitForLeaderboardCommit, eligibleResult, setPlayer, login, get player() { return player; }, get clock() { return clock; },
     syncClock, slotNow, timeOfSlot, freshBlockhash, send, prepareShots, sendPreparedShot, I, readTable, readTables, battingSide, sideKey, reclaimable, currentSlot, sleep,
   });
@@ -4682,14 +4821,41 @@ globalThis.SOCompetition = (() => {
 
   // ------------------------------------------------------------ lobby
   let lobbyTimer = 0;
+  // Six Hitter: the player's own decision to claim, signed with their Smaran key; no SOL anywhere.
+  let finishRelics = null;
+  function offerClaim(session, s, hint) {
+    const b = $('claimSix');
+    b.hidden = false;
+    b.disabled = false;
+    b.textContent = 'Claim Six Hitter relic';
+    b.onclick = async () => {
+      busy(b, true, 'Claiming…');
+      try {
+        const r = await N.claimSixHitter(session.idx, s.matchId, t => { hint.textContent = t; });
+        hint.textContent = r.saved ? 'Six Hitter relic saved on Solana. It shows in My Relics in every Smaran game.' : 'Your relic is minted. Solana is still finalizing it; My Relics shows it within a minute.';
+        b.hidden = true;
+        if (r.saved) finishRelics?.openMine();
+      } catch (e) {
+        hint.textContent = e.message || String(e);
+        busy(b, false);
+      }
+    };
+  }
+  const relicGive = {
+    find: async name => {
+      const f = await S.lookup(name, { erUrl: S.DEFAULT_ER, baseUrl: S.DEFAULT_BASE });
+      return f.entry ? { key: S.b58encode(f.entry.owner), name } : null;
+    },
+    send: (relic, key, step) => N.giveRelic(relic.shard, relic.slot, S.b58decode(key), step),
+  };
   void Promise.resolve(globalThis.smaranRelics).then(({createRelicReader, mountRelicPanels}) => {
-    const reader = createRelicReader({ rpcUrl: "https://api.devnet.solana.com", programId: "3Nuw244n383T7CF8bTVaQqAw8Yt3aPnjgAGf68QRbhk4" });
+    const reader = createRelicReader({ rpcUrl: "https://api.devnet.solana.com", programId: "HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B" });
     const currentPlayer = () => N.player?.guest ? null : N.player?.b58;
-    homeRelics = mountRelicPanels({ root: $('relicHome'), read: reader, currentPlayer,
+    homeRelics = mountRelicPanels({ root: $('relicHome'), read: reader, currentPlayer, give: relicGive,
       signIn: () => { returningToRelics = true; authTab('in'); show('auth'); }
     });
-    mountRelicPanels({ root: $('relicLobby'), read: reader, currentPlayer });
-    mountRelicPanels({ root: $('relicFinish'), read: reader, currentPlayer });
+    mountRelicPanels({ root: $('relicLobby'), read: reader, currentPlayer, give: relicGive });
+    finishRelics = mountRelicPanels({ root: $('relicFinish'), read: reader, currentPlayer, give: relicGive });
   }).catch(() => {});
   async function openLobby() {
     show('lobby');
@@ -4702,7 +4868,6 @@ globalThis.SOCompetition = (() => {
       const [tables, slot] = await Promise.all([N.readTables(), N.currentSlot()]);
       const open = tables.filter(t => t && t.phase === 'WAITING' && t.mode === 'PVP' && slot <= t.deadline && t.a !== N.player.b58);
       const list = $('openList');
-      const expanded = [...list.querySelectorAll('details[open]')].map(d => d.dataset.match);
       list.replaceChildren();
       if (!open.length) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'No open matches right now. Create one and share the code.'; list.appendChild(p); }
       for (const t of open) {
@@ -4715,18 +4880,6 @@ globalThis.SOCompetition = (() => {
         verifyName(t.aName, t.a).then(ok => { row.querySelector('.vf').textContent = ok ? '✓ Magic Over player' : 'unverified name'; });
         row.onclick = () => joinMatch(t.idx, t.matchId, row);
         list.appendChild(row);
-        const challenge = document.createElement('details');
-        challenge.className = 'relic-challenge';
-        challenge.dataset.match = t.idx + '-' + t.matchId;
-        challenge.open = expanded.includes(challenge.dataset.match);
-        const title = document.createElement('summary');
-        title.textContent = 'Relic Challenge';
-        const details = document.createElement('p');
-        details.textContent = 'Friend match ' + t.idx + '-' + t.matchId + ' · Six balls per side. Both players must approve the same terms.';
-        const offer = document.createElement('p');
-        offer.textContent = 'Relic offers are closed in this preview.';
-        challenge.append(title, details, offer);
-        list.appendChild(challenge);
       }
       $('freeCount').textContent = `${tables.filter(t => t && N.reclaimable(t, slot)).length} of ${tables.length} tables free`;
     } catch (e) { $('freeCount').textContent = 'Could not read tables: ' + (e.message || e); }
@@ -5240,6 +5393,7 @@ function createBattingGuide(root, playShot) {
     hidePads();
     status('');
     $('btnAgain').hidden = watching;
+    $('claimSix').hidden = true;
     $('btnAgain').textContent = s.mode === 'PVP' ? 'Rematch with this friend' : 'Play again';
     $('rematchStatus').textContent = s.mode === 'PVP' && !watching ? 'Both players choose Rematch. The same table resets after the result.' : '';
     setTimeout(() => {
@@ -5256,7 +5410,7 @@ function createBattingGuide(root, playShot) {
         if (N.player?.guest) hint.textContent = 'Six Hitter requires a signed-in player. Sign in before your next match.';
         else if (s.winner !== meSide + 1) hint.textContent = 'Six Hitter needs a win and at least one six in the same match.';
         else if (!s.matchSixes) hint.textContent = 'Six Hitter: this table has no verifiable six count.';
-        else if (s.matchSixes[meSide] > 0) hint.textContent = 'You won and hit a six. New Six Hitter claims are currently unavailable.';
+        else if (s.matchSixes[meSide] > 0) { hint.textContent = 'You won and hit a six. Six Hitter is yours to claim.'; offerClaim(session, s, hint); }
         else hint.textContent = 'You won! Hit a six in a winning match for Six Hitter.';
       }
       const lines = [];

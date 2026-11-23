@@ -6855,7 +6855,6 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 .relic-cards { padding:0; list-style:none; display:grid; gap:.5rem; }
 .relic-cards li { border:1px solid #a97845; padding:.6rem; border-radius:8px; }
 .relic-cards img { float:inline-end; margin:.25rem; }
-.relic-challenge { margin:.2rem 0 .65rem; padding:.5rem; border:1px solid var(--muted,#665571); border-radius:6px; overflow-wrap:anywhere; }
 </style>
 <script>
 (() => {
@@ -19969,7 +19968,7 @@ const sharedWorld = (() => {
         let returnToRelics = false;
         const relics = smaranRelics.mountRelicPanels({
             root: byId('eb-menu-relics'),
-            read: smaranRelics.createRelicReader({ programId: '3Nuw244n383T7CF8bTVaQqAw8Yt3aPnjgAGf68QRbhk4', rpcUrl: SabhaSol.DEFAULT_BASE }),
+            read: smaranRelics.createRelicReader({ programId: 'HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B', rpcUrl: SabhaSol.DEFAULT_BASE }),
             currentPlayer: () => player?.publicKey,
             signIn() {
                 openSignIn(false);
