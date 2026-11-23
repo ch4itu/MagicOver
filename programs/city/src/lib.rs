@@ -7,14 +7,15 @@
 //!
 //! Instructions (first data byte):
 //! Accounts (kind): 0 room ["city-room", 0] who is where; 1 chat ["city-chat", 0] the last 24 messages;
-//! 2 signs ["city-sign", 0] 32 town welcome signs. Each 4,112 bytes, delegated to the devnet rollup.
+//! 2 signs ["city-sign", 0..4] 32 village welcome signs each (village v uses account v % 5). Each 4,112 bytes,
+//! delegated to the devnet rollup.
 //!   0 Init        base [operator s w, account w, system]                               kind, idx, lamports u64
 //!   1 Delegate    base [operator s w, account w, this program, buffer w, record w, metadata w, delegation, system]
 //!                                                                                       kind, idx, commit_ms u32
 //!   2 Move        ER   [player s, room w]             idx, x u32, y u32 (tiles x 256), facing, flags, name_len, name
 //!   3 Leave       ER   [player s, room w]                                               idx
 //!   4 Say         ER   [player s, chat w]                       idx, name_len, name, text_len, text (1-80 bytes)
-//!   5 SetSign     ER   [player s, signs w]               idx, town (0-11), name_len, name, text_len, text (0-56)
+//!   5 SetSign     ER   [player s, signs w]            idx, village (0-143), name_len, name, text_len, text (0-56)
 //!   8 CommitUndelegate ER [operator s w, account w, magic program, magic context w]     kind, idx
 //!  MagicBlock undelegate callback (8-byte discriminator)
 //! A slot is the signer's own, else a free one, else one not updated for STALE seconds.
@@ -159,10 +160,10 @@ const G_TOWN: usize = 36;
 const G_NAME: usize = 37; // length + up to 32 bytes
 const G_TEXT: usize = 70; // length + up to 56 bytes
 const SIGN_TEXT_MAX: usize = 56;
-const TOWNS: u8 = 12;
+const TOWNS: u8 = 144; // villages: 12 towns of 12 villages each
 const _: () = assert!(HEADER + CHAT_N * MSG <= ROOM_SIZE && M_TEXT + 1 + TEXT_MAX <= MSG);
 const _: () = assert!(HEADER + SIGNS * SIGN <= ROOM_SIZE && G_TEXT + 1 + SIGN_TEXT_MAX <= SIGN);
-const NROOMS: u8 = 1;
+const NROOMS: u8 = 5; // account index per kind; the room and chat use 0, the village signs use 0 to 4
 const SLOTS: usize = 42;
 const SLOT: usize = 96;
 const HEADER: usize = 16;

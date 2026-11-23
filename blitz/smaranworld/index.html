@@ -802,7 +802,7 @@ body,#stage{width:100%;height:100dvh}#stage{position:relative}#play-hud{max-widt
       if (history.length) {
         const section = make("section"), entries = make("ul");
         section.append(make("h3", "Lifetime achievements"), entries);
-        for (const a of history) entries.append(make("li", "Six Hitter \xB7 Magic Over match " + a.matchNumber));
+        for (const a of history) entries.append(make("li", "Boundary Hitter \xB7 Magic Over match " + a.matchNumber));
         body.append(section);
       }
     }
@@ -2482,11 +2482,12 @@ function installSmaranCity({ engine, config, doc, global, toast, spriteUrl }) {
 //    program HPEA1Ht9... on devnet-as.magicblock.app, written with the player's own Smaran key (the rollup charges
 //    nothing, so no SOL) and read by every page, guests included. A name shows only after the Smaran registry confirms
 //    it belongs to the key that wrote it; anything else shows as "Visitor".
-//  * Towns: the twelve towns of the Alderlands are kept by relic holders. The n-th relic ever minted (the finalized
-//    PLAY ledger on Solana) belongs to town n mod 12, and the town is kept by the holder of its highest-points relic
-//    (earliest first on a tie). Every page raises the keeper's monument there and shows the keeper's welcome sign.
-//    Giving the relic away in Magic Over hands the town to the new holder. A sign is shown only when its writer is
-//    the town's current keeper, so anyone may write to the account but only a keeper's words appear.
+//  * Villages: the twelve towns of the Alderlands hold 144 villages, kept by relic holders. The n-th relic ever minted
+//    (the finalized PLAY ledger on Solana) belongs to village n mod 144, and the village is kept by the holder of its
+//    highest-points relic (earliest first on a tie). Every page raises the keeper's monument there and shows the
+//    keeper's welcome sign. Giving the relic away in Magic Over hands the village to the new holder. A sign is shown
+//    only when its writer is the village's current keeper, so anyone may write to the accounts but only a keeper's
+//    words appear.
 function installSmaranWorld({ engine, global, toast, config, onCount, onTowns }) {
   const W = global.solanaWeb3;
   const none = { join() {}, leave() {}, count: 0, townsOf: () => [], say: async () => {}, setSign: async () => {} };
@@ -2495,7 +2496,8 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
   const conn = new W.Connection("https://devnet-as.magicblock.app", { commitment: "confirmed", wsEndpoint: "wss://devnet-as.magicblock.app" });
   const enc = new TextEncoder(), dec = new TextDecoder();
   const pda = (seed) => W.PublicKey.findProgramAddressSync([enc.encode(seed), Uint8Array.of(0)], PROGRAM)[0];
-  const ROOM = pda("city-room"), CHAT = pda("city-chat"), SIGNS = pda("city-sign");
+  const ROOM = pda("city-room"), CHAT = pda("city-chat");
+  const SIGN_ACCOUNTS = [0, 1, 2, 3, 4].map((i) => W.PublicKey.findProgramAddressSync([enc.encode("city-sign"), Uint8Array.of(i)], PROGRAM)[0]); // village v writes to v % 5
   const HEADER = 16, SLOT = 96, SLOTS = 42, FRESH = 45, CHAT_N = 24, MSG = 160, SIGN_N = 32, SIGN = 128;
   const COLORS = ["#c9796b", "#6f9fc7", "#7fb070", "#d1b05a", "#a383c4", "#c98fae", "#6fb3ad", "#d39a5c"];
   const remotes = new Map(), checked = new Map(), claimedName = new Map();
@@ -2528,7 +2530,7 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
     if (!a) continue;
     for (let dy = -1; dy <= (a.h || 1); dy++) for (let dx = -1; dx <= (a.w || 1); dx++) near.add((o.x + dx) + "," + (o.y + dy));
   }
-  function townSpot(cx, cy) {
+  function townSpot(cx, cy, maxR = 40) {
     const free = (x, y) => {
       for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
         const t = engine.terrain(x + dx, y + dy), k = (x + dx) + "," + (y + dy);
@@ -2536,16 +2538,22 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
       }
       return true;
     };
-    for (let r = 2; r <= 40; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    for (let r = 2; r <= maxR; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       if (free(cx + dx, cy + dy)) return { x: cx + dx, y: cy + dy };
     }
     return null;
   }
-  const towns = (engine.city.regions || []).slice(0, 12).map((r, i) => {
-    const spot = townSpot(Math.floor(r.x), Math.floor(r.y));
+  // 144 villages: each of the twelve towns has its square (the town's own name) and eleven more villages around it.
+  // Village v = q * 12 + town, so the first twelve relics take the twelve squares, the next twelve the first ring, and so on.
+  const regions = (engine.city.regions || []).slice(0, 12);
+  const QUARTERS = ["", "Green", "Mill", "Wharf", "Row", "Gate", "Cross", "Field", "Hill", "Court", "Lane", "Market"];
+  const OFFSETS = [[0, 0], [-20, -20], [0, -24], [20, -20], [-24, 0], [24, 0], [-20, 20], [0, 24], [20, 20], [-12, -10], [12, 10], [-12, 10]];
+  const towns = [];
+  for (let q = 0; q < 12; q++) regions.forEach((r, ri) => {
+    const spot = townSpot(Math.floor(r.x) + OFFSETS[q][0], Math.floor(r.y) + OFFSETS[q][1], q === 0 ? 40 : 14);
     if (spot) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) reserved.add((spot.x + dx) + "," + (spot.y + dy));
-    return { i, name: r.name, theme: r.theme, cx: r.x, cy: r.y, spot, relic: null, object: null, sign: null };
+    towns.push({ i: q * 12 + ri, name: q === 0 ? r.name : r.name + " " + QUARTERS[q], region: ri, theme: r.theme, cx: r.x, cy: r.y, spot, relic: null, object: null, sign: null });
   });
   const base = engine.city.assets.find((a) => a.id === "custom-smaran-relic-monument");
   if (base && !engine.city.assets.some((a) => a.id === TOWN_ASSET)) {
@@ -2604,7 +2612,8 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
 
   // ---------------------------------------------------------------- town signs
   let signRows = [];
-  function parseSigns(d) {
+  const signParts = SIGN_ACCOUNTS.map(() => []);
+  function parseSigns(d, part = 0) {
     if (d.length < HEADER + SIGN_N * SIGN || dec.decode(d.subarray(0, 8)) !== "SMSIGN01") return;
     const v = new DataView(d.buffer, d.byteOffset, d.byteLength), rows = [];
     for (let i = 0; i < SIGN_N; i++) {
@@ -2615,7 +2624,8 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
       rows.push({ key, ts, town: d[o + 36], name, text: dec.decode(d.subarray(o + 71, o + 71 + Math.min(56, d[o + 70]))) });
       if (name) claimedName.set(key, name);
     }
-    signRows = rows;
+    signParts[part] = rows;
+    signRows = signParts.flat();
     applySigns();
   }
   function applySigns() {
@@ -2693,10 +2703,10 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
   const bytesOf = (acc) => (acc.data instanceof Uint8Array ? acc.data : new Uint8Array(acc.data));
   conn.onAccountChange(ROOM, (acc, ctx) => applyRoom(acc.data, ctx.slot), "confirmed");
   conn.onAccountChange(CHAT, (acc) => parseChat(bytesOf(acc)), "confirmed");
-  conn.onAccountChange(SIGNS, (acc) => parseSigns(bytesOf(acc)), "confirmed");
+  SIGN_ACCOUNTS.forEach((a, i) => conn.onAccountChange(a, (acc) => parseSigns(bytesOf(acc), i), "confirmed"));
   const pollRoom = () => conn.getAccountInfoAndContext(ROOM).then((r) => r.value && applyRoom(r.value.data, r.context.slot)).catch(() => {});
   const pollChat = () => conn.getAccountInfo(CHAT).then((a) => a && parseChat(bytesOf(a))).catch(() => {});
-  const pollSigns = () => conn.getAccountInfo(SIGNS).then((a) => a && parseSigns(bytesOf(a))).catch(() => {});
+  const pollSigns = () => conn.getMultipleAccountsInfo(SIGN_ACCOUNTS).then((list) => list.forEach((a, i) => a && parseSigns(bytesOf(a), i))).catch(() => {});
   pollRoom(); pollChat(); pollSigns();
   setInterval(pollRoom, 1500);
   setInterval(pollChat, 2000);
@@ -2843,18 +2853,22 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
     return interact0();
   };
 
-  // ---------------------------------------------------------------- arriving in a town
-  let here = null;
+  // ---------------------------------------------------------------- arriving in a town, and at a kept village
+  let hereTown = -1, hereVillage = null;
   setInterval(() => {
     const p = engine.player;
     if (!p || !ledgerRead) return;
-    const t = towns.find((q) => Math.max(Math.abs(q.cx - p.x), Math.abs(q.cy - p.y)) < 28) || null;
-    if (t === here) return;
-    here = t;
-    if (!t) return;
-    const keeper = t.relic ? (nameOf(t.relic.owner) || short(t.relic.owner)) : null;
-    toast?.(keeper ? "Welcome to " + t.name + ", kept by " + keeper + (t.sign ? ": “" + t.sign + "”" : ".")
-      : t.name + " has no keeper yet. Win a Magic Over match with a six and claim the relic to keep a town.");
+    const v = towns.find((t) => t.relic && t.object && Math.hypot(t.spot.x + 1 - p.x, t.spot.y + 1 - p.y) < 7) || null;
+    const town = regions.findIndex((r) => Math.max(Math.abs(r.x - p.x), Math.abs(r.y - p.y)) < 30);
+    const villageChanged = v !== hereVillage, townChanged = town !== hereTown;
+    hereVillage = v; hereTown = town;
+    if (villageChanged && v) {
+      const keeper = nameOf(v.relic.owner) || short(v.relic.owner);
+      toast?.(v.name + ", kept by " + keeper + (v.sign ? ": \u201C" + v.sign + "\u201D" : "."));
+    } else if (townChanged && town >= 0) {
+      const kept = towns.filter((t) => t.region === town && t.relic).length;
+      toast?.("Welcome to " + regions[town].name + ". " + kept + " of its 12 villages " + (kept === 1 ? "is" : "are") + " kept." + (kept < 12 ? " Hit a four or a six in Magic Over to keep one." : ""));
+    }
   }, 700);
 
   // ---------------------------------------------------------------- writing: position, chat, signs (the player's own key)
@@ -2903,10 +2917,10 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
   async function setSign(town, text) {
     if (!me) throw new Error("Sign in first.");
     const t = towns[town];
-    if (!t || keeperOf(t) !== me.publicKey) throw new Error("Only the keeper of " + (t?.name || "that town") + " can set its sign.");
+    if (!t || keeperOf(t) !== me.publicKey) throw new Error("Only the keeper of " + (t?.name || "that village") + " can set its sign.");
     const name = bytes(me.name, 32), s = bytes(clean(text, 56), 56), d = new Uint8Array(5 + name.length + s.length);
-    d[0] = 5; d[1] = 0; d[2] = town; d[3] = name.length; d.set(name, 4); d[4 + name.length] = s.length; d.set(s, 5 + name.length);
-    await send(me, SIGNS, d);
+    d[0] = 5; d[1] = town % 5; d[2] = town; d[3] = name.length; d.set(name, 4); d[4 + name.length] = s.length; d.set(s, 5 + name.length);
+    await send(me, SIGN_ACCOUNTS[town % 5], d);
     t.sign = clean(text, 56) || null;
     setTimeout(pollSigns, 1500);
   }
@@ -2933,7 +2947,7 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
   panel.style.cssText = "position:fixed;top:max(8px,env(safe-area-inset-top));right:8px;z-index:30;display:grid;justify-items:end;gap:4px;max-width:calc(100% - 16px)";
   panel.innerHTML = `
     <button type="button" data-account>Sign in / Create player</button>
-    <button type="button" data-relic>Towns</button>
+    <button type="button" data-relic>Villages</button>
     <button type="button" data-say hidden>Say</button>
     <form data-sayform hidden style="display:flex;gap:4px;max-width:min(320px,calc(100vw - 16px))"><input data-saytext maxlength="80" placeholder="Say something to everyone" aria-label="Say something to everyone" autocomplete="off" style="min-width:0;flex:1;min-height:38px"><button type="submit">Send</button></form>
     <p role="status" hidden></p>
@@ -2950,7 +2964,7 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
       </form>
     </dialog>
     <dialog data-town aria-labelledby="town-title" style="max-width:min(26rem,calc(100vw - 32px));max-height:85dvh;overflow:auto;color:#f9edc8;background:#252137;border:2px solid #a97845;border-radius:8px;padding:16px">
-      <h2 id="town-title" style="margin-top:0">Towns of the Alderlands</h2>
+      <h2 id="town-title" style="margin-top:0">Villages of the Alderlands</h2>
       <div data-townbody></div>
       <button type="button" data-townclose>Close</button>
     </dialog>`;
@@ -2990,7 +3004,7 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
     if (player && mine.length) {
       for (const t of mine) {
         const box = node("section", "", "border:1px solid #a97845;border-radius:8px;padding:10px;margin:0 0 10px");
-        box.append(node("h3", "You keep " + t.name, "margin:0 0 4px"), node("p", t.theme + " \u00B7 " + t.relic.name + " relic \u00B7 the monument stands in the town square for every player", "margin:0 0 8px;font-size:13px"));
+        box.append(node("h3", "You keep " + t.name, "margin:0 0 4px"), node("p", t.theme + " \u00B7 " + t.relic.name + " relic \u00B7 your monument stands in the village square for every player", "margin:0 0 8px;font-size:13px"));
         const label = node("label", "Welcome sign ", "display:grid;gap:4px;font-size:13px"), input = node("input");
         input.maxLength = 56; input.value = t.sign || ""; input.placeholder = "A line every visitor reads"; input.style.minHeight = "38px";
         const save = node("button", "Save sign"), note = node("p", "", "margin:6px 0 0;font-size:13px");
@@ -3006,20 +3020,21 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
         townBody.append(box);
       }
     } else {
-      townBody.append(node("p", player ? "You keep no town yet." : "Sign in to see whether you keep a town.", "margin:0 0 6px;font-weight:600"));
-      const how = node("p", "Win a Magic Over match with a six while signed in and claim the Six Hitter relic: one of the twelve towns becomes yours to keep, with your monument in its square. Give the relic away and the town goes with it. ", "margin:0 0 10px;font-size:13px");
+      townBody.append(node("p", player ? "You keep no village yet." : "Sign in to see whether you keep a village.", "margin:0 0 6px;font-weight:600"));
+      const how = node("p", "Hit a four or a six in a Magic Over match while signed in, win or lose, and claim the Boundary Hitter relic: one of the 144 villages becomes yours to keep, with your monument in its square. Give the relic away and the village goes with it. ", "margin:0 0 10px;font-size:13px");
       const link = node("a", "Play Magic Over");
       link.href = "../magic-over/"; link.style.color = "#f7d98b";
       how.append(link);
       townBody.append(how);
     }
     const list = node("ul", "", "padding-left:18px;margin:0 0 10px;font-size:13px;display:grid;gap:3px");
-    for (const t of world.towns) {
+    world.towns.filter((t) => t.region !== undefined && t.i < 12).forEach((square) => {
+      const kept = world.towns.filter((t) => t.region === square.region && t.relic);
       const li = node("li");
-      li.append(node("b", t.name), " \u00B7 " + (t.relic ? t.relic.name + " relic, kept by " + world.nameOf(t.relic.owner) : "no keeper yet"));
+      li.append(node("b", square.name), " \u00B7 " + kept.length + " of 12 villages kept" + (kept.length ? ": " + kept.map((t) => t.name + " (" + world.nameOf(t.relic.owner) + ")").join(", ") : ""));
       list.append(li);
-    }
-    townBody.append(node("h3", "All twelve towns", "margin:6px 0 4px"), list);
+    });
+    townBody.append(node("h3", "All 144 villages, town by town", "margin:6px 0 4px"), list);
   }
   townDialog.querySelector("[data-townclose]").onclick = () => townDialog.close();
   const access = new RelicAccess({ engine, config: { ...config, origin: global.location.origin },
@@ -3071,7 +3086,7 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
   form.querySelector("[data-close]").onclick = () => dialog.close();
   dialog.addEventListener("close", () => { version++; password.value = ""; submit.disabled = mode.disabled = false; });
   global.addEventListener("pagehide", signOut);
-  relic.textContent = "Towns";
+  relic.textContent = "Villages";
   relic.onclick = () => { renderTowns(); townDialog.showModal(); };
   Promise.resolve(globalThis.smaranRelics).then(({createRelicReader, mountRelicPanels}) => {
     collection = mountRelicPanels({root: panel, read: createRelicReader(config), currentPlayer: () => player?.publicKey});
