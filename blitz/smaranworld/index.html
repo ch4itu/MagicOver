@@ -1555,6 +1555,10 @@ globalThis.Smaran = (() => {
   #dpad button::before, #dpad button::after { content: none !important; display: none !important; }
   #dpad button:active { background: rgba(30, 30, 30, .14) !important; transform: none !important; }
   #dpad:after { content: "" !important; width: 26px !important; height: 26px !important; border-radius: 50%; background: var(--px-ink) !important; left: 50% !important; top: 50% !important; transform: translate(-50%, -50%); }
+  /* smaller and see-through, so the world shows behind it (the hit areas scale with it) */
+  #dpad { transform: scale(.7) !important; transform-origin: bottom left !important; background: rgba(250, 244, 228, .18) !important; border: 3px solid rgba(30, 30, 30, .5) !important; box-shadow: none !important; }
+  #dpad:after { opacity: .5; }
+  #dpad button:active { background: rgba(30, 30, 30, .22) !important; }
   #mini { border: 3px solid var(--px-ink); border-radius: 0; }
   #game-message, .hud-card .mission { color: var(--px-ink-2) !important; font-family: var(--px-body); font-size: 18px; }
   #play-controls button { font-size: 8px !important; line-height: 1.5 !important; padding: 4px 2px !important; word-break: keep-all; }
@@ -2939,7 +2943,7 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
       toast?.(v.name + ", kept by " + keeper + (v.sign ? ": \u201C" + v.sign + "\u201D" : "."));
     } else if (townChanged && town >= 0) {
       const kept = towns.filter((t) => t.region === town && t.relic).length;
-      toast?.("Welcome to " + regions[town].name + ". " + kept + " of its 12 villages " + (kept === 1 ? "is" : "are") + " kept." + (kept < 12 ? " Hit a four or a six in Magic Over to keep one." : ""));
+      toast?.("Welcome to " + regions[town].name + ". " + kept + " of its 12 villages " + (kept === 1 ? "is" : "are") + " kept." + (kept < 12 ? " Sign in to Magic Over and hit a four or a six in any match to keep one." : ""));
     }
   }, 700);
 
@@ -3025,7 +3029,7 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
     <p data-online hidden style="margin:0;font:18px/1.2 var(--px-body);color:var(--px-ink);background:var(--px-paper);border:3px solid var(--px-ink);padding:1px 6px"></p>
     <dialog aria-labelledby="city-account-title" style="max-width:min(24rem,calc(100vw - 32px));padding:16px">
       <h2 id="city-account-title">Sign in</h2>
-      <p data-sub style="margin:-6px 0 4px">One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL.</p>
+      <p data-sub style="margin:-6px 0 4px">One username and password for every app with Smaran login. No wallet, no seed phrase, no crypto.</p>
       <div class="px-tabs" role="tablist"><button type="button" role="tab" data-tab="in" aria-selected="true">Sign in</button><button type="button" role="tab" data-tab="new" aria-selected="false">Create account</button></div>
       <form style="display:grid;gap:10px;margin-top:8px">
         <label>Username <input name="name" required autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Letters, digits, _ or -"></label>
@@ -3101,20 +3105,52 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
       }
     } else {
       townBody.append(node("p", player ? "You keep no village yet." : "Sign in to see whether you keep a village.", "margin:0 0 6px;font-weight:600"));
-      const how = node("p", "Hit a four or a six in a Magic Over match while signed in, win or lose, and claim the Boundary Hitter relic: one of the 144 villages becomes yours to keep, with your monument in its square. Give the relic away and the village goes with it. ", "margin:0 0 10px;font-size:19px");
+      const how = node("p", "Sign in to Magic Over, then hit a four or a six in any match (Bat vs AI, Full match or a friend), win or lose, and claim the Boundary Hitter relic: one of the 144 villages becomes yours to keep, with your monument in its square. Give the relic away and the village goes with it. ", "margin:0 0 10px;font-size:19px");
       const link = node("a", "Play Magic Over");
       link.href = "../magic-over/"; link.style.color = "#2f5fb0";
       how.append(link);
       townBody.append(how);
     }
-    const list = node("ul", "", "padding-left:18px;margin:0 0 10px;font-size:19px;display:grid;gap:3px");
+    // every village, town by town: open a town to see its twelve villages, and Go takes you to one
+    const list = node("div", "", "display:grid;gap:6px;margin:0 0 10px");
     world.towns.filter((t) => t.region !== undefined && t.i < 12).forEach((square) => {
-      const kept = world.towns.filter((t) => t.region === square.region && t.relic);
-      const li = node("li");
-      li.append(node("b", square.name), " \u00B7 " + kept.length + " of 12 villages kept" + (kept.length ? ": " + kept.map((t) => t.name + " (" + world.nameOf(t.relic.owner) + ")").join(", ") : ""));
-      list.append(li);
+      const villages = world.towns.filter((t) => t.region === square.region).sort((a, b) => a.i - b.i);
+      const kept = villages.filter((t) => t.relic);
+      const box = node("details", "", "border:3px solid var(--px-ink);background:var(--px-paper);padding:4px 8px");
+      const sum = node("summary", "", "cursor:pointer;font-size:19px;padding:4px 0");
+      sum.append(node("b", square.name), " \u00B7 " + square.theme + " \u00B7 " + kept.length + " of 12 kept");
+      box.append(sum);
+      const ul = node("ul", "", "list-style:none;padding:0;margin:4px 0 6px;display:grid;gap:4px");
+      for (const t of villages) {
+        const li = node("li", "", "display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:19px");
+        const label = node("span", "", "min-width:0;overflow-wrap:anywhere");
+        label.append(node("b", t.name), " \u00B7 " + (t.relic ? "kept by " + world.nameOf(t.relic.owner) : "no keeper yet"));
+        const go = node("button", "Go", "flex:none;min-height:36px;padding:6px 12px");
+        go.type = "button";
+        go.onclick = () => goTo(t);
+        li.append(label, go);
+        ul.append(li);
+      }
+      box.append(ul);
+      list.append(box);
     });
-    townBody.append(node("h3", "All 144 villages, town by town", "margin:6px 0 4px"), list);
+    townBody.append(node("h3", "All 144 villages, town by town", "margin:6px 0 4px"),
+      node("p", "Each of the 12 towns has 12 villages: its square and eleven around it. Open a town to see them, and Go takes you there.", "margin:0 0 8px;font-size:19px"), list);
+  }
+  // fast travel, as the world atlas does: the player moves to the nearest open tile by the village, the camera follows
+  function goTo(t) {
+    const x = t.spot ? t.spot.x : Math.floor(t.cx), y = t.spot ? t.spot.y + 2 : Math.floor(t.cy);
+    if (engine.playing && engine.player) {
+      const p = engine.nearestOpen(x, y);
+      if (p) Object.assign(engine.player, p, { path: [], moving: false, walking: false });
+      engine.follow = true;
+      if (typeof engine.chooseMission === "function") engine.chooseMission();
+    }
+    engine.zoom = Math.max(engine.zoom, 1.3);
+    engine.focus(x, y);
+    townDialog.close();
+    // after the town's own welcome, which arriving in a town shows
+    setTimeout(() => toast("You are in " + t.name + (t.relic ? ", kept by " + world.nameOf(t.relic.owner) : ", which has no keeper yet") + "."), 2600);
   }
   townDialog.querySelector("[data-townclose]").onclick = () => townDialog.close();
   const access = new RelicAccess({ engine, config: { ...config, origin: global.location.origin },

@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Smaran · Blitz</title>
+<title>Smaran: one login, every game</title>
+<meta name="description" content="One username and password for every game here. No wallet, no seed phrase, no crypto to buy. What you win stays yours, in every game.">
 <link rel="stylesheet" href="arcade.css">
 <style>
   main { max-width: 640px; margin: 0 auto; padding: 28px 16px 48px; }
@@ -21,22 +22,25 @@
   .menu small { display: block; font-size: 21px; color: var(--px-ink-2); }
   .start { font-family: var(--px-head); font-size: 11px; text-transform: uppercase; color: var(--px-red); margin: 26px 0 12px; }
   footer { margin-top: 28px; color: var(--px-ink-2); }
+  .how { margin: 26px 0 0; padding: 12px 14px; border: 4px solid var(--px-ink); background: var(--px-paper-2); }
+  .how b { font-family: var(--px-head); font-weight: 400; font-size: 10px; text-transform: uppercase; color: var(--px-red); }
 </style>
 </head>
 <body class="px-page">
 <main>
   <div class="logo">SMARAN</div>
-  <p class="sub">One username and password.<br><span>No wallet. No seed phrase. No SOL.</span></p>
-  <p class="lede">Players only ever see "username and password". Smaran is the login behind it, and any app can support it. A new account counts as made only once Solana Devnet holds the record, so it opens on any device.</p>
+  <p class="sub">One username and password.<br><span>No wallet. No seed phrase. No crypto.</span></p>
+  <p class="lede">Make one account and use it in every game below, on your phone or your computer. It is free, there is nothing to buy, and what you win stays yours: a relic you earn in Magic Over also shows in EternalBliss and SmaranWorld.</p>
   <p class="start px-blink">Pick an app</p>
   <ul class="menu">
-    <li><a href="magic-over/"><b>Magic Over</b><small>Cricket duels. Hit a boundary, earn a relic.</small></a></li>
-    <li><a href="eternalbliss/"><b>EternalBliss</b><small>RPG with quests, battles and shared worlds.</small></a></li>
-    <li><a href="smaranworld/"><b>SmaranWorld</b><small>One shared world. Walk and talk with others; relic holders keep its 144 villages.</small></a></li>
-    <li><a href="ludo-freeflow/"><b>Ludo Freeflow</b><small>Online Ludo with no turns. Dice from MagicBlock VRF.</small></a></li>
+    <li><a href="magic-over/"><b>Magic Over</b><small>Cricket duels against the computer or a friend. One four or six earns a relic.</small></a></li>
+    <li><a href="eternalbliss/"><b>EternalBliss</b><small>An adventure game with quests, battles and shared worlds.</small></a></li>
+    <li><a href="smaranworld/"><b>SmaranWorld</b><small>A shared world to walk and chat in. Relic holders keep its 144 villages.</small></a></li>
+    <li><a href="ludo-freeflow/"><b>Ludo Freeflow</b><small>Ludo with no turns: everyone moves at once. Online dice are drawn fairly for every roll.</small></a></li>
     <li><a href="streaks/"><b>Streaks</b><small>Not a game: keep a daily habit, one check-in a day.</small></a></li>
   </ul>
-  <footer>Devnet demo. Relics have no money value and are never sold.</footer>
+  <p class="how"><b>How it works</b><br>Your account is a key on Solana, locked with your password and kept on Solana itself, so the same login works everywhere and there is no login server to shut down. Games run on MagicBlock, which makes every move instant and free for you. <a href="../smaran/">More about the login</a>.</p>
+  <footer>A demo on a test network (Solana Devnet). Relics are like medals: no money value, never sold, no betting. For judges and developers: <a href="https://github.com/ch4itu/MagicOver/blob/main/blitz/README.md">how it is built</a>.</footer>
 </main>
 </body>
 </html>

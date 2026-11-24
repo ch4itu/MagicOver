@@ -13,7 +13,7 @@ Four colours on one board, and no turns: every player rolls and moves whenever t
 - **Who pays.** Players pay nothing, ever. Whoever runs the apps pays the chain costs, mostly once as account deposits, to be covered by non-intrusive ads only: a sponsor's name on a stadium board or a village sign, never anything that interrupts play. There are no ads in this demo, and the plan is not proven yet. Anyone can also send SOL to the [save fund](../programs/save-fund), one address that can only pay for saving these apps' accounts to Solana. It is a gift, not an investment: nothing comes back.
 - **How long it lasts.** As long as Solana and MagicBlock run, once the save fund has SOL, someone runs its refill script (anyone can, with a little SOL for fees) and our upgrade key is given up, which we plan for mainnet. No server: the pages are static and open source, so anyone can host them. Logins are stored on Solana with their storage paid up front, so players can still sign in if we stop. Devnet can be reset, so lasting records need mainnet. Details: [Built to outlive us](../blitz/README.md#built-to-outlive-us).
 
-More on all the Blitz apps (four games and Smaran Streaks): [blitz/README.md](../blitz/README.md).
+More on all the Smaran apps (four games and Smaran Streaks): [blitz/README.md](../blitz/README.md).
 
 ## How an online match works
 

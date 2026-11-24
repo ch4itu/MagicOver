@@ -65,7 +65,7 @@
   </header>
 
   <h1>Keep a daily habit.</h1>
-  <p class="lead">One check-in a day, kept on Solana. Miss a day and the streak starts again. Use the username and password from any app with Smaran login. No wallet, no seed phrase, no SOL.</p>
+  <p class="lead">One check-in a day. Miss a day and the streak starts again. Use the username and password from any of the Smaran games. No wallet, no seed phrase, no crypto.</p>
 
   <div id="out" class="hero px-panel">
     <p>Sign in or create an account, pick a habit, and check in for today. Up to three habits, each with its own streak.</p>
@@ -87,8 +87,8 @@
     <ul class="notes">
       <li>A streak shows that you checked in, not that you did the habit. It is a promise to yourself.</li>
       <li>Your day starts at midnight in the time zone of your first check-in, and that stays fixed, so changing it cannot win back a missed day.</li>
-      <li>Streaks are public, under your username. The program checks that the username belongs to the key that signs. <button id="forget" class="px-btn flat" type="button" hidden>Remove my streaks</button></li>
-      <li>Every check-in is a free transaction on MagicBlock's rollup, signed by your own key. The rollup saves to Solana Devnet at most once an hour. Devnet is a test network and can be reset.</li>
+      <li>Streaks are public, under your username, and only you can check in as you. <button id="forget" class="px-btn flat" type="button" hidden>Remove my streaks</button></li>
+      <li>Check-ins are free. They run on MagicBlock and are saved on Solana's test network at most once an hour. A test network can be reset.</li>
     </ul>
   </section>
 
@@ -98,7 +98,7 @@
 <dialog id="signin" class="px-panel">
   <form method="dialog" id="signForm">
     <h3 id="signTitle">Sign in</h3>
-    <small id="signNote">One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL.</small>
+    <small id="signNote">One username and password for every app with Smaran login. No wallet, no seed phrase, no crypto.</small>
     <div class="px-tabs" role="tablist"><button id="tabIn" type="button" role="tab" aria-selected="true">Sign in</button><button id="mode" type="button" role="tab" aria-selected="false">Create account</button></div>
     <label class="px-label" for="name">Username</label>
     <input id="name" class="px-input" autocomplete="username" autocapitalize="none" spellcheck="false" required minlength="3" maxlength="32" placeholder="Letters, digits, _ or -">

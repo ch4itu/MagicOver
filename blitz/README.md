@@ -1,22 +1,24 @@
-# Smaran: four games and a habit app, one login
+# Smaran: one login for every game
 
-Our Solana Blitz v10 entry. **Play:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/)
+**Play:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/) · **Video:** [Smaran demo](https://ch4itu.github.io/MagicOver/media/smaran-blitz-demo.mp4)
 
-Smaran is for Web2 people. A player picks a username and a password and starts playing. They never install a wallet, write down a seed phrase or buy crypto, and they never pay a fee. Behind the scenes each player gets a Solana key, locked with their password and kept on Solana, so the same username and password work on any device and in every app with Smaran login. (The guides call the password a passphrase: at least 16 characters.)
+Make one account with a username and a password, and use it in every app below, on a phone or a computer. There is no wallet to install, no seed phrase to write down, no crypto to buy and no fees. What you win is yours: a relic you earn in the cricket game also shows in the adventure game and in the shared world, and it stays with you even if a game closes.
 
-| App | What it is |
+| App | What you do there |
 | --- | --- |
-| [Magic Over](https://ch4itu.github.io/MagicOver/blitz/magic-over/) | 3D cricket duels on MagicBlock's private rollup. Hit a four or a six in a match, win or lose, and claim the Boundary Hitter relic. MagicBlock VRF draws which relic you get. You can give a relic to another player. |
-| [EternalBliss](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/) | RPG with quests, battles, shared worlds and duels on MagicBlock's public rollup. Relics earned in Magic Over show in its menu. |
-| [SmaranWorld](https://ch4itu.github.io/MagicOver/blitz/smaranworld/) | One shared world, the Alderlands. Signed-in players see each other walk and chat, on one shared clock, so everyone sees the same time, season, people and traffic. 144 villages kept by relic holders, each with a monument and a sign its keeper writes. |
-| [Ludo Freeflow](https://ch4itu.github.io/MagicOver/blitz/ludo-freeflow/) | Four-colour Ludo with no turns. Online matches roll MagicBlock VRF dice on the rollup. |
-| [Smaran Streaks](https://ch4itu.github.io/MagicOver/blitz/streaks/) | Not a game: it shows the same login works for everyday apps too. Keep up to three daily habits with one check-in a day each. The program sets the day from its own clock in the time zone you start with, checks your username against the registry, and keeps a public streak board. Missing a day starts the streak again. |
+| [Magic Over](https://ch4itu.github.io/MagicOver/blitz/magic-over/) | Bat in a 3D cricket duel against the computer or a friend. Sign in, hit one four or six in any match, win or lose, and claim a relic. You can give a relic to another player. |
+| [EternalBliss](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/) | An adventure game with quests, battles, shared worlds and duels. Your relics show in its menu. |
+| [SmaranWorld](https://ch4itu.github.io/MagicOver/blitz/smaranworld/) | A shared world, the Alderlands, where signed-in players see each other walk and chat, on one clock for everyone. Its 144 villages are kept by relic holders, each with a monument and a sign the keeper writes. |
+| [Ludo Freeflow](https://ch4itu.github.io/MagicOver/blitz/ludo-freeflow/) | Ludo with no turns: everyone rolls and moves at once. Pick a table online, and every die is a fair random draw. |
+| [Smaran Streaks](https://ch4itu.github.io/MagicOver/blitz/streaks/) | Not a game: keep up to three daily habits, one check-in a day. It shows the same login works for everyday apps too. |
 
-A relic records a deed, like a medal. It is not money: it cannot be bought or sold, there is no marketplace and no wagering. It is saved on Solana under its holder's Smaran key, which is why Magic Over, EternalBliss and SmaranWorld can all show it.
+A relic is like a medal: a record of something you did. It is not money. It cannot be bought or sold, there is no marketplace and no betting.
+
+**How it works, in one paragraph.** Each account is a key on Solana. Your browser locks it with your password and keeps the locked copy on Solana itself, so the same username and password unlock it in any app, on any device, and there is no login server that could shut down. The games run on MagicBlock, which makes every move instant and free for the player. Details for judges and developers are [further down](#for-the-judges-magicblock-solana-blitz-v10).
 
 ## Why we built it
 
-Entertainment Finance, MagicBlock's theme for this Blitz, is apps where people collect, compete and win things they actually own. Those apps need players first, and today owning anything on Solana starts with a wallet, a seed phrase and some SOL. Smaran is the front door for everyone who stops there:
+Games where people collect, compete and win things they really own (MagicBlock calls this Entertainment Finance) need players first. Today owning anything on Solana starts with a wallet, a seed phrase and some SOL, and most people stop there. Smaran is the front door for them:
 
 - **People who will never touch crypto.** A username and a password, in any modern browser, on a phone or a computer, with no app to install. No wallet, no seed phrase, nothing to buy and no fees, ever.
 - **People where crypto is hard to use.** In many countries buying or holding crypto is banned, restricted, heavily taxed or legally unclear. Here players never buy, hold or send any coin or token, there is no KYC step, and nothing has cash value: no stakes, no money prizes, no trading. So players never do what most crypto rules are written for (buying, holding, trading or paying with coins or tokens), and the apps can be offered wherever their pages, Solana and MagicBlock are reachable. A few places block blockchain services or such sites, and whoever runs the apps still follows local rules on data protection, age limits and advertising. This is a design note, not legal advice.
@@ -38,6 +40,29 @@ Entertainment Finance, MagicBlock's theme for this Blitz, is apps where people c
 - **As long as Solana and MagicBlock run.** That is the aim, and the design covers it: the pages need no server, the records are on Solana, and saving needs only SOL in the save fund and someone to run the refill script.
 - **What it still depends on:** Solana; MagicBlock's rollups for real-time play, new sign-ups, matches and relic claims (sign-in still works from the copy on Solana when the rollup is down); SOL in the save fund; and our upgrade key, which can still change the programs' rules until we give it up at mainnet.
 - **Devnet today.** Devnet can be reset, so all of this holds only once the apps run on mainnet.
+
+## For the judges: MagicBlock Solana Blitz v10
+
+**New in this hackathon (20 to 27 November 2026)**
+
+- **Relics and achievements** ([`programs/play`](../programs/play)): one program that records what a player did and which relic they hold. Magic Over checks the match on the private rollup and MagicBlock VRF draws which relic you get. Relics can be given to another player.
+- **Relics shown across apps:** EternalBliss's menu and SmaranWorld's villages read the same relic records, under the same Smaran key.
+- **SmaranWorld:** the shared world, its 144 villages, chat and shared clock (built on our earlier city-builder engine).
+- **Ludo Freeflow online:** tables of four on MagicBlock with VRF dice, sign-in on the page and a list of every table (the local game is older).
+- **Smaran Streaks**, the non-game app.
+- **The save fund** ([`programs/save-fund`](../programs/save-fund)): one address anyone can fund, so saves to Solana keep going without us, and the rule changes that let anyone refill a low account.
+- **One sign-in card and one look** across all apps.
+
+**Reused from earlier work:** Magic Over and its result register, the Smaran login and its registry (MagicBlock Forge), EternalBliss's game on MagicBlock, and Ludo Freeflow's local game.
+
+**How MagicBlock is used**
+
+- **Private rollup (devnet-tee):** Magic Over's matches (the bowler's variation stays hidden from the batter until the ball is played), relics and achievements, and the leaderboard.
+- **Public rollup (devnet-as):** Smaran logins, EternalBliss, SmaranWorld's rooms and chat, Ludo Freeflow's tables and Streaks.
+- **VRF:** which relic a player gets, and every Ludo die.
+- **Free play:** every player action is a rollup transaction that costs the player nothing. Each shared account pays MagicBlock for its own saves to Solana from a small reserve, which the save fund refills.
+
+**Try it in two minutes:** open [Magic Over](https://ch4itu.github.io/MagicOver/blitz/magic-over/), press Sign in and create an account, play Bat vs AI and hit a four or a six, then claim the relic on the result screen. Open [SmaranWorld](https://ch4itu.github.io/MagicOver/blitz/smaranworld/) or [EternalBliss](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/) and sign in with the same username and password: the relic is there.
 
 ## What it holds today
 
