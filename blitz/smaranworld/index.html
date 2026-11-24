@@ -1622,10 +1622,12 @@ function realmSeason(engine){const s=engine.city.settings;if(s.season&&s.season!
 function npcProfile(i){const roles=['Resident','Courier','Gardener','Scholar','Merchant','Watchkeeper','Traveller','Baker','Apprentice','Elder','Healer','Farmer'];const colors=['#9cbfba','#d2a260','#7b9b68','#9e8cad','#c67965','#697f9c','#a4a16f','#d0b39b','#92a3bf','#b1a898','#b7c6c1','#a68b66'];return{role:roles[i%12],age:i%12===8?'child':i%12===9?'elder':'adult',outfit:colors[i%12],hat:[null,null,'#b9a56a',null,null,'#3e5165','#73855c',null,null,null,null,'#b19e60'][i%12],hair:i%12===9?'#c8c6bd':null};}
 function openWorldAtlas(e){
  let dlg=document.getElementById('atlas-dialog');if(!dlg){dlg=document.createElement('dialog');dlg.id='atlas-dialog';document.body.append(dlg);}dlg.replaceChildren();
- const h=document.createElement('h2');h.textContent='World atlas';const sub=document.createElement('p');sub.textContent=e.city.name+' · '+e.city.width+' × '+e.city.height+' tiles · '+(e.city.regions?.length||0)+' settlements';dlg.append(h,sub);
- const map=document.createElement('canvas');map.width=640;map.height=390;map.style.cssText='width:100%;height:auto;touch-action:none;border:1px solid #617766;background:#20343c;border-radius:5px';dlg.append(map);e.mini(map);
+ const marks=typeof window.smaranVillageMarks==='function'?window.smaranVillageMarks():[];
+ const h=document.createElement('h2');h.textContent='World atlas';const sub=document.createElement('p');sub.textContent=e.city.name+' · '+(e.city.regions?.length||0)+' towns'+(marks.length?' · '+marks.length+' villages':'');dlg.append(h,sub);
+ const map=document.createElement('canvas');map.width=640;map.height=390;map.style.cssText='width:100%;height:auto;touch-action:none;border:1px solid #617766;background:#20343c;border-radius:5px';dlg.append(map);
+ const drawMarks=m=>{const c=map.getContext('2d');for(const v of marks){const px=Math.round(m.ox+(v.x-v.y)*24*m.scale),py=Math.round(m.oy+(v.x+v.y)*12*m.scale),r=v.square?4:3;c.fillStyle='#1e1e1e';c.fillRect(px-r-1,py-r-1,2*r+2,2*r+2);c.fillStyle=v.kept?'#f0b429':'#fcf8ec';c.fillRect(px-r,py-r,2*r,2*r);}};drawMarks(e.mini(map));
  const list=document.createElement('div');list.className='atlas-list';let selected=null;
- const message=document.createElement('p');message.className='hint';message.textContent=e.playing?'Choose a settlement to fast travel in this local world.':'Choose a settlement to move the editor camera.';
+ const message=document.createElement('p');message.className='hint';message.textContent=(marks.length?'Each square is a village: gold ones have a keeper, white ones are waiting for one. ':'')+(e.playing?'Tap a square to go there, or pick a town below.':'Tap the map or pick a town to move the editor camera.');
  const go=(x,y)=>{if(e.playing){const p=e.nearestOpen(x,y);if(!p)return;Object.assign(e.player,p,{path:[],moving:false,walking:false});e.follow=true;e.chooseMission();}e.zoom=Math.max(e.zoom,1.3);e.focus(x,y);dlg.close();};
  for(const r of e.city.regions||[]){const b=document.createElement('button');b.textContent=r.name+' · '+r.theme;b.onclick=()=>go(r.x,r.y);list.append(b);}dlg.append(message,list);
  map.onpointerdown=ev=>{const r=map.getBoundingClientRect(),m=e.mini(map),px=(ev.clientX-r.left)*map.width/r.width,py=(ev.clientY-r.top)*map.height/r.height,wx=(px-m.ox)/m.scale,wy=(py-m.oy)/m.scale,x=(wx/24+wy/12)/2,y=(wy/12-wx/24)/2;if(x>=0&&y>=0&&x<e.city.width&&y<e.city.height)go(Math.floor(x),Math.floor(y));};
@@ -2658,6 +2660,7 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
     t.object = null;
   }
   const keeperOf = (t) => t.relic?.owner || null;
+  global.smaranVillageMarks = () => towns.filter((t) => t.spot).map((t) => ({ x: t.spot.x + 1, y: t.spot.y + 1, kept: !!t.relic, square: t.i < 12 }));
   const townsOf = (key) => towns.filter((t) => key && keeperOf(t) === key);
   let ledgerRead = false;
   function applyLedger(relics) {
@@ -2906,6 +2909,17 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
       pill(ctx, p.x, y - 17, t.name + " · " + t.relic.name + " relic", "#b8302b", "");
       pill(ctx, p.x, y, "Kept by " + keeper, "#1e1e1e", "");
     }
+    // villages with no keeper yet: a flag on a post where the monument will stand, and the village's name
+    for (const t of towns) {
+      if (t.relic || !t.spot) continue;
+      const p = engine.screen(t.spot.x + 1, t.spot.y + 1);
+      if (p.x < -120 || p.x > engine.W + 120 || p.y < -80 || p.y > engine.H + 120) continue;
+      const z = Math.max(0.7, Math.min(engine.zoom, 2)), x = Math.round(p.x), foot = Math.round(p.y), top = Math.round(foot - 30 * z);
+      ctx.fillStyle = "#1e1e1e"; ctx.fillRect(x - 6, foot - 3, 13, 4); ctx.fillRect(x - 1, top, 3, foot - top);
+      ctx.fillRect(x + 1, top - 1, Math.round(15 * z) + 2, Math.round(10 * z) + 2);
+      ctx.fillStyle = t.i < 12 ? "#f0b429" : "#b8302b"; ctx.fillRect(x + 2, top, Math.round(15 * z), Math.round(10 * z));
+      if (engine.zoom >= 0.8) pill(ctx, x, top - 14, t.name, "#5d584b", "");
+    }
     for (const a of remotes.values()) {
       const p = engine.screen(a.x, a.y);
       if (p.x < -80 || p.x > engine.W + 80 || p.y < -40 || p.y > engine.H + 80) continue;
@@ -2934,13 +2948,16 @@ function installSmaranWorld({ engine, global, toast, config, onCount, onTowns })
   setInterval(() => {
     const p = engine.player;
     if (!p || !ledgerRead) return;
-    const v = towns.find((t) => t.relic && t.object && Math.hypot(t.spot.x + 1 - p.x, t.spot.y + 1 - p.y) < 7) || null;
+    const v = towns.find((t) => t.spot && Math.hypot(t.spot.x + 1 - p.x, t.spot.y + 1 - p.y) < (t.relic ? 7 : 5)) || null;
     const town = regions.findIndex((r) => Math.max(Math.abs(r.x - p.x), Math.abs(r.y - p.y)) < 30);
     const villageChanged = v !== hereVillage, townChanged = town !== hereTown;
     hereVillage = v; hereTown = town;
-    if (villageChanged && v) {
+    if (villageChanged && v && v.relic) {
       const keeper = nameOf(v.relic.owner) || short(v.relic.owner);
       toast?.(v.name + ", kept by " + keeper + (v.sign ? ": \u201C" + v.sign + "\u201D" : "."));
+    } else if (villageChanged && v) {
+      const kept = towns.filter((t) => t.region === v.region && t.relic).length;
+      toast?.(v.name + " has no keeper yet. " + kept + " of " + regions[v.region].name + "'s 12 villages " + (kept === 1 ? "is" : "are") + " kept. Sign in to Magic Over and hit a four or a six in any match to keep one.");
     } else if (townChanged && town >= 0) {
       const kept = towns.filter((t) => t.region === town && t.relic).length;
       toast?.("Welcome to " + regions[town].name + ". " + kept + " of its 12 villages " + (kept === 1 ? "is" : "are") + " kept." + (kept < 12 ? " Sign in to Magic Over and hit a four or a six in any match to keep one." : ""));
@@ -3149,8 +3166,6 @@ function installCityIdentity({ engine, config, doc, global, toast }) {
     engine.zoom = Math.max(engine.zoom, 1.3);
     engine.focus(x, y);
     townDialog.close();
-    // after the town's own welcome, which arriving in a town shows
-    setTimeout(() => toast("You are in " + t.name + (t.relic ? ", kept by " + world.nameOf(t.relic.owner) : ", which has no keeper yet") + "."), 2600);
   }
   townDialog.querySelector("[data-townclose]").onclick = () => townDialog.close();
   const access = new RelicAccess({ engine, config: { ...config, origin: global.location.origin },
