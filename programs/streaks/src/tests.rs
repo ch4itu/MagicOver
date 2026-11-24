@@ -469,3 +469,74 @@ fn streaks_cap_instead_of_wrapping() {
     assert_eq!(check_in(&mut h, T0, 0), Ok(()));
     assert_eq!(rd16(&h, A_STREAK), u16::MAX);
 }
+
+#[test]
+fn a_group_goes_back_to_solana_by_the_operator_or_by_anyone_once_its_reserve_is_low() {
+    let mut w = world(50_000_000);
+    let g = GROUP0 + 2;
+    let m = |who: usize, sig: bool| [(who, sig, true), (g, false, true), (MAGICP, false, false), (MAGICC, false, true)];
+    let ix = [8u8, 2];
+    // a healthy reserve: only the operator
+    assert_eq!(call(&mut w, &m(STRANGER, true), &ix), ERR_OPERATOR);
+    assert_eq!(call(&mut w, &m(OPI, false), &ix), ERR_OPERATOR);
+    assert_eq!(call(&mut w, &m(OPI, true), &[8, 1]), ERR_PDA);
+    let wrong_ctx = [(OPI, true, true), (g, false, true), (MAGICP, false, false), (VAULT, false, true)];
+    assert_eq!(call(&mut w, &wrong_ctx, &ix), ERR_ACCOUNTS);
+    let before = magic_calls();
+    assert_eq!(call(&mut w, &m(OPI, true), &ix), 0);
+    assert_eq!(magic_calls(), before + 1);
+    // ten paid saves left is not low yet; fewer is, and then anyone may
+    let low = rent_minimum(GROUP_SIZE) + LOW_RESERVE;
+    w[g].lamports = low;
+    assert_eq!(call(&mut w, &m(STRANGER, true), &ix), ERR_OPERATOR);
+    w[g].lamports = low - 1;
+    assert_eq!(call(&mut w, &m(STRANGER, true), &ix), 0);
+    let last = host::cpis().into_iter().last().unwrap();
+    assert_eq!(last.program, MAGIC_PROGRAM);
+    assert_eq!(last.data, vec![2, 0, 0, 0]);
+    assert_eq!(call(&mut w, &m(STRANGER, false), &ix), ERR_OPERATOR, "still has to sign");
+}
+
+#[test]
+fn anyone_can_delegate_a_group_but_only_with_the_operators_setting() {
+    let mut w = world(20_000_000);
+    w.push(acct(PROG, SYS, 1));
+    let prog = w.len() - 1;
+    w.push(acct(DELEGATION_PROGRAM, SYS, 1));
+    let deleg = w.len() - 1;
+    let extra = |w: &mut Vec<A>, g: usize, n: u8| {
+        let gk = w[g].key;
+        w.push(acct(host::find_pda(&[b"buffer", &gk], &PROG).0, SYS, 0));
+        w.push(acct(pk(n), SYS, 0));
+        w.push(acct(pk(n + 1), SYS, 0));
+        (w.len() - 3, w.len() - 2, w.len() - 1)
+    };
+    let ix = |idx: u8, ms: u32| {
+        let mut v = vec![1u8, idx];
+        v.extend_from_slice(&ms.to_le_bytes());
+        v
+    };
+    // a stranger, group 1
+    let g = GROUP0 + 1;
+    let (buf, rec, meta) = extra(&mut w, g, 0x60);
+    w[STRANGER].lamports = RICH;
+    let m = |who: usize, sig: bool| [(who, sig, true), (g, false, true), (prog, false, false), (buf, false, true), (rec, false, true), (meta, false, true), (deleg, false, false), (SYSI, false, false)];
+    assert_eq!(call(&mut w, &m(STRANGER, true), &ix(1, 30_000)), ERR_OPERATOR, "anyone else uses the operator's setting");
+    assert_eq!(call(&mut w, &m(STRANGER, false), &ix(1, u32::MAX)), ERR_OPERATOR, "unsigned");
+    assert_eq!(call(&mut w, &m(STRANGER, true), &ix(2, u32::MAX)), ERR_PDA, "named group is not this account");
+    assert_eq!(call(&mut w, &m(STRANGER, true), &ix(1, u32::MAX)), 0);
+    assert_eq!(w[g].owner, DELEGATION_PROGRAM, "assigned away");
+    assert_eq!(w[buf].data.len(), 0, "buffer closed");
+    assert_eq!(w[STRANGER].lamports, RICH, "the buffer's rent went back to the stranger");
+    let last = host::cpis().into_iter().last().unwrap();
+    assert_eq!(last.program, DELEGATION_PROGRAM);
+    assert_eq!(rd32(&last.data, 8), u32::MAX);
+    assert_eq!(&last.data[last.data.len() - 32..], &VALIDATOR, "always MagicBlock's devnet rollup");
+    // the operator, group 3, may choose the setting
+    let g = GROUP0 + 3;
+    let (buf, rec, meta) = extra(&mut w, g, 0x62);
+    let m = [(OPI, true, true), (g, false, true), (prog, false, false), (buf, false, true), (rec, false, true), (meta, false, true), (deleg, false, false), (SYSI, false, false)];
+    assert_eq!(call(&mut w, &m, &ix(3, 30_000)), 0);
+    let last = host::cpis().into_iter().last().unwrap();
+    assert_eq!(rd32(&last.data, 8), 30_000);
+}

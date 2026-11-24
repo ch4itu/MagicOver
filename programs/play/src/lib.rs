@@ -150,6 +150,13 @@ const RESAVE_AFTER_SECS: i64 = 30;
 const DRAW_LIMIT: u32 = 60_000;
 const ODDS_TOTAL: u32 = 10_000;
 const SPONSOR_MARGIN: u64 = 100_000;
+/// Below rent plus this (fewer than ten paid saves left) anyone may hand an account back to Solana, where anyone can
+/// refill it and delegate it again. Above it only the operator can.
+const LOW_RESERVE: u64 = 10 * SPONSOR_MARGIN;
+/// The commit interval anyone but the operator must delegate with (the one the operator uses).
+const OPEN_COMMIT_MS: u32 = 30_000;
+/// A forced save by anyone but the operator: at most once a day per account, so nobody can burn the reserve with it.
+const OPEN_RESAVE_AFTER_SECS: i64 = 86_400;
 
 // Magic Over's table, read only (programs/game/src/lib.rs at commit 397a389).
 const T_SEED: &[u8] = b"so-table";
@@ -757,7 +764,8 @@ fn mark_and_save(c: &Ctx, pda: usize, context: usize, vault: usize) -> Result<()
 fn ix_commit(c: &Ctx) -> Result<(), u32> {
     // [payer s, pda w, magic program, context w, vault w]; data: tag, optional force byte
     // Without force: only while the account has unsaved changes. With force = 1: also when it is clean, but at most
-    // once per RESAVE_AFTER_SECS, which lets anyone retry a save that never reached the base layer.
+    // once per RESAVE_AFTER_SECS for the operator and once per OPEN_RESAVE_AFTER_SECS for anyone else, which lets
+    // anyone retry a save that never reached the base layer.
     if c.n < 5 || c.ix.is_empty() || c.ix.len() > 2 || !c.accs[0].is_signer || !c.accs[1].is_writable {
         return Err(ERR_ACCOUNTS);
     }
@@ -780,7 +788,8 @@ fn ix_commit(c: &Ctx) -> Result<(), u32> {
             return Err(ERR_NOTHING_TO_SAVE);
         }
         let last = rd32(d, H_SAVED_TS) as i64;
-        if last != 0 && now < last + RESAVE_AFTER_SECS {
+        let wait = if operator(c, &c.accs[0]).is_ok() { RESAVE_AFTER_SECS } else { OPEN_RESAVE_AFTER_SECS };
+        if last != 0 && now < last + wait {
             return Err(ERR_TOO_SOON);
         }
     }
@@ -792,12 +801,21 @@ fn ix_commit(c: &Ctx) -> Result<(), u32> {
     schedule_commit(c, 1, 3, 4)
 }
 
+/// True when an account has fewer than ten paid saves left in its reserve.
+fn reserve_low(a: &Acc) -> bool {
+    a.lamports() < rent_minimum(a.len()) + LOW_RESERVE
+}
+
 fn ix_commit_undelegate(c: &Ctx) -> Result<(), u32> {
-    // [operator s w, pda w, magic program, context w]; data: tag, kind, idx
+    // [caller s w, pda w, magic program, context w]; data: tag, kind, idx
+    // The operator may hand an account back to Solana at any time. Anyone may once its reserve is low, so that it can
+    // be refilled on Solana and delegated again without the operator.
     if c.n < 4 || c.ix.len() != 3 {
         return Err(ERR_DATA);
     }
-    operator(c, &c.accs[0])?;
+    if !c.accs[0].is_signer {
+        return Err(ERR_SIGNER);
+    }
     if !eq32(c.accs[2].key(), &MAGIC_PROGRAM) || !eq32(c.accs[3].key(), &MAGIC_CONTEXT) {
         return Err(ERR_ACCOUNTS);
     }
@@ -808,6 +826,9 @@ fn ix_commit_undelegate(c: &Ctx) -> Result<(), u32> {
     let (key, _) = ledger_address(kind, idx, c.program_id);
     if !eq32(&key, c.accs[1].key()) {
         return Err(ERR_PDA);
+    }
+    if !reserve_low(&c.accs[1]) {
+        operator(c, &c.accs[0])?;
     }
     invoke(
         c.accs,
@@ -1242,7 +1263,13 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
     if c.n < 8 || ix.len() != 40 {
         return Err(ERR_ACCOUNTS);
     }
-    operator(c, &accs[0])?;
+    // Anyone may delegate an account that is back on Solana, but only to this program's validator and with the
+    // operator's commit interval. The operator may choose both.
+    if operator(c, &accs[0]).is_err() {
+        if !accs[0].is_signer || ix[3] != 1 || !eq32(&ix[4..36], &VALIDATOR) || rd32(ix, 36) != OPEN_COMMIT_MS {
+            return Err(ERR_SIGNER);
+        }
+    }
     let (payer, pda, buffer) = (&accs[0], &accs[1], &accs[3]);
     if !eq32(accs[2].key(), program_id) || !eq32(accs[6].key(), &DELEGATION_PROGRAM) {
         return Err(ERR_ACCOUNTS);
