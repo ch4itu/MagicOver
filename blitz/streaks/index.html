@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Keep a daily habit with one check-in a day, kept on Solana. Sign in with your Smaran username and password. No wallet, no SOL.">
+<title>Smaran Streaks</title>
+<style>
+  :root { color-scheme: dark; --bg: #05070f; --ink: #eef3fb; --soft: #aab8cf; --dim: #7d8ca6; --line: rgba(255,255,255,.1); --card: rgba(255,255,255,.045); --teal: #5ee0d0; --fire: #ffb44a; --red: #ff8a7a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: radial-gradient(ellipse at 15% -10%, #173257 0, #0a1222 45%, var(--bg) 80%) fixed; min-height: 100vh; }
+  main { max-width: 46rem; margin: 0 auto; padding: 0 1rem 4rem; }
+  header.top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem 0 .4rem; }
+  .brand { font-weight: 800; font-size: 1.25rem; letter-spacing: .01em; white-space: nowrap; }
+  #account { max-width: 58vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brand span { color: var(--fire); }
+  button { font: inherit; cursor: pointer; border-radius: 12px; border: 1px solid var(--line); background: #121c30; color: var(--ink); padding: .6rem 1rem; }
+  button:disabled { opacity: .55; cursor: default; }
+  button.primary { background: var(--teal); color: #04121a; border-color: var(--teal); font-weight: 700; }
+  button.ghost { background: transparent; }
+  button.link { background: none; border: 0; padding: .2rem .3rem; color: var(--soft); text-decoration: underline; text-underline-offset: 3px; }
+  h1 { font-size: clamp(1.9rem, 6vw, 2.6rem); line-height: 1.1; margin: 1.2rem 0 .5rem; }
+  .lead { color: var(--soft); margin: 0 0 1.2rem; max-width: 36rem; }
+  .today { color: var(--soft); margin: 1.2rem 0 .8rem; font-size: .95rem; }
+  .today b { color: var(--ink); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr)); gap: .8rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 1rem 1rem .9rem; display: flex; flex-direction: column; gap: .55rem; }
+  .card .head { display: flex; align-items: center; gap: .55rem; font-weight: 700; }
+  .card .icon { font-size: 1.5rem; }
+  .streak { display: flex; align-items: baseline; gap: .4rem; }
+  .streak .n { font-size: 2.6rem; font-weight: 800; line-height: 1; }
+  .streak .n.live { color: var(--fire); }
+  .streak .u { color: var(--soft); }
+  .meta { color: var(--dim); font-size: .85rem; }
+  .deeds { display: flex; gap: .3rem; flex-wrap: wrap; }
+  .deed { font-size: .72rem; padding: .12rem .45rem; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
+  .deed.on { border-color: var(--fire); color: var(--fire); background: rgba(255,180,74,.08); }
+  .card .actions { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin-top: auto; }
+  .card .done { color: var(--teal); font-weight: 600; font-size: .92rem; }
+  .card.add { align-items: center; justify-content: center; min-height: 12rem; border-style: dashed; color: var(--soft); cursor: pointer; text-align: center; }
+  .card.add b { font-size: 2rem; color: var(--teal); }
+  .hero { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 1.1rem 1.2rem; }
+  .hero p { margin: .2rem 0 .9rem; color: var(--soft); }
+  section { margin-top: 2rem; }
+  h2 { font-size: 1.15rem; margin: 0 0 .7rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  th, td { text-align: left; padding: .45rem .4rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  tr.me td { color: var(--teal); }
+  .empty { color: var(--dim); padding: .8rem 0; }
+  ul.notes { color: var(--soft); padding-left: 1.1rem; margin: 0; }
+  ul.notes li { margin: .3rem 0; }
+  footer { margin-top: 2.2rem; color: var(--dim); font-size: .85rem; }
+  footer a, .notes a { color: var(--teal); }
+  dialog { border: 1px solid var(--line); border-radius: 18px; background: #0d1628; color: var(--ink); padding: 1.2rem; width: min(30rem, 92vw); }
+  dialog::backdrop { background: rgba(2,4,10,.7); }
+  dialog h3 { margin: 0 0 .3rem; }
+  dialog small { display: block; color: var(--soft); margin-bottom: .6rem; }
+  label { display: block; margin: .7rem 0 .25rem; font-weight: 600; font-size: .92rem; }
+  input { width: 100%; padding: .65rem; font: inherit; border-radius: 10px; border: 1px solid #2a3a57; background: #08101e; color: var(--ink); }
+  .row { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; flex-wrap: wrap; }
+  .alert { min-height: 1.4em; color: var(--red); margin: .6rem 0 0; font-size: .92rem; }
+  .picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: .45rem; margin-top: .6rem; }
+  .picks button { text-align: left; display: flex; gap: .45rem; align-items: center; padding: .55rem .6rem; font-size: .92rem; }
+  .picks button:disabled { opacity: .35; }
+  #toast { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); background: #14223a; border: 1px solid var(--line); padding: .65rem 1rem; border-radius: 12px; max-width: 92vw; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="brand">Smaran <span>Streaks</span></div>
+    <button id="account" type="button">Sign in</button>
+  </header>
+
+  <h1>Keep a daily habit.</h1>
+  <p class="lead">One check-in a day, kept on Solana. Miss a day and the streak starts again. Use the username and password from any app with Smaran login. No wallet, no SOL.</p>
+
+  <div id="out" class="hero">
+    <p>Sign in or create an account, pick a habit, and check in for today. Up to three habits, each with its own streak.</p>
+    <button id="start" class="primary" type="button">Sign in to start</button>
+  </div>
+
+  <div id="in" hidden>
+    <p class="today" id="today"></p>
+    <div class="grid" id="habits"></div>
+  </div>
+
+  <section>
+    <h2>Longest streaks right now</h2>
+    <div id="board"><p class="empty">Loading…</p></div>
+  </section>
+
+  <section>
+    <h2>Good to know</h2>
+    <ul class="notes">
+      <li>A streak shows that you checked in, not that you did the habit. It is a promise to yourself.</li>
+      <li>Your day starts at midnight in the time zone of your first check-in, and that stays fixed, so changing it cannot win back a missed day.</li>
+      <li>Streaks are public, under your username. The program checks that the username belongs to the key that signs. <button id="forget" class="link" type="button" hidden>Remove my streaks</button></li>
+      <li>Every check-in is a free transaction on MagicBlock's rollup, signed by your own key. The rollup saves to Solana Devnet at most once an hour. Devnet is a test network and can be reset.</li>
+    </ul>
+  </section>
+
+  <footer>Part of <a href="../">Smaran</a>. Program <a id="programLink" href="#" target="_blank" rel="noopener">A98As1…ALoi</a> on Solana Devnet, running on MagicBlock.</footer>
+</main>
+
+<dialog id="signin">
+  <form method="dialog" id="signForm">
+    <h3 id="signTitle">Sign in</h3>
+    <small id="signNote">One username and password for every app with Smaran login.</small>
+    <label for="name">Username</label>
+    <input id="name" autocomplete="username" autocapitalize="none" spellcheck="false" required minlength="3" maxlength="32">
+    <label for="pass">Password</label>
+    <input id="pass" type="password" autocomplete="current-password" required>
+    <p class="alert" id="signAlert" role="alert"></p>
+    <div class="row">
+      <button id="mode" class="ghost" type="button">Create an account instead</button>
+      <button id="cancel" class="ghost" type="button">Cancel</button>
+      <button id="submit" class="primary" type="submit">Sign in</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="picker">
+  <h3 id="pickTitle">Pick a habit</h3>
+  <small id="pickNote">Picking one checks you in for today.</small>
+  <div class="picks" id="picks"></div>
+  <div class="row"><button id="pickCancel" class="ghost" type="button">Cancel</button></div>
+</dialog>
+
+<div id="toast" role="status" hidden></div>
+
+<script src="../smaran/smaran.js"></script>
+<script>
+(() => {
+  'use strict';
+  const W = globalThis.solanaWeb3, S = globalThis.SabhaSol;
+  const $ = (id) => document.getElementById(id);
+  const PROGRAM = new W.PublicKey('A98As1brXWi2DuJFChgat6bL9XbmaRRiF5vMFZswALoi');
+  const MAGIC_PROGRAM = new W.PublicKey('Magic11111111111111111111111111111111111111');
+  const MAGIC_CONTEXT = new W.PublicKey('MagicContext1111111111111111111111111111111');
+  const FEE_VAULT = new W.PublicKey('5SRuhQybZ3FqmymaxoipqnieGZ5bNnrQqYwUZSRoCCZQ'); // MagicBlock's fee vault for the devnet rollup
+  const ER = S.DEFAULT_ER, BASE = S.DEFAULT_BASE;
+  const conn = new W.Connection(ER, 'confirmed');
+  const GROUPS = [0, 1, 2, 3].map((i) => W.PublicKey.findProgramAddressSync([new TextEncoder().encode('smaran-streaks'), Uint8Array.of(i)], PROGRAM)[0]);
+  const HEADER = 64, REC = 128, RECS = 79, R_NAME = 32, R_OFFSET = 65, R_FLAGS = 67, R_JOINED = 68, R_HABITS = 72, HABIT = 14, NHABITS = 3;
+  const DAY = 86400;
+  const HABITS = [null,
+    ['🚶', 'Walk'], ['💪', 'Exercise'], ['📖', 'Read'], ['✏️', 'Study'], ['🧘', 'Meditate'], ['🙏', 'Pray'],
+    ['💧', 'Drink water'], ['😴', 'Sleep on time'], ['🍏', 'Skip sugar'], ['🗣️', 'Learn a language'], ['🎵', 'Practise music'],
+    ['✍️', 'Write'], ['💻', 'Code'], ['📞', 'Call family'], ['🙂', 'One good thing'], ['🧹', 'Tidy up']];
+  const DEEDS = [[7, 'A week'], [30, 'A month'], [100, '100 days'], [365, 'A year']];
+  const ERRORS = {
+    1: 'The check-in had the wrong accounts. Reload the page and try again.',
+    2: 'Your key did not sign. Sign in again.',
+    3: 'The streak groups did not match. Reload the page.',
+    4: 'The request was malformed. Reload the page.',
+    9: 'The streak groups did not match. Reload the page.',
+    17: 'Streaks are full right now.',
+    30: 'This username is not registered to the key that signed.',
+    31: 'Already checked in today. Come back after midnight.',
+    32: 'That habit is already on one of your cards.',
+    33: 'You have no streaks yet.',
+    36: 'Your time zone could not be used.'
+  };
+  let me = null, myKey = null, mine = null, regGroup = null, records = [], creating = false, busy = false, pickSlot = -1, pickChange = false;
+  $('programLink').href = 'https://explorer.solana.com/address/' + PROGRAM.toBase58() + '?cluster=devnet';
+
+  // ---------------------------------------------------------------- reading the groups
+  const rd16 = (d, o) => d[o] | (d[o + 1] << 8);
+  const rd32 = (d, o) => (d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24)) >>> 0;
+  const i16 = (v) => (v & 0x8000 ? v - 0x10000 : v);
+  const dayOf = (ts, off) => Math.floor((ts + off * 60) / DAY);
+  const now = () => Math.floor(Date.now() / 1000);
+  function parse(list) {
+    const out = [];
+    list.forEach((a, g) => {
+      if (!a) return;
+      const d = a.data;
+      for (let r = 0; r < RECS; r++) {
+        const o = HEADER + r * REC;
+        if (!(d[o + R_FLAGS] & 1)) continue;
+        const habits = [];
+        for (let s = 0; s < NHABITS; s++) {
+          const h = o + R_HABITS + s * HABIT;
+          habits.push({ kind: d[h], streak: rd16(d, h + 2), best: rd16(d, h + 4), total: rd32(d, h + 6), last: rd32(d, h + 10) });
+        }
+        out.push({ group: g, owner: new W.PublicKey(d.slice(o, o + 32)).toBase58(), name: new TextDecoder().decode(d.slice(o + R_NAME + 1, o + R_NAME + 1 + d[o + R_NAME])),
+          offset: i16(rd16(d, o + R_OFFSET)), joined: rd32(d, o + R_JOINED), habits });
+      }
+    });
+    return out;
+  }
+  const alive = (h, off) => (h.last && dayOf(now(), off) - dayOf(h.last, off) <= 1 ? h.streak : 0);
+  const doneToday = (h, off) => !!h.last && dayOf(h.last, off) === dayOf(now(), off);
+  async function refresh() {
+    try {
+      records = parse(await conn.getMultipleAccountsInfo(GROUPS));
+      mine = me ? records.find((r) => r.owner === myKey) || null : null;
+      render();
+    } catch (e) {
+      $('board').innerHTML = '<p class="empty">Could not reach MagicBlock. Retrying…</p>';
+    }
+  }
+
+  // ---------------------------------------------------------------- drawing
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const tzLabel = (m) => 'UTC' + (m < 0 ? '−' : '+') + Math.floor(Math.abs(m) / 60) + (Math.abs(m) % 60 ? ':' + String(Math.abs(m) % 60).padStart(2, '0') : '');
+  const myOffset = () => Math.max(-720, Math.min(840, Math.round(-new Date().getTimezoneOffset() / 15) * 15));
+  function until(off) {
+    const left = (dayOf(now(), off) + 1) * DAY - off * 60 - now();
+    const h = Math.floor(left / 3600), m = Math.floor((left % 3600) / 60);
+    return (h ? h + ' h ' : '') + m + ' min';
+  }
+  function dateIn(off) {
+    const t = new Date((now() + off * 60) * 1000);
+    return t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  }
+  function render() {
+    $('out').hidden = !!me;
+    $('in').hidden = !me;
+    $('forget').hidden = !mine;
+    if (me) {
+      const off = mine ? mine.offset : myOffset();
+      $('today').innerHTML = '<b>' + esc(dateIn(off)) + '</b> · ' + (mine ? 'your day ends in ' + esc(until(off)) + ' (' + tzLabel(off) + ')' : 'your day will start at midnight ' + tzLabel(off) + ', fixed from your first check-in');
+      const cards = [];
+      const habits = mine ? mine.habits : [];
+      for (let s = 0; s < NHABITS; s++) {
+        const h = habits[s];
+        if (!h || !h.kind) continue;
+        const [icon, label] = HABITS[h.kind] || ['•', 'Habit'];
+        const live = alive(h, off), done = doneToday(h, off);
+        cards.push('<div class="card" data-slot="' + s + '"><div class="head"><span class="icon">' + icon + '</span>' + esc(label) + '</div>' +
+          '<div class="streak"><span class="n' + (live ? ' live' : '') + '">' + live + '</span><span class="u">' + (live === 1 ? 'day' : 'days') + ' in a row</span></div>' +
+          '<div class="meta">Best ' + h.best + ' · ' + h.total + ' check-in' + (h.total === 1 ? '' : 's') + '</div>' +
+          '<div class="deeds">' + DEEDS.map(([n, t]) => '<span class="deed' + (h.best >= n ? ' on' : '') + '" title="' + n + ' days in a row">' + t + '</span>').join('') + '</div>' +
+          '<div class="actions">' + (done ? '<span class="done">✓ Done for today</span>' : '<button class="primary" data-act="check" data-slot="' + s + '" type="button">Check in for today</button>') +
+          '<button class="link" data-act="change" data-slot="' + s + '" type="button">Change</button><button class="link" data-act="remove" data-slot="' + s + '" type="button">Remove</button></div></div>');
+      }
+      const used = habits.filter((h) => h && h.kind).length;
+      if (used < NHABITS) cards.push('<div class="card add" data-act="add" role="button" tabindex="0"><b>+</b><span>' + (used ? 'Add a habit' : 'Pick your first habit') + '</span></div>');
+      $('habits').innerHTML = cards.join('');
+    }
+    const rows = [];
+    for (const r of records) r.habits.forEach((h) => { if (h.kind) rows.push({ r, h, live: alive(h, r.offset) }); });
+    rows.sort((a, b) => b.live - a.live || b.h.best - a.h.best || b.h.total - a.h.total || a.r.name.localeCompare(b.r.name));
+    const top = rows.filter((x) => x.h.total > 0).slice(0, 20);
+    $('board').innerHTML = top.length ? '<table><thead><tr><th>#</th><th>Username</th><th>Habit</th><th class="num">Now</th><th class="num">Best</th></tr></thead><tbody>' +
+      top.map((x, i) => '<tr' + (me && x.r.owner === myKey ? ' class="me"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(x.r.name) + '</td><td>' + (HABITS[x.h.kind] || ['•', ''])[0] + ' ' + esc((HABITS[x.h.kind] || ['', 'Habit'])[1]) +
+        '</td><td class="num">' + (x.live ? '🔥 ' + x.live : '0') + '</td><td class="num">' + x.h.best + '</td></tr>').join('') + '</tbody></table>'
+      : '<p class="empty">No streaks yet. Be the first.</p>';
+  }
+
+  // ---------------------------------------------------------------- sending
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function toast(text) {
+    const t = $('toast');
+    t.textContent = text; t.hidden = false;
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => (t.hidden = true), 4200);
+  }
+  function codeOf(err) {
+    const ie = err && err.InstructionError;
+    return ie && ie[1] && typeof ie[1] === 'object' && 'Custom' in ie[1] ? ie[1].Custom : null;
+  }
+  async function send(keys, data) {
+    const sk = Uint8Array.from(me.secretKey), kp = W.Keypair.fromSecretKey(sk);
+    try {
+      const { blockhash } = await conn.getLatestBlockhash();
+      const tx = new W.Transaction({ feePayer: kp.publicKey, recentBlockhash: blockhash }).add(new W.TransactionInstruction({ programId: PROGRAM, keys, data }));
+      tx.sign(kp);
+      const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true });
+      for (let i = 0; i < 60; i++) {
+        const st = (await conn.getSignatureStatuses([sig])).value[0];
+        if (st && st.err) { const code = codeOf(st.err); throw Object.assign(new Error(ERRORS[code] || 'MagicBlock refused it (' + JSON.stringify(st.err) + ').'), { code }); }
+        if (st && (st.confirmationStatus === 'confirmed' || st.confirmationStatus === 'finalized')) return sig;
+        await sleep(500);
+      }
+      throw new Error('MagicBlock did not confirm in time. Try again.');
+    } finally { sk.fill(0); }
+  }
+  const k = (pubkey, isSigner, isWritable) => ({ pubkey, isSigner, isWritable });
+  const groupKeys = () => GROUPS.map((g) => k(g, false, true));
+  async function checkIn(slot, kind) {
+    const name = new TextEncoder().encode(me.name);
+    const off = mine ? mine.offset : myOffset();
+    const data = new Uint8Array(6 + name.length);
+    data[0] = 2; data[1] = slot; data[2] = kind; data[3] = off & 255; data[4] = (off >> 8) & 255; data[5] = name.length; data.set(name, 6);
+    if (!regGroup) regGroup = new W.PublicKey((await S.lookup(me.name, { erUrl: ER, baseUrl: BASE })).shard);
+    const base = [k(new W.PublicKey(myKey), true, false), ...groupKeys(), k(regGroup, false, false)];
+    try {
+      // with the save accounts: the program saves the group to Solana when an hour has passed since its last save
+      await send([...base, k(MAGIC_PROGRAM, false, false), k(MAGIC_CONTEXT, false, true), k(FEE_VAULT, false, true)], data);
+    } catch (e) {
+      if (e.code !== 10 && e.code !== 1) throw e;
+      await send(base, data); // the save part failed: check in without it
+    }
+  }
+  async function setHabit(slot, kind) {
+    await send([k(new W.PublicKey(myKey), true, false), ...groupKeys()], Uint8Array.of(3, slot, kind));
+  }
+  async function act(label, fn) {
+    if (busy) return;
+    busy = true;
+    document.querySelectorAll('main button').forEach((b) => (b.disabled = true));
+    toast(label);
+    try { await fn(); await refresh(); return true; }
+    catch (e) { toast(e.message || String(e)); await refresh(); return false; }
+    finally { busy = false; document.querySelectorAll('main button').forEach((b) => (b.disabled = false)); }
+  }
+
+  // ---------------------------------------------------------------- habits
+  function openPicker(slot, change) {
+    pickSlot = slot; pickChange = change;
+    const inUse = new Set((mine ? mine.habits : []).map((h, s) => (s !== slot && h.kind ? h.kind : 0)));
+    $('pickTitle').textContent = change ? 'Change this habit' : 'Pick a habit';
+    $('pickNote').textContent = change ? 'The new habit starts from zero. You can check in for it right after.' : 'Picking one checks you in for today.';
+    $('picks').innerHTML = HABITS.map((h, kind) => (h ? '<button type="button" data-kind="' + kind + '"' + (inUse.has(kind) ? ' disabled' : '') + '><span>' + h[0] + '</span>' + esc(h[1]) + '</button>' : '')).join('');
+    $('picker').showModal();
+  }
+  $('picks').onclick = async (e) => {
+    const b = e.target.closest('button[data-kind]');
+    if (!b) return;
+    const kind = +b.dataset.kind, slot = pickSlot;
+    $('picker').close();
+    if (pickChange) await act('Changing the habit…', () => setHabit(slot, kind));
+    else if (await act('Checking in…', () => checkIn(slot, kind))) toast('Checked in. Day 1 of ' + HABITS[kind][1].toLowerCase() + '.');
+  };
+  $('pickCancel').onclick = () => $('picker').close();
+  $('habits').onclick = async (e) => {
+    const el = e.target.closest('[data-act]');
+    if (!el || busy) return;
+    const slot = +el.dataset.slot, h = mine && mine.habits[slot];
+    if (el.dataset.act === 'add') {
+      const habits = mine ? mine.habits : [];
+      let free = 0;
+      while (free < NHABITS && habits[free] && habits[free].kind) free++;
+      openPicker(free, false);
+    } else if (el.dataset.act === 'check') {
+      if (await act('Checking in…', () => checkIn(slot, h.kind))) {
+        const after = mine && mine.habits[slot];
+        toast(after ? 'Checked in. ' + after.streak + (after.streak === 1 ? ' day' : ' days') + ' in a row.' : 'Checked in.');
+      }
+    } else if (el.dataset.act === 'change') {
+      openPicker(slot, true);
+    } else if (el.dataset.act === 'remove') {
+      if (confirm('Remove ' + HABITS[h.kind][1].toLowerCase() + '? Its streak is deleted.')) await act('Removing…', () => setHabit(slot, 0));
+    }
+  };
+  $('habits').onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset.act === 'add') { e.preventDefault(); e.target.click(); } };
+  $('forget').onclick = async () => {
+    if (!confirm('Remove all your streaks from the list? Earlier saves stay in Solana Devnet history.')) return;
+    if (await act('Removing your streaks…', () => send([k(new W.PublicKey(myKey), true, false), ...groupKeys()], Uint8Array.of(5)))) toast('Your streaks are removed.');
+  };
+
+  // ---------------------------------------------------------------- sign in
+  function setMode(value) {
+    creating = value;
+    $('signTitle').textContent = value ? 'Create a username and password' : 'Sign in';
+    $('signNote').textContent = 'One username and password for every app with Smaran login.' + (value ? ' There is no password reset, so choose one you will remember.' : '');
+    $('submit').textContent = value ? 'Create account' : 'Sign in';
+    $('mode').textContent = value ? 'Sign in instead' : 'Create an account instead';
+    $('pass').autocomplete = value ? 'new-password' : 'current-password';
+    $('pass').minLength = value ? 16 : 1;
+  }
+  function signOut() {
+    if (me) me.forget();
+    me = null; myKey = null; mine = null; regGroup = null;
+    $('account').textContent = 'Sign in';
+    render();
+  }
+  const openSignIn = () => { if (me) { signOut(); return; } setMode(false); $('signAlert').textContent = ''; $('signin').showModal(); $('name').focus(); };
+  $('account').onclick = openSignIn;
+  $('start').onclick = openSignIn;
+  $('mode').onclick = () => setMode(!creating);
+  $('cancel').onclick = () => $('signin').close();
+  $('signin').addEventListener('close', () => { $('pass').value = ''; });
+  $('signForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const credentials = { name: $('name').value.trim(), passphrase: $('pass').value };
+    $('pass').value = '';
+    $('submit').disabled = $('mode').disabled = true;
+    $('signAlert').style.color = 'var(--soft)';
+    $('signAlert').textContent = creating ? 'Creating your account… this takes a few seconds.' : 'Signing in…';
+    try {
+      me = creating ? await Smaran.signUp(credentials) : await Smaran.signIn(credentials);
+      myKey = new W.PublicKey(me.publicKey).toBase58();
+      await refresh(); // load this player's streaks before showing them as signed in
+      $('account').textContent = 'Sign out · ' + me.name;
+      $('signin').close();
+      toast('Signed in as ' + me.name + '.');
+    } catch (err) {
+      $('signAlert').style.color = '';
+      $('signAlert').textContent = err.message || String(err);
+    } finally { $('submit').disabled = $('mode').disabled = false; }
+  };
+  addEventListener('pagehide', signOut);
+
+  refresh();
+  setInterval(() => { if (!busy) refresh(); }, 20000);
+})();
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-# Smaran: four games, one login
+# Smaran: four games and a habit app, one login
 
 Our Solana Blitz v10 entry. **Play:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/)
 
@@ -10,6 +10,7 @@ Smaran is for Web2 people. A player picks a username and a password and starts p
 | [EternalBliss](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/) | RPG with shared worlds and duels on MagicBlock's public rollup. Its menu shows My Relics and a relic leaderboard. |
 | [SmaranWorld](https://ch4itu.github.io/MagicOver/blitz/smaranworld/) | One shared world, the Alderlands. Signed-in players see each other walk and chat, on one shared clock, so everyone sees the same time, season, people and traffic. 144 villages kept by relic holders, each with a monument and a sign its keeper writes. |
 | [Ludo Freeflow](https://ch4itu.github.io/MagicOver/blitz/ludo-freeflow/) | Four-colour Ludo with no turns. Online matches roll MagicBlock VRF dice on the rollup. |
+| [Smaran Streaks](https://ch4itu.github.io/MagicOver/blitz/streaks/) | Not a game: it shows the same login works for everyday apps too. Keep up to three daily habits with one check-in a day each. The program sets the day from its own clock in the time zone you start with, checks your username against the registry, and keeps a public streak board. Missing a day starts the streak again. |
 
 A relic records a deed, like a medal. It is not money: it cannot be bought or sold, there is no marketplace and no wagering. It is saved on Solana under its holder's Smaran key, which is why every app can show it.
 
@@ -34,6 +35,7 @@ Measured on Solana Devnet on 23 November 2026.
 | Ludo Freeflow | 32 online (8 tables of 4) | The local game against bots needs no sign-in and works offline. |
 | SmaranWorld | 42 signed-in players shown to each other | Guests can look around without being shown. Chat keeps the last 24 lines. 144 villages, 160 sign places. |
 | EternalBliss | 160 walking (5 worlds of 32) | 4 duel tables per world. The program allows up to 64 worlds. |
+| Smaran Streaks | No limit on check-ins at once | 316 people (4 groups of 79), up to 3 habits each. A group saves itself to Solana at most once an hour from its own 0.02 SOL reserve. |
 
 **Across all apps:**
 
@@ -55,14 +57,15 @@ Measured on Solana Devnet on 23 November 2026.
 
 | Item | SOL |
 | --- | --- |
-| 7 programs: registry, relics, Magic Over, result register, Ludo, SmaranWorld, EternalBliss | 1.92 |
+| 8 programs: registry, relics, Magic Over, result register, Ludo, SmaranWorld, EternalBliss, Streaks | 2.10 |
 | Smaran registry, 12 groups (420 places) | 0.69 |
 | Relic and achievement accounts | 0.43 |
 | EternalBliss worlds (character books not counted) | 0.62 |
 | SmaranWorld room, chat and signs | 0.15 |
 | Magic Over tables and leaderboard | 0.12 |
 | Ludo tables | 0.03 |
-| **Total** | **about 3.95** |
+| Streaks, 4 groups (rent plus a 0.02 SOL save reserve each) | 0.29 |
+| **Total** | **about 4.4** |
 
 Almost all of it is held as rent deposits (SOL that Solana keeps in an account so the account stays stored), not burned. Registry groups cannot be closed today, so count those as spent. Rent is the same on mainnet, where it is real SOL.
 
@@ -90,14 +93,16 @@ Running cost on top: 0.0001 SOL per save to Solana once an account passes its 25
 | Ludo Freeflow | [`2i2REZWzDeAqKuJBEypH9fBtVZB6jmZbBRX7YH4fiETp`](https://explorer.solana.com/address/2i2REZWzDeAqKuJBEypH9fBtVZB6jmZbBRX7YH4fiETp?cluster=devnet) | public (devnet-as) |
 | SmaranWorld | [`HPEA1Ht9rBnqEQVdaEQ9QuqwiWAbY6fgCKs2ZPuQvcCW`](https://explorer.solana.com/address/HPEA1Ht9rBnqEQVdaEQ9QuqwiWAbY6fgCKs2ZPuQvcCW?cluster=devnet) | public (devnet-as) |
 | EternalBliss | [`6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb`](https://explorer.solana.com/address/6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb?cluster=devnet) | public |
+| Smaran Streaks | [`A98As1brXWi2DuJFChgat6bL9XbmaRRiF5vMFZswALoi`](https://explorer.solana.com/address/A98As1brXWi2DuJFChgat6bL9XbmaRRiF5vMFZswALoi?cluster=devnet) | public (devnet-as) |
 
-Source: [`programs/`](../programs) (relics: [`programs/play`](../programs/play), which rebuilds byte for byte into the deployed binary) and [`eternalbliss/program`](../eternalbliss/program).
+Source: [`programs/`](../programs) (relics: [`programs/play`](../programs/play), which rebuilds byte for byte into the deployed binary; Streaks: [`programs/streaks`](../programs/streaks)) and [`eternalbliss/program`](../eternalbliss/program).
 
 No server: the pages are static files on GitHub Pages and talk straight to Solana and MagicBlock.
 
 ## Limits
 
 - **Devnet prototype.** Devnet can reset and erase test data.
+- **A streak shows a check-in, not the habit.** Streaks run on trust, the same as any habit app.
 - **One person can make many usernames.** A small proof of work slows sign-up bots but cannot stop them. A login tied to a key is not proof of a unique person.
 - **The programs check what they can see,** such as a boundary in the match's own count. That is not the same as cheat-proof: a modified page can still play badly or skip recording a result.
 - **No password reset.** The locked copy of each key is public, so a weak password can be guessed offline. Smaran accounts hold no money.
