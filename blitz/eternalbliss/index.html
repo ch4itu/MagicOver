@@ -7650,6 +7650,20 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 })();
 
 </script>
+<link rel="stylesheet" href="../arcade.css">
+<style id="smaran-arcade">
+  /* Only the Smaran parts (sign-in and relic windows) use the shared arcade look. The RPG keeps its own art direction. */
+  #eb-smaran { background: var(--px-paper) !important; background-image: none !important; color: var(--px-ink) !important; border: 4px solid var(--px-ink) !important; border-radius: 0 !important; box-shadow: 6px 6px 0 var(--px-ink) !important; font-family: var(--px-body) !important; font-size: 20px !important; }
+  #eb-smaran::backdrop { background: rgba(30, 30, 30, .6) !important; backdrop-filter: none !important; }
+  #eb-smaran h2 { font-family: var(--px-head) !important; font-weight: 400 !important; font-size: 13px !important; line-height: 1.6 !important; text-transform: uppercase; letter-spacing: 0 !important; color: var(--px-red) !important; text-shadow: none !important; background: none !important; -webkit-text-fill-color: currentColor !important; }
+  #eb-smaran p { color: var(--px-ink) !important; font-family: var(--px-body) !important; font-size: 20px !important; text-shadow: none !important; }
+  #eb-smaran label { color: var(--px-ink) !important; font-family: var(--px-head) !important; font-size: 9px !important; text-transform: uppercase; letter-spacing: 0 !important; }
+  #eb-smaran input { font-family: var(--px-body) !important; font-size: 22px !important; color: var(--px-ink) !important; background: #fff !important; border: 3px solid var(--px-ink) !important; border-radius: 0 !important; box-shadow: none !important; }
+  #eb-smaran button { font-family: var(--px-head) !important; font-size: 10px !important; font-weight: 400 !important; text-transform: uppercase; letter-spacing: 0 !important; color: var(--px-ink) !important; background: var(--px-paper) !important; background-image: none !important; border: 3px solid var(--px-ink) !important; border-radius: 0 !important; box-shadow: 3px 3px 0 var(--px-ink) !important; text-shadow: none !important; }
+  #eb-smaran #eb-smaran-submit { background: var(--px-green) !important; color: var(--px-paper) !important; }
+  #eb-smaran .eb-link { background: none !important; border: 0 !important; box-shadow: none !important; text-decoration: underline; text-underline-offset: 4px; }
+  .relic-controls button, .relic-dialog button { background-image: none !important; }
+</style>
 </head>
 <body>
     <div class="game-container">

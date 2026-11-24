@@ -1,9 +1,43 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Smaran · Blitz</title><style>body{font:16px system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;background:#10161a;color:#e9e4d8}a{display:block;margin:12px 0;padding:14px 16px;border-radius:10px;background:#1d2a30;color:#f3d88a;text-decoration:none}small{color:#9fb0b4}</style></head>
-<body><h1>Smaran</h1><p>One username and password for every game. No wallet, no SOL. Players only ever see "username and password"; Smaran is the login behind it, and any app can support it. A new account counts as created only once finalized Solana Devnet holds the record, so it opens on any device.</p>
-<a href="magic-over/">Magic Over <small>· cricket, Boundary Hitter achievement, My Relics</small></a>
-<a href="eternalbliss/">EternalBliss <small>· RPG, My Relics and Relic Leaderboard</small></a>
-<a href="smaranworld/">SmaranWorld <small>· one shared world: walk and talk with other players; relic holders keep its 144 villages</small></a>
-<a href="ludo-freeflow/">Ludo Freeflow <small>· online multiplayer Ludo, same login</small></a>
-<a href="streaks/">Smaran Streaks <small>· not a game: keep a daily habit with one check-in a day, same login</small></a>
-<p><small>Devnet demo. Relics have no monetary value and are never sold.</small></p></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smaran · Blitz</title>
+<link rel="stylesheet" href="arcade.css">
+<style>
+  main { max-width: 640px; margin: 0 auto; padding: 28px 16px 48px; }
+  .logo { font-family: var(--px-head); font-size: clamp(30px, 9vw, 52px); line-height: 1.2; margin: 8px 0 6px; color: var(--px-ink); text-shadow: 4px 4px 0 var(--px-gold); }
+  .sub { font-family: var(--px-head); font-size: 11px; line-height: 1.9; text-transform: uppercase; margin: 0 0 18px; }
+  .sub span { color: var(--px-red); }
+  p.lede { margin: 0 0 22px; }
+  .menu { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .menu a { display: block; text-decoration: none; color: var(--px-ink); background: var(--px-paper); border: 4px solid var(--px-ink); box-shadow: 4px 4px 0 var(--px-ink); padding: 12px 14px 12px 40px; position: relative; }
+  .menu a::before { content: "\25B6"; position: absolute; left: 14px; top: 13px; font-family: var(--px-head); font-size: 12px; color: var(--px-red); visibility: hidden; }
+  .menu a:hover, .menu a:focus-visible { background: var(--px-paper-2); outline: none; }
+  .menu a:hover::before, .menu a:focus-visible::before { visibility: visible; }
+  .menu a:active { transform: translate(4px, 4px); box-shadow: none; }
+  .menu b { display: block; font-family: var(--px-head); font-weight: 400; font-size: 13px; text-transform: uppercase; line-height: 1.6; }
+  .menu small { display: block; font-size: 21px; color: var(--px-ink-2); }
+  .menu .app b { color: var(--px-green); }
+  .start { font-family: var(--px-head); font-size: 11px; text-transform: uppercase; color: var(--px-red); margin: 26px 0 12px; }
+  footer { margin-top: 28px; color: var(--px-ink-2); }
+</style>
+</head>
+<body class="px-page">
+<main>
+  <div class="logo">SMARAN</div>
+  <p class="sub">One username and password.<br><span>No wallet. No coins. No SOL.</span></p>
+  <p class="lede">Players only ever see "username and password". Smaran is the login behind it, and any app can support it. A new account counts as made only once Solana Devnet holds the record, so it opens on any device.</p>
+  <p class="start px-blink">Select a game</p>
+  <ul class="menu">
+    <li><a href="magic-over/"><b>Magic Over</b><small>Cricket duels. Hit a boundary, earn a relic.</small></a></li>
+    <li><a href="eternalbliss/"><b>EternalBliss</b><small>RPG with shared worlds. My Relics and a relic leaderboard.</small></a></li>
+    <li><a href="smaranworld/"><b>SmaranWorld</b><small>One shared world. Walk and talk with others; relic holders keep its 144 villages.</small></a></li>
+    <li><a href="ludo-freeflow/"><b>Ludo Freeflow</b><small>Online Ludo with no turns, same login.</small></a></li>
+    <li><a class="app" href="streaks/"><b>Streaks</b><small>Not a game: keep a daily habit, one check-in a day, same login.</small></a></li>
+  </ul>
+  <footer>Devnet demo. Relics have no money value and are never sold.</footer>
+</main>
+</body>
+</html>
