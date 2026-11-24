@@ -1,10 +1,10 @@
 # Magic Over
 
-**Solana Blitz v10:** the same login now runs four games: Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow. Start at [the Blitz page](https://ch4itu.github.io/MagicOver/blitz/). Players at once, capacity, costs and limits: [blitz/README.md](blitz/README.md).
+**Solana Blitz v10:** the same login now runs four games (Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow) and a daily habit app, Streaks. Start at [the Blitz page](https://ch4itu.github.io/MagicOver/blitz/). Players at once, capacity, costs and limits: [blitz/README.md](blitz/README.md).
 
-Magic Over shows that a Web2 player can start using a Solana app with just a player name and a passphrase. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same name and passphrase bring the same player back.
+Magic Over shows that a Web2 player can start using a Solana app with just a username and a password. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same username and password bring the same player back.
 
-The sign-up is called **Smaran**, Sanskrit for remembering: all a player needs is to remember a name and a passphrase. It is also packaged for other web apps, as a sign-in window they open or as one file they load, where a Magic Over player signs in with the same name, passphrase and key: see [Smaran](smaran/).
+The sign-up is called **Smaran**, Sanskrit for remembering: all a player needs is to remember a username and a password. It is also packaged for other web apps, as a sign-in window they open or as one file they load, where a Magic Over player signs in with the same username, password and key: see [Smaran](smaran/). (Below, as in the code, the password is called a passphrase.)
 
 Smaran is built to outlive the app: the login is saved on Solana, not on any login server, the page is open source, and anyone can refill the registry's save reserves when they run low, so players can still sign in if we stop. Smaran's guide says [what it still depends on](smaran/README.md#what-smaran-is-and-what-it-is-not).
 
@@ -18,7 +18,7 @@ Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this rep
 
 <p align="center">
   <img src="media/preview-home.png" width="250" alt="Home screen">
-  <img src="media/preview-signup.png" width="250" alt="Sign-up with a player name and a passphrase">
+  <img src="media/preview-signup.png" width="250" alt="Sign-up with a username and a password">
   <img src="media/preview-match.png" width="250" alt="A Bat vs AI match: after the ball, the hidden spin is revealed">
 </p>
 

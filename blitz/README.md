@@ -7,7 +7,7 @@ Smaran is for Web2 people. A player picks a username and a password and starts p
 | App | What it is |
 | --- | --- |
 | [Magic Over](https://ch4itu.github.io/MagicOver/blitz/magic-over/) | 3D cricket duels on MagicBlock's private rollup. Hit a four or a six in a match, win or lose, and claim the Boundary Hitter relic. MagicBlock VRF draws which relic you get. You can give a relic to another player. |
-| [EternalBliss](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/) | RPG with shared worlds and duels on MagicBlock's public rollup. Its menu shows My Relics and a relic leaderboard. |
+| [EternalBliss](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/) | RPG with quests, battles, shared worlds and duels on MagicBlock's public rollup. Relics earned in Magic Over show in its menu. |
 | [SmaranWorld](https://ch4itu.github.io/MagicOver/blitz/smaranworld/) | One shared world, the Alderlands. Signed-in players see each other walk and chat, on one shared clock, so everyone sees the same time, season, people and traffic. 144 villages kept by relic holders, each with a monument and a sign its keeper writes. |
 | [Ludo Freeflow](https://ch4itu.github.io/MagicOver/blitz/ludo-freeflow/) | Four-colour Ludo with no turns. Online matches roll MagicBlock VRF dice on the rollup. |
 | [Smaran Streaks](https://ch4itu.github.io/MagicOver/blitz/streaks/) | Not a game: it shows the same login works for everyday apps too. Keep up to three daily habits with one check-in a day each. The program sets the day from its own clock in the time zone you start with, checks your username against the registry, and keeps a public streak board. Missing a day starts the streak again. |

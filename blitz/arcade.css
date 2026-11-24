@@ -45,7 +45,13 @@
 @media (prefers-reduced-motion: reduce) { .px-blink { animation: none; } }
 dialog.px-panel::backdrop { background: rgba(30, 30, 30, .6); }
 
-/* Relic windows (My Relics, Relic Leaderboard), the same in every app. */
+/* Sign-in, the same in every app: two tabs (Sign in | Create account), then the fields, then a note under them. */
+.px-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 2px; }
+.px-tabs button { min-height: 44px; margin: 0; padding: 8px 6px; font-family: var(--px-head); font-size: 9px; font-weight: 400; line-height: 1.5; letter-spacing: 0; text-transform: uppercase; color: var(--px-ink-2); background: var(--px-paper-2); border: 3px solid var(--px-ink); border-radius: 0; box-shadow: none; cursor: pointer; }
+.px-tabs button[aria-selected="true"] { color: var(--px-paper); background: var(--px-ink); }
+.px-note { margin: 2px 0 0; color: var(--px-ink-2); }
+
+/* Relic windows (My relics, Relic leaderboard), the same in every app. */
 .relic-controls button, .relic-dialog button { font-family: var(--px-head); font-size: 10px; font-weight: 400; text-transform: uppercase; letter-spacing: 0; color: var(--px-ink); background: var(--px-paper); border: 3px solid var(--px-ink); border-radius: 0; box-shadow: 3px 3px 0 var(--px-ink); padding: 9px 12px; min-height: 44px; }
 .relic-controls button:active, .relic-dialog button:active { transform: translate(3px, 3px); box-shadow: none; }
 .relic-dialog { color: var(--px-ink); background: var(--px-paper); border: 4px solid var(--px-ink); border-radius: 0; box-shadow: 6px 6px 0 var(--px-ink); font: 20px/1.25 var(--px-body); }

@@ -3,65 +3,66 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Smaran sign-in</title>
-<meta name="description" content="Sign up for a Solana app with a player name and a passphrase. No wallet, no seed phrase, no SOL.">
+<title>Smaran login</title>
+<meta name="description" content="One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL.">
+<link rel="stylesheet" href="../blitz/arcade.css">
 <style>
-  :root { --bg: #070b18; --card: #0f1730; --line: #24304f; --text: #eef2fb; --muted: #9fb0c8; --gold: #ffd166; --good: #7ee0a1; --bad: #ff8f8f; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 560px; margin: 0 auto; padding: 32px 16px 48px; }
-  h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: 0.02em; }
-  .lead { margin: 0 0 20px; color: var(--muted); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
-  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-  .tabs button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
-  .tabs button[aria-selected="true"] { background: #1a2547; color: var(--text); border-color: #3a4a78; }
-  label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 14px; }
-  input { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0a1124; color: var(--text); font: inherit; }
-  input:focus { outline: 2px solid #3a4a78; border-color: #3a4a78; }
-  .go { width: 100%; margin-top: 16px; padding: 12px; border: 0; border-radius: 10px; background: var(--gold); color: #1b1404; font: inherit; font-weight: 600; cursor: pointer; }
+  body { margin: 0; background: var(--px-paper); color: var(--px-ink); font: 22px/1.25 var(--px-body); -webkit-font-smoothing: none; }
+  main { max-width: 560px; margin: 0 auto; padding: 28px 16px 48px; }
+  h1 { margin: 8px 0 10px; font-family: var(--px-head); font-weight: 400; font-size: clamp(28px, 8vw, 44px); line-height: 1.2; text-shadow: 4px 4px 0 var(--px-gold); }
+  h2 { margin: 0 0 10px; font-family: var(--px-head); font-weight: 400; font-size: 12px; line-height: 1.6; text-transform: uppercase; color: var(--px-red); }
+  .lead { margin: 0 0 20px; }
+  .card { background: var(--px-paper); border: 4px solid var(--px-ink); box-shadow: 6px 6px 0 var(--px-ink); padding: 16px; margin-top: 14px; }
+  label { display: block; margin: 14px 0 6px; font-family: var(--px-head); font-size: 9px; text-transform: uppercase; }
+  input { width: 100%; padding: 6px 10px; border: 4px solid var(--px-ink); border-radius: 0; background: #fff; color: var(--px-ink); font: 24px/1.1 var(--px-body); }
+  input:focus { outline: 4px solid var(--px-gold); outline-offset: 0; }
+  input::placeholder { color: #9a9483; }
+  .go { width: 100%; margin-top: 18px; padding: 12px; font-family: var(--px-head); font-size: 11px; text-transform: uppercase; border: 4px solid var(--px-ink); border-radius: 0; background: var(--px-green); color: var(--px-paper); box-shadow: 4px 4px 0 var(--px-ink); cursor: pointer; }
+  .go:active { transform: translate(4px, 4px); box-shadow: none; }
   .go:disabled { opacity: 0.6; cursor: wait; }
-  .msg { min-height: 24px; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
-  .msg.bad { color: var(--bad); }
-  .msg.good { color: var(--good); }
-  .player { margin-top: 16px; }
-  .player h2 { margin: 0 0 8px; font-size: 18px; }
-  .key { display: block; word-break: break-all; padding: 10px 12px; border-radius: 10px; background: #0a1124; border: 1px solid var(--line); font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-  .row button { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
-  .status { margin: 14px 0 0; color: var(--muted); font-size: 14px; }
-  details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
-  summary { cursor: pointer; color: var(--text); }
-  ul { padding-left: 20px; color: var(--muted); }
-  a { color: var(--gold); }
+  .msg { min-height: 26px; margin: 12px 0 0; color: var(--px-ink-2); }
+  .msg.bad { color: var(--px-red); }
+  .msg.good { color: var(--px-green); }
+  .key { display: block; word-break: break-all; padding: 8px 10px; background: var(--px-paper-2); border: 4px solid var(--px-ink); font: 20px/1.2 var(--px-body); }
+  .row { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+  .row button { flex: 1; padding: 11px 8px; font-family: var(--px-head); font-size: 10px; text-transform: uppercase; border: 4px solid var(--px-ink); border-radius: 0; background: var(--px-paper); color: var(--px-ink); box-shadow: 4px 4px 0 var(--px-ink); cursor: pointer; }
+  .row button:active { transform: translate(4px, 4px); box-shadow: none; }
+  .status { margin: 14px 0 0; color: var(--px-ink-2); }
+  details { margin-top: 16px; border-top: 4px dotted var(--px-ink); padding-top: 12px; }
+  summary { cursor: pointer; font-family: var(--px-head); font-size: 10px; text-transform: uppercase; }
+  ul { padding-left: 22px; }
+  a { color: var(--px-blue); }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Smaran</h1>
-  <p class="lead">Sign up for a Solana app with a player name and a passphrase. No wallet, no seed phrase, no SOL. The same name and passphrase bring you back on any device, and in any app that uses Smaran.</p>
+  <h1>SMARAN</h1>
+  <p class="lead">One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL. The same username and password bring you back on any device, in any app that uses Smaran.</p>
 
   <section class="card" id="form">
-    <div class="tabs" role="tablist">
+    <h2 id="formTitle">Sign in</h2>
+    <div class="px-tabs" role="tablist">
       <button role="tab" id="tabIn" aria-selected="true">Sign in</button>
-      <button role="tab" id="tabNew" aria-selected="false">New player</button>
+      <button role="tab" id="tabNew" aria-selected="false">Create account</button>
     </div>
-    <label for="name">Player name</label>
-    <input id="name" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="3 to 32 letters, digits, _ or -">
-    <label for="pass">Passphrase</label>
+    <label for="name">Username</label>
+    <input id="name" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Letters, digits, _ or -">
+    <label for="pass">Password</label>
     <input id="pass" type="password" autocomplete="current-password" placeholder="At least 16 characters">
     <div id="confirmRow" hidden>
-      <label for="confirm">Passphrase again</label>
+      <label for="confirm">Confirm password</label>
       <input id="confirm" type="password" autocomplete="new-password">
     </div>
+    <p class="msg" id="newNote" hidden>There is no password reset, so choose one you will remember.</p>
     <button class="go" id="go">Sign in</button>
     <p class="msg" id="msg" role="status"></p>
   </section>
 
   <section class="card player" id="player" hidden>
     <h2 id="who"></h2>
-    <p class="msg">Your player key (public):</p>
+    <p class="msg">Your account key (public):</p>
     <code class="key" id="key"></code>
     <p class="msg" id="same"></p>
     <div class="row">
@@ -70,14 +71,14 @@
     </div>
     <p class="msg" id="sig"></p>
     <details id="changeBox">
-      <summary>Change passphrase</summary>
-      <label for="oldPass">Current passphrase</label>
+      <summary>Change password</summary>
+      <label for="oldPass">Current password</label>
       <input id="oldPass" type="password" autocomplete="current-password">
-      <label for="newPass">New passphrase</label>
+      <label for="newPass">New password</label>
       <input id="newPass" type="password" autocomplete="new-password" placeholder="At least 16 characters">
-      <label for="newPass2">New passphrase again</label>
+      <label for="newPass2">Confirm new password</label>
       <input id="newPass2" type="password" autocomplete="new-password">
-      <button class="go" id="changeGo">Change passphrase</button>
+      <button class="go" id="changeGo">Change password</button>
       <p class="msg" id="changeMsg" role="status"></p>
     </details>
   </section>
@@ -85,11 +86,11 @@
   <p class="status" id="status">Checking the registry…</p>
 
   <ul>
-    <li>Your passphrase never leaves this page. It unlocks your key here, in this browser.</li>
+    <li>Your password never leaves this page. It unlocks your key here, in this browser.</li>
     <li>The locked copy of your key is kept on MagicBlock's rollup and saved to Solana Devnet.</li>
-    <li>There is no passphrase reset. Use a passphrase you will remember.</li>
+    <li>There is no password reset, so choose one you will remember.</li>
   </ul>
-  <p class="status">Already playing <a href="../">Magic Over</a>? Sign in here with the same name and passphrase: you get the same player key. Developers: <a href="https://github.com/ch4itu/MagicOver/tree/main/smaran">add Smaran to your app</a>.</p>
+  <p class="status">Already using a Smaran app? Sign in here with the same username and password: you get the same key. <a href="../blitz/">All Smaran apps</a>. Developers: <a href="https://github.com/ch4itu/MagicOver/tree/main/smaran">add Smaran to your app</a>.</p>
 </main>
 <script src="smaran.js"></script>
 <script>
@@ -106,7 +107,9 @@
     $('tabNew').setAttribute('aria-selected', String(m === 'new'));
     $('confirmRow').hidden = m !== 'new';
     $('pass').autocomplete = m === 'new' ? 'new-password' : 'current-password';
-    $('go').textContent = m === 'new' ? 'Create player' : 'Sign in';
+    $('go').textContent = m === 'new' ? 'Create account' : 'Sign in';
+    $('formTitle').textContent = m === 'new' ? 'Create an account' : 'Sign in';
+    $('newNote').hidden = m !== 'new';
     say('');
   }
   $('tabIn').onclick = () => setMode('in');
@@ -117,8 +120,8 @@
       const s = await Smaran.status();
       const net = Smaran.network.charAt(0).toUpperCase() + Smaran.network.slice(1);
       $('status').textContent = s.players === null
-        ? `Registry on Solana ${net}: room for ${s.capacity} players. The rollup did not answer just now.`
-        : `Registry on Solana ${net}: ${s.players} players, room for ${s.capacity}.`;
+        ? `Registry on Solana ${net}: room for ${s.capacity} accounts. The rollup did not answer just now.`
+        : `Registry on Solana ${net}: ${s.players} accounts, room for ${s.capacity}.`;
     } catch (e) { $('status').textContent = 'Could not read the registry: ' + (e.message || e); }
   }
 
@@ -129,8 +132,8 @@
     $('who').textContent = `Signed in as ${p.name}`;
     $('key').textContent = p.publicKey;
     $('same').textContent = created
-      ? `New player ${short(p.publicKey)}. Sign in with this name and passphrase on any device.`
-      : `Player ${short(p.publicKey)}. This is the same key every app on this registry gets for ${p.name}.`;
+      ? `New account ${short(p.publicKey)}. Sign in with this username and password on any device.`
+      : `Account ${short(p.publicKey)}. This is the same key every app on this registry gets for ${p.name}.`;
     $('sig').textContent = '';
   }
 
@@ -139,22 +142,22 @@
     let normalized;
     try { normalized = Smaran.checkName(name); } catch (e) { return say(e.message, 'bad'); }
     if (mode === 'new') {
-      if (pass !== $('confirm').value) return say('The two passphrases do not match.', 'bad');
+      if (pass !== $('confirm').value) return say('Passwords do not match.', 'bad');
       const check = Smaran.checkPassphrase(pass, normalized);
-      if (!check.ok) return say('Passphrase: ' + check.errors.join('; ') + '.', 'bad');
+      if (!check.ok) return say('Password: ' + check.errors.join('; ') + '.', 'bad');
     }
     $('go').disabled = true;
     try {
       let p;
       if (mode === 'new') {
-        say('Locking your key with your passphrase…');
+        say('Locking your key with your password…');
         p = await Smaran.signUp({ name: normalized, passphrase: pass, onProgress: e => {
-          if (e.phase === 'encrypt') say('Locking your key with your passphrase…');
+          if (e.phase === 'encrypt') say('Locking your key with your password…');
           if (e.phase === 'proof') say(`Anti-bot check… ${(e.attempts || 0).toLocaleString()} tries`);
-          if (e.phase === 'send') say('Saving your player on the rollup…');
+          if (e.phase === 'send') say('Saving your account on the rollup…');
         } });
       } else {
-        say('Unlocking your key…');
+        say('Signing in…');
         p = await Smaran.signIn({ name: normalized, passphrase: pass });
       }
       $('pass').value = ''; $('confirm').value = '';
@@ -179,21 +182,21 @@
   $('changeGo').onclick = async () => {
     if (!current) return;
     const oldPass = $('oldPass').value, newPass = $('newPass').value;
-    if (newPass !== $('newPass2').value) return sayChange('The two new passphrases do not match.', 'bad');
-    if (newPass === oldPass) return sayChange('The new passphrase is the same as the current one.', 'bad');
+    if (newPass !== $('newPass2').value) return sayChange('New passwords do not match.', 'bad');
+    if (newPass === oldPass) return sayChange('The new password is the same as the current one.', 'bad');
     const check = Smaran.checkPassphrase(newPass, current.name);
-    if (!check.ok) return sayChange('New passphrase: ' + check.errors.join('; ') + '.', 'bad');
+    if (!check.ok) return sayChange('New password: ' + check.errors.join('; ') + '.', 'bad');
     $('changeGo').disabled = true;
     try {
       const p = await Smaran.changePassphrase({ name: current.name, passphrase: oldPass, newPassphrase: newPass, onProgress: e => {
-        if (e.phase === 'unlock') sayChange('Checking your current passphrase…');
-        if (e.phase === 'encrypt') sayChange('Locking your key with the new passphrase…');
+        if (e.phase === 'unlock') sayChange('Checking your current password…');
+        if (e.phase === 'encrypt') sayChange('Locking your key with the new password…');
         if (e.phase === 'send') sayChange('Saving the new locked copy…');
       } });
       const same = p.publicKey === current.publicKey;
       p.forget(); // the page keeps the session it already has; the key is the same
       $('oldPass').value = ''; $('newPass').value = ''; $('newPass2').value = '';
-      sayChange(same ? 'Passphrase changed. Your player key stayed the same. Use the new passphrase in every app from now on.' : 'Passphrase changed.', 'good');
+      sayChange(same ? 'Password changed. Your key stayed the same. Use the new password in every app from now on.' : 'Password changed.', 'good');
     } catch (e) {
       sayChange(e.message || String(e), 'bad');
     } finally {

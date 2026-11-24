@@ -1,6 +1,6 @@
 # Relics and achievements program
 
-The program behind Magic Over's Boundary Hitter relic, shown in every game with Smaran login. Deployed on Solana Devnet as [`HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B`](https://explorer.solana.com/address/HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B?cluster=devnet). Its accounts run on MagicBlock's private rollup (devnet-tee).
+The program behind Magic Over's Boundary Hitter relic, shown in Magic Over, EternalBliss and SmaranWorld. Deployed on Solana Devnet as [`HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B`](https://explorer.solana.com/address/HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B?cluster=devnet). Its accounts run on MagicBlock's private rollup (devnet-tee).
 
 **This folder is the deployed source.** `cargo build-bpf` here gives a file with sha256 `d0f98e331d5b134ad91f9da4b80ff6cf0483a4bc2feecf94dd62e4b0ccc719e6`. The deployed program, read with `solana program dump -u devnet HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B onchain.so`, is the same bytes plus zero padding: with trailing zeros removed, both hash to `2b40d4ea82f5b66d1ffcc3e4c46f7acaa01a5c1aabb24a776e86522127c4e487`.
 
