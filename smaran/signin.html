@@ -15,9 +15,6 @@
   .site { margin: 0 0 16px; color: var(--px-ink-2); }
   .site b { color: var(--px-ink); word-break: break-all; }
   .card { background: var(--px-paper); border: 4px solid var(--px-ink); box-shadow: 6px 6px 0 var(--px-ink); padding: 16px; margin-top: 14px; }
-  .tabs { display: flex; gap: 10px; margin-bottom: 12px; }
-  .tabs button { flex: 1; padding: 10px 6px; font-family: var(--px-head); font-size: 9px; line-height: 1.5; text-transform: uppercase; border: 4px solid var(--px-ink); border-radius: 0; background: var(--px-paper-2); color: var(--px-ink-2); cursor: pointer; }
-  .tabs button[aria-selected="true"] { background: var(--px-ink); color: var(--px-paper); }
   label { display: block; margin: 14px 0 6px; font-family: var(--px-head); font-size: 9px; text-transform: uppercase; }
   input { width: 100%; padding: 6px 10px; border: 4px solid var(--px-ink); border-radius: 0; background: #fff; color: var(--px-ink); font: 24px/1.1 var(--px-body); }
   input:focus { outline: 4px solid var(--px-gold); outline-offset: 0; }
@@ -39,8 +36,8 @@
 </head>
 <body>
 <main>
-  <h1>Sign in</h1>
-  <p class="note" style="margin-top:-6px">One username and password for every app with Smaran login.</p>
+  <h1 id="title">Sign in</h1>
+  <p class="note" style="margin-top:-6px">One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL.</p>
   <p class="site" id="site" hidden></p>
 
   <section class="card" id="stop" hidden>
@@ -49,21 +46,21 @@
   </section>
 
   <section class="card" id="form" hidden>
-    <div class="tabs" role="tablist">
+    <div class="px-tabs" role="tablist">
       <button role="tab" id="tabIn" aria-selected="true">Sign in</button>
       <button role="tab" id="tabNew" aria-selected="false">Create account</button>
     </div>
     <label for="name">Username</label>
-    <input id="name" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="3 to 32 letters, digits, _ or -">
+    <input id="name" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Letters, digits, _ or -">
     <label for="pass">Password</label>
     <input id="pass" type="password" autocomplete="current-password" placeholder="At least 16 characters">
     <div id="confirmRow" hidden>
-      <label for="confirm">Password again</label>
+      <label for="confirm">Confirm password</label>
       <input id="confirm" type="password" autocomplete="new-password">
     </div>
     <button class="go" id="go">Sign in</button>
     <p class="msg" id="msg" role="status"></p>
-    <p class="note" id="newNote" hidden>There is no password reset. Choose one you will remember.</p>
+    <p class="note" id="newNote" hidden>There is no password reset, so choose one you will remember.</p>
     <p class="note" id="formNote"></p>
   </section>
 
@@ -137,7 +134,8 @@
     $('confirmRow').hidden = m !== 'new';
     $('newNote').hidden = m !== 'new';
     $('pass').autocomplete = m === 'new' ? 'new-password' : 'current-password';
-    $('go').textContent = m === 'new' ? 'Create player' : 'Sign in';
+    $('go').textContent = m === 'new' ? 'Create account' : 'Sign in';
+    $('title').textContent = m === 'new' ? 'Create an account' : 'Sign in';
     say('');
   }
   $('tabIn').onclick = () => setMode('in');
@@ -162,7 +160,7 @@
     let normalized;
     try { normalized = Smaran.checkName(name); } catch (e) { return say(e.message, 'bad'); }
     if (mode === 'new') {
-      if (pass !== $('confirm').value) return say('The two passwords do not match.', 'bad');
+      if (pass !== $('confirm').value) return say('Passwords do not match.', 'bad');
       const check = Smaran.checkPassphrase(pass, normalized);
       if (!check.ok) return say('Password: ' + check.errors.join('; ') + '.', 'bad');
     }
@@ -174,12 +172,12 @@
         p = await Smaran.signUp({ name: normalized, passphrase: pass, onProgress: e => {
           if (e.phase === 'encrypt') say('Locking your key with your password…');
           if (e.phase === 'proof') say(`Anti-bot check… ${(e.attempts || 0).toLocaleString()} tries`);
-          if (e.phase === 'send') say('Saving your player on the rollup…');
+          if (e.phase === 'send') say('Saving your account on the rollup…');
         } });
-        say('Saving your player to Solana…');
+        say('Saving your account to Solana…');
         await saveToSolana(p.name);
       } else {
-        say('Unlocking your key…');
+        say('Signing in…');
         p = await Smaran.signIn({ name: normalized, passphrase: pass });
       }
       $('pass').value = ''; $('confirm').value = '';

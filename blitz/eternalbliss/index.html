@@ -7552,8 +7552,8 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
     };
     const controls = make("div");
     controls.className = "relic-controls";
-    const mine = make("button", "My Relics");
-    const ranking = make("button", "Relic Leaderboard");
+    const mine = make("button", "My relics");
+    const ranking = make("button", "Relic leaderboard");
     mine.type = ranking.type = "button";
     const dialog = make("dialog"), heading = make("h2", "Relics");
     dialog.className = "relic-dialog";
@@ -7625,7 +7625,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
     }
     function open(next) {
       mode = next;
-      heading.textContent = next === "mine" ? "My Relics" : "Relic Leaderboard";
+      heading.textContent = next === "mine" ? "My relics" : "Relic leaderboard";
       dialog.showModal();
       void load();
     }
@@ -7652,7 +7652,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 </script>
 <link rel="stylesheet" href="../arcade.css">
 <style id="smaran-arcade">
-  /* Only the Smaran parts (sign-in and relic windows) use the shared arcade look. The RPG keeps its own art direction. */
+  /* Only the Smaran windows (sign-in and relic windows) use the shared arcade look. The RPG keeps its own art direction, menus included. */
   #eb-smaran { background: var(--px-paper) !important; background-image: none !important; color: var(--px-ink) !important; border: 4px solid var(--px-ink) !important; border-radius: 0 !important; box-shadow: 6px 6px 0 var(--px-ink) !important; font-family: var(--px-body) !important; font-size: 20px !important; }
   #eb-smaran::backdrop { background: rgba(30, 30, 30, .6) !important; backdrop-filter: none !important; }
   #eb-smaran h2 { font-family: var(--px-head) !important; font-weight: 400 !important; font-size: 13px !important; line-height: 1.6 !important; text-transform: uppercase; letter-spacing: 0 !important; color: var(--px-red) !important; text-shadow: none !important; background: none !important; -webkit-text-fill-color: currentColor !important; }
@@ -7661,7 +7661,16 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
   #eb-smaran input { font-family: var(--px-body) !important; font-size: 22px !important; color: var(--px-ink) !important; background: #fff !important; border: 3px solid var(--px-ink) !important; border-radius: 0 !important; box-shadow: none !important; }
   #eb-smaran button { font-family: var(--px-head) !important; font-size: 10px !important; font-weight: 400 !important; text-transform: uppercase; letter-spacing: 0 !important; color: var(--px-ink) !important; background: var(--px-paper) !important; background-image: none !important; border: 3px solid var(--px-ink) !important; border-radius: 0 !important; box-shadow: 3px 3px 0 var(--px-ink) !important; text-shadow: none !important; }
   #eb-smaran #eb-smaran-submit { background: var(--px-green) !important; color: var(--px-paper) !important; }
-  #eb-smaran .eb-link { background: none !important; border: 0 !important; box-shadow: none !important; text-decoration: underline; text-underline-offset: 4px; }
+  #eb-smaran .px-tabs button { min-height: 44px !important; font-size: 9px !important; color: var(--px-ink-2) !important; background: var(--px-paper-2) !important; box-shadow: none !important; }
+  #eb-smaran .px-tabs button[aria-selected="true"] { color: var(--px-paper) !important; background: var(--px-ink) !important; }
+  #eb-smaran .eb-dialog-actions { display: grid !important; grid-template-columns: 1fr; gap: 10px; margin-top: 14px; }
+  #eb-smaran .px-note, #eb-smaran .eb-dialog-status { color: var(--px-ink-2) !important; }
+  /* My relics and Relic leaderboard sit in the RPG's own menu, so they wear the menu's look: one row, two equal buttons. */
+  #eb-menu-relics .relic-controls { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 4px; }
+  #eb-menu-relics .relic-controls > button { min-height: 48px; margin: 0; padding: 10px 12px; border-radius: 7px; border: 1px solid #82987d; background: #29483d; color: #f4dfaf; font: 700 16px/1.15 Georgia, serif; text-transform: none; letter-spacing: 0; box-shadow: none; text-align: center; }
+  #eb-menu-relics .relic-controls > button:is(:hover, :focus-visible) { border-color: #efcb88; background: #3a5a4d; }
+  #eb-menu-relics .relic-controls > button:active { transform: none; box-shadow: none; }
+  .eb-menu-home { display: inline-block; margin-top: 10px; color: #f4dfaf; font: 13px/1.4 system-ui, sans-serif; text-underline-offset: 3px; }
   .relic-controls button, .relic-dialog button { background-image: none !important; }
   .eb-joystick-ticks { display: none !important; } /* arrows removed from the joystick at the owner's request */
 </style>
@@ -8066,6 +8075,7 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
             </button>
         </div>
         <div id="eb-menu-relics"></div>
+        <a class="eb-menu-home" href="../">All Smaran apps</a>
         <button type="button" id="eb-menu-music" aria-pressed="false">♪ Music off</button>
     </dialog>
 
@@ -8187,20 +8197,24 @@ body.eb-in-battle #eb-menu-open, body.eb-in-battle #eb-hero-open { visibility:hi
 
     <dialog id="eb-smaran" class="eb-dialog" aria-labelledby="eb-smaran-title">
         <h2 id="eb-smaran-title">Sign in</h2>
-        <p id="eb-sign-in-copy">Enter your username and password. The same username and password work in every app with Smaran login.</p>
+        <p id="eb-sign-in-copy">One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL.</p>
+        <div class="px-tabs" role="tablist"><button type="button" role="tab" id="eb-smaran-tab-in" aria-selected="true">Sign in</button><button type="button" role="tab" id="eb-smaran-mode" aria-selected="false">Create account</button></div>
         <form id="eb-smaran-form">
             <label>Username
-                <input id="eb-player-name" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" required>
+                <input id="eb-player-name" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" required placeholder="Letters, digits, _ or -">
             </label>
             <label>Password
-                <input id="eb-passphrase" name="password" type="password" autocomplete="current-password" required>
+                <input id="eb-passphrase" name="password" type="password" autocomplete="current-password" required placeholder="At least 16 characters">
             </label>
-            <button type="button" class="eb-link" id="eb-smaran-mode">Create an account</button>
-            <p id="eb-smaran-status" class="eb-dialog-status" role="status"></p>
+            <label id="eb-confirm-row" hidden>Confirm password
+                <input id="eb-confirm" name="confirm" type="password" autocomplete="new-password">
+            </label>
+            <p id="eb-reset-note" class="px-note" hidden>There is no password reset, so choose one you will remember.</p>
             <div class="eb-dialog-actions">
                 <button type="submit" class="btn btn-success" id="eb-smaran-submit">Sign in</button>
-                <button type="button" class="btn" id="eb-smaran-close">Close</button>
+                <button type="button" class="btn" id="eb-smaran-close">Not now</button>
             </div>
+            <p id="eb-smaran-status" class="eb-dialog-status" role="status"></p>
         </form>
     </dialog>
 
@@ -19974,6 +19988,8 @@ const sharedWorld = (() => {
         const passInput = byId('eb-passphrase');
         const submit = byId('eb-smaran-submit');
         const switchMode = byId('eb-smaran-mode');
+        const tabIn = byId('eb-smaran-tab-in');
+        const confirmInput = byId('eb-confirm');
         const close = byId('eb-smaran-close');
         const status = byId('eb-smaran-status');
         const summary = byId('eb-player-summary');
@@ -20009,10 +20025,13 @@ const sharedWorld = (() => {
         function setMode(create) {
             registering = create;
             byId('eb-smaran-title').textContent = create ? 'Create an account' : 'Sign in';
-            byId('eb-sign-in-copy').textContent = create ? 'Choose a username and password. They will work in every app with Smaran login. There is no password reset, so choose one you will remember.' :
-                'Enter your username and password. The same username and password work in every app with Smaran login.';
-            submit.textContent = create ? 'Create player' : 'Sign in';
-            switchMode.textContent = create ? 'Use an existing name' : 'Create a player';
+            tabIn.setAttribute('aria-selected', String(!create));
+            switchMode.setAttribute('aria-selected', String(create));
+            byId('eb-confirm-row').hidden = !create;
+            byId('eb-reset-note').hidden = !create;
+            confirmInput.required = create;
+            confirmInput.value = '';
+            submit.textContent = create ? 'Create account' : 'Sign in';
             passInput.autocomplete = create ? 'new-password' : 'current-password';
             status.textContent = '';
         }
@@ -20040,7 +20059,7 @@ const sharedWorld = (() => {
 
         function setPending(value) {
             pending = value;
-            for (const element of [nameInput, passInput, submit, switchMode, close]) element.disabled = value;
+            for (const element of [nameInput, passInput, confirmInput, submit, switchMode, tabIn, close]) element.disabled = value;
             form.setAttribute('aria-busy', String(value));
         }
 
@@ -20059,12 +20078,14 @@ const sharedWorld = (() => {
             else openSignIn(true,true);
         });
         signInButton.addEventListener('click', () => openSignIn(false));
-        switchMode.addEventListener('click', () => setMode(!registering));
+        switchMode.addEventListener('click', () => setMode(true));
+        tabIn.addEventListener('click', () => setMode(false));
         close.addEventListener('click', () => dialog.close());
         dialog.addEventListener('cancel', event => { if (pending) event.preventDefault(); });
         dialog.addEventListener('close', () => {
             if (dialog.open) return;
             passInput.value = '';
+            confirmInput.value = '';
             if (returnToRelics && player) relics.openMine();
             returnToRelics = false;
             if (!player && returnToMenu) openMenu();
@@ -20079,6 +20100,11 @@ const sharedWorld = (() => {
             try {
                 const name = Smaran.checkName(nameInput.value);
                 if (registering) {
+                    if (passphrase !== confirmInput.value) {
+                        status.textContent = 'Passwords do not match.';
+                        confirmInput.focus();
+                        return;
+                    }
                     const check = Smaran.checkPassphrase(passphrase, name);
                     if (!check.ok) {
                         status.textContent = check.errors.join(' ');
@@ -20087,15 +20113,16 @@ const sharedWorld = (() => {
                     }
                 }
                 setPending(true);
-                status.textContent = registering ? 'Checking your username…' : 'Signing you in…';
+                status.textContent = registering ? 'Creating your account…' : 'Signing in…';
                 passInput.value = '';
+                confirmInput.value = '';
                 player = registering
                     ? await Smaran.signUp({ name, passphrase, onProgress({ phase }) {
                         status.textContent = ({
-                            encrypt: 'Locking your player key…',
+                            encrypt: 'Locking your account key…',
                             proof: 'Preparing your registration…',
-                            send: 'Registering your name…'
-                        })[phase] || 'Creating your player…';
+                            send: 'Registering your username…'
+                        })[phase] || 'Creating your account…';
                     } })
                     : await Smaran.signIn({ name, passphrase });
                 soloSaves.select(player.publicKey);

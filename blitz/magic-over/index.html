@@ -848,8 +848,8 @@ details p, details li { color: var(--muted); font-size: 14px; }
     };
     const controls = make("div");
     controls.className = "relic-controls";
-    const mine = make("button", "My Relics");
-    const ranking = make("button", "Relic Leaderboard");
+    const mine = make("button", "My relics");
+    const ranking = make("button", "Relic leaderboard");
     mine.type = ranking.type = "button";
     const dialog = make("dialog"), heading = make("h2", "Relics");
     dialog.className = "relic-dialog";
@@ -965,7 +965,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
     }
     function open(next) {
       mode = next;
-      heading.textContent = next === "mine" ? "My Relics" : "Relic Leaderboard";
+      heading.textContent = next === "mine" ? "My relics" : "Relic leaderboard";
       dialog.showModal();
       void load();
     }
@@ -1020,6 +1020,8 @@ details p, details li { color: var(--muted); font-size: 14px; }
   .facts b { font-family: var(--px-head) !important; font-weight: 400 !important; color: var(--px-red) !important; }
   .facts small { color: var(--px-ink-2) !important; }
   .badge { font-family: var(--px-head) !important; font-size: 8px !important; letter-spacing: 0 !important; color: var(--px-ink) !important; background: var(--px-paper-2) !important; border: 2px solid var(--px-ink) !important; border-radius: 0 !important; }
+  .tabs { gap: 8px !important; }
+  .tabs button { color: var(--px-ink-2) !important; background: var(--px-paper-2) !important; box-shadow: none !important; min-height: 44px; }
   .tabs button.on { background: var(--px-ink) !important; color: var(--px-paper) !important; }
   details { border-color: var(--px-ink) !important; border-radius: 0 !important; }
   summary { font-family: var(--px-head); font-size: 9px; text-transform: uppercase; color: var(--px-ink) !important; }
@@ -1159,18 +1161,17 @@ details p, details li { color: var(--muted); font-size: 14px; }
 
 <section id="auth" class="screen card-screen" hidden>
   <div class="card">
-    <div class="eyebrow">One login for every game</div>
-    <h2>Username and password</h2>
-    <p class="muted">Choose a username and a strong password. The same username and password work in every app with Smaran login. No wallet, seed phrase or SOL is needed, and your password never leaves this device.</p>
-    <div class="tabs"><button id="authTabIn" class="on" type="button">Sign in</button><button id="authTabNew" type="button">Create account</button></div>
+    <h2 id="authTitle">Sign in</h2>
+    <p class="muted">One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL.</p>
+    <div class="tabs" role="tablist"><button id="authTabIn" class="on" type="button" role="tab" aria-selected="true">Sign in</button><button id="authTabNew" type="button" role="tab" aria-selected="false">Create account</button></div>
     <form id="authForm" data-mode="in" autocomplete="on">
       <label for="authName">Username</label>
-      <input id="authName" name="username" autocomplete="username" spellcheck="false" autocapitalize="none" required placeholder="username">
+      <input id="authName" name="username" autocomplete="username" spellcheck="false" autocapitalize="none" required placeholder="Letters, digits, _ or -">
       <label for="authPassword">Password</label>
-      <input id="authPassword" name="password" type="password" autocomplete="current-password" required minlength="16">
+      <input id="authPassword" name="password" type="password" autocomplete="current-password" required minlength="16" placeholder="At least 16 characters">
       <div id="confirmRow" hidden><label for="authConfirm">Confirm password</label><input id="authConfirm" name="new-password" type="password" autocomplete="new-password" minlength="16"></div>
       <p id="authResetNote" class="muted" hidden>There is no password reset, so choose one you will remember.</p>
-      <div class="stack"><button id="authGo" class="teal" type="submit">Sign in</button><button type="button" data-back="home">Back</button></div>
+      <div class="stack"><button id="authGo" class="primary" type="submit">Sign in</button><button type="button" data-back="home">Not now</button></div>
       <div id="authMsg" class="msg" role="status"></div>
     </form>
   </div>
@@ -1190,7 +1191,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
     <div id="relicLobby"></div>
     <label>Open matches</label>
     <div id="openList"></div>
-    <div class="stack"><button type="button" data-back="home">Back</button></div>
+    <div class="stack"><button type="button" data-back="home">Back</button><button type="button" id="btnSignOut">Sign out</button></div>
   </div>
 </section>
 
@@ -4899,6 +4900,8 @@ globalThis.SOCompetition = (() => {
     show('auth');
   };
   for (const btn of document.querySelectorAll('[data-back]')) btn.onclick = () => show(btn.dataset.back);
+  // the account key lives only in this page's memory, so a fresh page is a clean sign-out
+  $('btnSignOut').onclick = () => location.reload();
 
   // ------------------------------------------------------------ sign in / create (Sabha registry on MagicBlock ER, 0 SOL)
   $('authTabIn').onclick = () => authTab('in');
@@ -4906,6 +4909,9 @@ globalThis.SOCompetition = (() => {
   function authTab(which) {
     $('authTabIn').classList.toggle('on', which === 'in');
     $('authTabNew').classList.toggle('on', which === 'new');
+    $('authTabIn').setAttribute('aria-selected', String(which === 'in'));
+    $('authTabNew').setAttribute('aria-selected', String(which === 'new'));
+    $('authTitle').textContent = which === 'in' ? 'Sign in' : 'Create an account';
     $('confirmRow').hidden = which === 'in';
     $('authResetNote').hidden = which === 'in';
     $('authGo').textContent = which === 'in' ? 'Sign in' : 'Create account';
@@ -4915,7 +4921,7 @@ globalThis.SOCompetition = (() => {
     ev.preventDefault();
     const b = $('authGo'), mode = $('authForm').dataset.mode || 'in';
     const name = $('authName').value, password = $('authPassword').value;
-    busy(b, true, mode === 'in' ? 'Opening your player ID…' : 'Securing your player ID…');
+    busy(b, true, mode === 'in' ? 'Signing in…' : 'Creating your account…');
     $('authMsg').textContent = '';
     try {
       let account, normalized;
@@ -4923,9 +4929,9 @@ globalThis.SOCompetition = (() => {
         if (password !== $('authConfirm').value) throw new Error('Passwords do not match.');
         const created = await S.createPlayer({ name, password, erUrl: S.DEFAULT_ER, baseUrl: S.DEFAULT_BASE, onProgress: p => { if (p.phase === 'proof') $('authMsg').textContent = `Anti-bot proof… ${(p.attempts || 0).toLocaleString()} attempts`; } });
         account = created.account; normalized = created.name;
-        $('authMsg').textContent = 'Saving your player to Solana so it works on any device…';
+        $('authMsg').textContent = 'Saving your account to Solana so it works on any device…';
         if (!await S.settleNewPlayer({ account, nameHash: created.nameHash, shard: created.shard, envelope: created.envelope, erUrl: S.DEFAULT_ER, baseUrl: S.DEFAULT_BASE }))
-          throw new Error('Your player was created but is not saved to Solana yet, so another device could not find it. Keep this page open and press the button again in a minute.');
+          throw new Error('Your account was created but is not saved to Solana yet, so another device could not find it. Keep this page open and press the button again in a minute.');
       } else {
         const restored = await S.restorePlayer({ name, password, erUrl: S.DEFAULT_ER, baseUrl: S.DEFAULT_BASE });
         account = restored.account; normalized = restored.name;
@@ -4954,7 +4960,7 @@ globalThis.SOCompetition = (() => {
       busy(b, true, 'Claiming…');
       try {
         const r = await N.claimSixHitter(session.idx, s.matchId, t => { hint.textContent = t; });
-        hint.textContent = r.saved ? 'Boundary Hitter relic saved on Solana. It shows in My Relics in every game with Smaran login, and its holder keeps a village in SmaranWorld.' : 'Your relic is minted. Solana is still finalizing it; My Relics shows it within a minute.';
+        hint.textContent = r.saved ? 'Boundary Hitter relic saved on Solana. It shows in My relics in Magic Over, EternalBliss and SmaranWorld, and its holder keeps a village in SmaranWorld.' : 'Your relic is minted. Solana is still finalizing it; My relics shows it within a minute.';
         b.hidden = true;
         if (r.saved) finishRelics?.openMine();
       } catch (e) {
