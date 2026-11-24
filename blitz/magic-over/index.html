@@ -1056,6 +1056,39 @@ details p, details li { color: var(--muted); font-size: 14px; }
   #matchStatus { font-family: var(--px-body) !important; font-size: 19px !important; font-weight: 400 !important; }
   .banner .big { font-size: clamp(34px, 9vw, 64px) !important; line-height: 1.2 !important; }
   .banner .small, .banner .reveal { font-size: 10px !important; line-height: 1.6 !important; }
+  /* calmer home and a cricket-scoreboard HUD (clutter removed at the owner's request) */
+  #home .card { max-width: 420px !important; }
+  #home h1 { font-size: clamp(30px, 8vw, 44px) !important; margin: 6px 0 10px !important; }
+  #home .tag { font-family: var(--px-body); font-size: 22px; margin: 0 0 18px; color: var(--px-ink); }
+  #home .stack { gap: 14px !important; }
+  #home .stack button { font-size: 12px !important; padding: 14px 12px !important; }
+  .homeLinks { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin: 16px 0 6px; }
+  .homeLinks .relic-controls { display: contents; }
+  .homeLinks button, #relicFinish .relic-controls button { background: none !important; border: 0 !important; box-shadow: none !important; padding: 6px 0 !important; min-height: 0 !important; font-size: 9px !important; text-decoration: underline; text-underline-offset: 4px; }
+  #home details { margin-top: 8px; }
+  #home details li, #home details p { font-size: 19px; }
+  .homeFoot { margin-top: 14px; display: flex; gap: 10px 14px; flex-wrap: wrap; align-items: center; }
+  .bug { background: var(--px-ink) !important; color: var(--px-paper) !important; border: 4px solid var(--px-ink) !important; box-shadow: 4px 4px 0 var(--px-gold) !important; }
+  .bug .so, .vsMini, #ping { display: none !important; }
+  .bug .bat .nm, .bug #overs, .bug .vs, .bug .vs b, .bug .sub, .bug #target, .bug .scoreLine { color: var(--px-paper) !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+  .bug #score { color: var(--px-gold) !important; font-size: 26px !important; }
+  .bug .bat .nm em { color: var(--px-green) !important; }
+  #strip .b { background: var(--px-paper) !important; color: var(--px-ink) !important; border: 2px solid var(--px-paper) !important; }
+  #strip .b.e { background: transparent !important; border: 2px dashed var(--px-ink-2) !important; }
+  #strip .b.w { background: var(--px-red) !important; color: var(--px-paper) !important; border-color: var(--px-red) !important; }
+  #strip .b.bd { background: var(--px-gold) !important; color: var(--px-ink) !important; border-color: var(--px-gold) !important; }
+  #matchCode { background: var(--px-ink) !important; color: var(--px-gold) !important; }
+  #batPad button { font-size: 11px !important; min-height: 48px !important; }
+  #battingGuide p { font-family: var(--px-body) !important; font-size: 18px !important; color: var(--px-ink-2) !important; }
+  #battingGuide .arrival-track { background: var(--px-paper-2) !important; border: 2px solid var(--px-ink) !important; height: 10px !important; }
+  #battingGuide .arrival-fill { background: var(--px-gold) !important; }
+  #battingGuide button { background: var(--px-gold) !important; color: var(--px-ink) !important; }
+  #relicHome { display: contents; }
+  .homeLinks { justify-content: flex-start; }
+  .homeFoot a { font-family: var(--px-body) !important; font-size: 19px !important; }
+  .bug .bugMain, .bug .bat, .bug .scoreLine { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+  .bug .bat .nm { color: var(--px-paper) !important; }
+  .homeLinks button { width: auto !important; display: inline-block !important; margin: 0 !important; }
 </style>
 </head>
 <body>
@@ -1063,39 +1096,37 @@ details p, details li { color: var(--muted); font-size: 14px; }
 
 <section id="home" class="screen card-screen" hidden>
   <div class="card">
-    <div class="eyebrow">Magic Over · real-time cricket</div>
     <h1>Magic <span>Over</span></h1>
-    <p class="muted">Boundary Hitter: sign in and hit a four or a six in any match, win or lose. Claim it on the result screen and a MagicBlock VRF draw gives you a relic, free.</p>
-    <p class="muted">Six balls. Two wickets. The bowler hides the swing on MagicBlock's private rollup, and you have one tap to read it. Every ball is a transaction signed by you, and you never need SOL.</p>
-    <div class="facts"><div><b>0 SOL</b><small>per player</small></div><div><b>10 ms</b><small>timing slots</small></div><div><b>Hidden</b><small>swing and slower balls</small></div></div>
+    <p class="tag">Six balls. Two wickets. Hit a four or a six and win a relic.</p>
     <div class="stack">
-      <button id="btnAi" class="primary" type="button">Bat vs AI · no sign-up</button>
-      <button id="btnFull" class="soft" type="button">Full match vs AI · no sign-up</button>
+      <button id="btnAi" class="primary" type="button">Bat vs AI</button>
       <button id="btnFriend" class="teal" type="button">Play a friend</button>
-      <button id="btnLeaderboard" type="button">Leaderboard</button>
+      <button id="btnFull" class="soft" type="button">Full match vs AI</button>
     </div>
-    <div id="relicHome"></div>
-    <button id="btnWatch" class="link" type="button">Watch a live match</button>
+    <div class="homeLinks">
+      <button id="btnLeaderboard" class="link" type="button">Leaderboard</button>
+      <div id="relicHome"></div>
+      <button id="btnWatch" class="link" type="button">Watch live</button>
+    </div>
     <details>
       <summary>How to play</summary>
       <ul>
-        <li>The ball shows its pace, line and length. Swing, cut and slower balls stay hidden until you play.</li>
-        <li>Tap a shot as the ball reaches the bat: Defend, Drive, Cut, Pull, Loft, or Leave. Keys: ↓ defend, Space drive, ← cut, → pull, ↑ loft, L leave.</li>
+        <li>Six balls, two wickets. Bat vs AI needs no sign-up. To win a relic, sign in and hit a four or a six in any match, win or lose, then claim it on the result screen. A MagicBlock VRF draw picks your relic.</li>
+        <li>The ball shows its pace, line and length. Swing, cut and slower balls stay hidden on MagicBlock's private rollup until you play.</li>
+        <li>Tap a shot as the ball reaches the bat: Defend, Drive, Cut, Pull, Loft or Leave. Keys: down defend, Space drive, left cut, right pull, up loft, L leave.</li>
         <li>Timing is judged on-chain: within 60 ms is perfect, 130 ms good, 240 ms an edge, beyond that you miss.</li>
-        <li>Each side bats one over with two wickets. A tie goes to another Super Over.</li>
-        <li>Full match vs AI: bat one over against the AI, then bowl one at it. The AI never sees your hidden variation.</li>
+        <li>Each side bats one over. A tie goes to another Super Over. Full match vs AI: bat one over, then bowl one.</li>
       </ul>
     </details>
     <details>
       <summary>About</summary>
-      <p>Magic Over shows that anyone can start using a Solana app with just a username and a password: no wallet, no seed phrase and no SOL. The sign-up is called <a href="smaran/">Smaran</a>, and other apps can use it too.</p>
-      <p>It runs on Solana Devnet, a test network, with MagicBlock's Ephemeral Rollups. There are no wagers, tokens or prizes.</p>
-      <p>Made by ch4itu with help from AI tools. Open source under the MIT licence.</p>
+      <p>Anyone can play with just a username and a password: no wallet, no seed phrase and no SOL. Every ball is a transaction you sign, judged in 10 ms slots on MagicBlock's private rollup. The login is <a href="../../smaran/">Smaran</a>, and other apps can use it too.</p>
+      <p>Solana Devnet, a test network. No wagers, tokens or prizes. Made by ch4itu with help from AI tools. Open source under the MIT licence.</p>
     </details>
     <div class="homeFoot">
       <span class="badge" id="netBadge">Checking the private rollup…</span>
-      <a href="ludo-freeflow/">Play Ludo Freeflow</a>
-      <a href="https://github.com/ch4itu/MagicOver" target="_blank" rel="noopener">Source code ↗</a>
+      <a href="../">All Smaran apps</a>
+      <a href="https://github.com/ch4itu/MagicOver" target="_blank" rel="noopener">Source code</a>
     </div>
   </div>
 </section>
@@ -1181,12 +1212,12 @@ details p, details li { color: var(--muted); font-size: 14px; }
         <span class="arrival-track" aria-hidden="true"><span class="arrival-fill"></span></span>
         <button type="button">Swing</button>
       </div>
-      <button type="button" data-shot="0">Defend<small>↓</small></button>
-      <button type="button" data-shot="1">Drive<small>Space</small></button>
-      <button type="button" data-shot="2">Cut<small>←</small></button>
-      <button type="button" data-shot="3">Pull<small>→</small></button>
-      <button type="button" data-shot="4">Loft<small>↑</small></button>
-      <button type="button" data-shot="5">Leave<small>L</small></button>
+      <button type="button" data-shot="0">Defend</button>
+      <button type="button" data-shot="1">Drive</button>
+      <button type="button" data-shot="2">Cut</button>
+      <button type="button" data-shot="3">Pull</button>
+      <button type="button" data-shot="4">Loft</button>
+      <button type="button" data-shot="5">Leave</button>
     </div>
     <div id="bowlPad" hidden>
       <div class="mapWrap">
