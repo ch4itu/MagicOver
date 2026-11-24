@@ -1,4 +1,4 @@
-# Smaran: four games and a locker, one login
+# Smaran: four games, one login
 
 Our Solana Blitz v10 entry. **Play:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/)
 
@@ -10,7 +10,6 @@ Smaran is for Web2 people. A player picks a username and a password and starts p
 | [EternalBliss](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/) | RPG with shared worlds and duels on MagicBlock's public rollup. Its menu shows My Relics and a relic leaderboard. |
 | [SmaranWorld](https://ch4itu.github.io/MagicOver/blitz/smaranworld/) | One shared world, the Alderlands. Signed-in players see each other walk and chat, on one shared clock, so everyone sees the same time, season, people and traffic. 144 villages kept by relic holders, each with a monument and a sign its keeper writes. |
 | [Ludo Freeflow](https://ch4itu.github.io/MagicOver/blitz/ludo-freeflow/) | Four-colour Ludo with no turns. Online matches roll MagicBlock VRF dice on the rollup. |
-| [Smaran Locker](https://ch4itu.github.io/MagicOver/blitz/locker/) | Not a game. Lock a note or a file so only one username can open it. Locking needs no account: the page reads that username's public key from the registry on MagicBlock's rollup. The other person opens it with their username and password, even offline. It shows that a Smaran username is a real identity anywhere, not just a game login. Anyone can lock for anyone, so a file does not prove who sent it. |
 
 A relic records a deed, like a medal. It is not money: it cannot be bought or sold, there is no marketplace and no wagering. It is saved on Solana under its holder's Smaran key, which is why every app can show it.
 
