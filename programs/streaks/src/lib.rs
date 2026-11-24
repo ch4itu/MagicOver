@@ -115,6 +115,11 @@ const NAME_MAX: usize = 32;
 const DAY: i64 = 86_400;
 const SAVE_EVERY: i64 = 3_600;
 const LIVE_COMMIT_FEE: u64 = 100_000; // MagicBlock's charge per save once a delegation's free saves are used
+/// Below rent plus this (fewer than ten paid saves left) anyone may hand a group back to Solana, where anyone can
+/// refill it and delegate it again. Above it only the operator can.
+const LOW_RESERVE: u64 = 10 * LIVE_COMMIT_FEE;
+/// The commit setting anyone but the operator must delegate with: no timed commits, the operator's setting.
+const OPEN_COMMIT_MS: u32 = u32::MAX;
 
 const MAX_PERMITTED_DATA_INCREASE: usize = 10_240;
 const MAX_ACCOUNTS: usize = 10;
@@ -834,13 +839,15 @@ fn ix_save(c: &Ctx) -> Result<(), u32> {
 
 #[inline(never)]
 fn ix_delegate(c: &Ctx) -> Result<(), u32> {
-    // [operator, group, this program, buffer, record, metadata, delegation program, system]; data: tag, idx, commit_ms u32
+    // [payer, group, this program, buffer, record, metadata, delegation program, system]; data: tag, idx, commit_ms u32
     let (accs, ix, program_id) = (c.accs, c.ix, c.program_id);
     if c.n < 8 || ix.len() != 6 {
         return Err(ERR_ACCOUNTS);
     }
     let (payer, pda, buffer) = (&accs[0], &accs[1], &accs[3]);
-    if !payer.is_signer || !eq32(payer.key(), &OPERATOR) {
+    // Anyone may delegate a group that is back on Solana. The validator is always the one below; anyone but the
+    // operator must also use the operator's commit setting.
+    if !payer.is_signer || (!eq32(payer.key(), &OPERATOR) && rd32(ix, 2) != OPEN_COMMIT_MS) {
         return Err(ERR_OPERATOR);
     }
     if !eq32(accs[2].key(), program_id) || !eq32(accs[6].key(), &DELEGATION_PROGRAM) || !eq32(accs[7].key(), &SYSTEM_PROGRAM) {
@@ -920,12 +927,14 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
 
 #[inline(never)]
 fn ix_commit_undelegate(c: &Ctx) -> Result<(), u32> {
-    // [operator s w, group w, magic program, magic context w]; data: tag, idx
+    // [caller s w, group w, magic program, magic context w]; data: tag, idx
+    // The operator may hand a group back to Solana at any time. Anyone may once its reserve is low, so that it can be
+    // refilled on Solana and delegated again without the operator.
     let accs = c.accs;
     if c.n < 4 || c.ix.len() != 2 {
         return Err(ERR_DATA);
     }
-    if !accs[0].is_signer || !eq32(accs[0].key(), &OPERATOR) {
+    if !accs[0].is_signer {
         return Err(ERR_OPERATOR);
     }
     if !eq32(accs[2].key(), &MAGIC_PROGRAM) || !eq32(accs[3].key(), &MAGIC_CONTEXT) {
@@ -935,6 +944,10 @@ fn ix_commit_undelegate(c: &Ctx) -> Result<(), u32> {
     let (key, _) = find_pda(&[SEED, &idx_b], c.program_id);
     if !eq32(&key, accs[1].key()) {
         return Err(ERR_PDA);
+    }
+    let low = accs[1].lamports() < rent_minimum(accs[1].len()) + LOW_RESERVE;
+    if !low && !eq32(accs[0].key(), &OPERATOR) {
+        return Err(ERR_OPERATOR);
     }
     invoke(accs, &Cpi { program: &MAGIC_PROGRAM, metas: &[(0, accs[0].is_writable, true), (3, true, false), (1, true, false)], data: &[2, 0, 0, 0], seeds: &[] })?;
     log("streaks: commit+undelegate scheduled");

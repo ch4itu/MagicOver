@@ -23,13 +23,13 @@ A registry program costs about 0.15 SOL once. Room opens in steps: 140 places fo
 
 ## Who controls what
 
-Names belong to the players who registered them: nobody, the admin included, can take, move or delete one. Anyone can open the next step by paying for it, and anyone can refill a group once its save reserve runs low, so saving never depends on the admin key. Beyond that, the admin key can only take a group off the rollup at any time and force a save. The real control is the program's upgrade key, which can change the rules.
+Names belong to the players who registered them: nobody, the admin included, can take, move or delete one. Anyone can open the next step by paying for it, and anyone can refill a group once its save reserve runs low, with SOL from the [save fund](../programs/save-fund) that anyone can send SOL to, so saving never depends on the admin key. Beyond that, the admin key can only take a group off the rollup at any time and force a save. The real control is the program's upgrade key, which can change the rules.
 
 ## How it is paid for
 
 - **Players pay nothing,** and nothing is sold to them: no tokens, no names, no fees.
 - **Non-intrusive ads only.** Whoever runs the registry and its apps covers the chain costs with ads that never get in the way, such as a sponsor's name on a stadium board or a village sign. Never pop-ups, video ads or anything that interrupts play. There are no ads in this demo, and the plan is not proven yet.
-- **Anyone can chip in.** Anyone can open the registry's next step by paying for it, and anyone can top up a group's save reserve once it runs low, without our key. So the registry keeps working even if nobody earns from it.
+- **Anyone can chip in, at one address.** Anyone can open the registry's next step by paying for it, and anyone can send SOL to the save fund, `9NLZkhdU3vG1kDi2RBW29pRyLcVW9MHSANWKMdE61myj`. The fund can only top up low save reserves of the Smaran apps' accounts, at most 0.1 SOL a day, and has no withdraw. A gift, not an investment: nothing comes back. So the registry keeps saving even if nobody earns from it.
 
 ## Why an app would use Smaran
 
@@ -37,7 +37,7 @@ Names belong to the players who registered them: nobody, the admin included, can
 2. **Players it did not pay for.** Players that other apps brought to the same registry sign in to it at no cost. An app pays only for the players it adds, so every app on a shared registry gains from the others.
 3. **Its own registry, if it wants one.** The code is MIT, so an app can run its own. Its players then do not carry over to apps on other registries, unless the kit learns to read more than one registry. Not built.
 
-Other apps trust a shared registry more when its operator holds less control. Already true: anyone can open the next step, and anyone can refill a low reserve. Not done yet: the upgrade key shared with partner apps or given up.
+Other apps trust a shared registry more when its operator holds less control. Already true: anyone can open the next step, and anyone can refill a low reserve from the save fund. Not done yet: the upgrade key shared with partner apps or given up.
 
 ## Plan
 

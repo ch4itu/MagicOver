@@ -21,7 +21,8 @@
 //!   2 Touch            [owner s, shard w]                               data: name_hash 32
 //!   3 Delegate         [payer s w, shard w, this program, buffer w, delegation_record w,
 //!                       delegation_metadata w, delegation program, system]  data: shard u8, 1, ER validator 32, frequency u32
-//!                      (only to the registry's MagicBlock ER validator)
+//!                      (only to the registry's MagicBlock ER validator; anyone but the admin must give frequency
+//!                      u32::MAX, no timed commits)
 //!   4 Commit           [caller s, shard w, magic program, magic context w (, ER fee vault w)]
 //!                      (saves the shard to Solana, only if it changed since the last save; the admin may always.
 //!                      With the ER validator's fee vault and at least 100,000 lamports above rent, the shard pays as
@@ -710,6 +711,11 @@ fn ix_touch(c: &Ctx) -> Result<(), u32> {
     Ok(())
 }
 
+/// The commit frequency a delegation asks for (data bytes 35..39): any for the admin, none (u32::MAX) for anyone else.
+fn frequency_ok(admin: bool, ix: &[u8]) -> bool {
+    admin || (ix.len() == 39 && u32::from_le_bytes([ix[35], ix[36], ix[37], ix[38]]) == u32::MAX)
+}
+
 #[inline(never)]
 fn ix_delegate(c: &Ctx) -> Result<(), u32> {
     let (accs, n, ix, program_id) = (c.accs, c.n, c.ix, c.program_id);
@@ -733,6 +739,11 @@ fn ix_delegate(c: &Ctx) -> Result<(), u32> {
     // registry shards may only be delegated to the registry's own MagicBlock ER validator,
     // so nobody can park a new step's shard on a rollup the sign-up page does not use
     if ix[2] != 1 || !eq32(&ix[3..35], &ER_VALIDATOR) {
+        return Err(ERR_VALIDATOR);
+    }
+    // and anyone but the admin must ask for no timed commits (the admin's setting), so nobody can delegate a shard
+    // that the rollup then saves on a timer, spending its reserve
+    if !frequency_ok(eq32(payer.key(), &ADMIN), ix) {
         return Err(ERR_VALIDATOR);
     }
     let (pda, bump) = shard_pda(gen, idx, program_id);
@@ -1007,5 +1018,26 @@ pub unsafe extern "C" fn entrypoint(input: *mut u8) -> u64 {
     match r {
         Ok(()) => 0,
         Err(code) => custom(code),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn ix(freq: u32) -> [u8; 39] {
+        let mut d = [0u8; 39];
+        d[0] = 3;
+        d[2] = 1;
+        d[3..35].copy_from_slice(&ER_VALIDATOR);
+        d[35..39].copy_from_slice(&freq.to_le_bytes());
+        d
+    }
+    #[test]
+    fn only_the_admin_may_ask_for_timed_commits() {
+        assert!(frequency_ok(false, &ix(u32::MAX)));
+        assert!(!frequency_ok(false, &ix(30_000)));
+        assert!(!frequency_ok(false, &ix(0)));
+        assert!(frequency_ok(true, &ix(30_000)));
+        assert!(!frequency_ok(false, &ix(u32::MAX)[..38]));
     }
 }

@@ -92,6 +92,12 @@ const MAGIC_CONTEXT: [u8; 32] = [
 ];
 const TEE_VALIDATOR: [u8;32] = [5, 61, 71, 26, 133, 158, 115, 46, 104, 11, 201, 88, 248, 65, 7, 43, 143, 63, 188, 25, 115, 155, 230, 151, 196, 198, 129, 18, 111, 140, 31, 116];
 const ERR_SPONSOR_LOW: u32 = 17;
+// MagicBlock's charge per save once a delegation's free saves are used. Below rent plus ten of these anyone may hand a
+// board back to Solana, where anyone can refill it and delegate it again; above it only the board's authority can.
+const LIVE_COMMIT_FEE: u64 = 100_000;
+const LOW_RESERVE: u64 = 10 * LIVE_COMMIT_FEE;
+// The commit setting anyone but the authority must delegate with: no timed commits, the authority's setting.
+const OPEN_COMMIT_MS: u32 = u32::MAX;
 const BOARD_SEED: &[u8] = b"mo-board";
 const TABLE_SEED: &[u8] = BOARD_SEED;
 const BALL_SEED: &[u8] = b"unused";
@@ -506,7 +512,7 @@ fn schedule_snapshot(c: &Ctx, context: usize, vault: usize) -> Result<(),u32> {
     let bump=board(c)?;
     let (fee_vault,_)=find_pda(&[b"magic-fee-vault",&TEE_VALIDATOR],&DELEGATION_PROGRAM);
     if !eq32(c.accs[vault].key(),&fee_vault) || !eq32(c.accs[context].key(),&MAGIC_CONTEXT) { return Err(ERR_ACCOUNTS); }
-    if unsafe{*c.accs[1].lamports}<rent_minimum(BOARD_SIZE)+100_000 { return Err(ERR_SPONSOR_LOW); }
+    if unsafe{*c.accs[1].lamports}<rent_minimum(BOARD_SIZE)+LIVE_COMMIT_FEE { return Err(ERR_SPONSOR_LOW); }
     let board_id=[c.accs[1].data()[9]];
     invoke(c.accs,&Cpi{program:&MAGIC_PROGRAM,metas:&[(1,true,true),(context,true,false),(vault,true,false),(1,true,false)],data:&[1,0,0,0],seeds:&[&[BOARD_SEED,&board_id,&[bump]]]})
 }
@@ -522,10 +528,26 @@ fn record(c: &Ctx) -> Result<(),u32> {
     if rd32(c.accs[1].data(),12)>before {schedule_snapshot(c,4,5)?;}
     Ok(())
 }
+/// Delegation arguments anyone may use: the TEE validator, and no timed commits.
+fn open_delegate_ok(ix: &[u8]) -> bool {
+    ix.len() == 40 && ix[3] == 1 && eq32(&ix[4..36], &TEE_VALIDATOR) && rd32(ix, 36) == OPEN_COMMIT_MS
+}
+/// Whether a board may go back to Solana: by its authority at any time, by anyone once fewer than ten paid saves are left.
+fn may_hand_back(is_authority: bool, lamports: u64, rent: u64) -> bool {
+    is_authority || lamports < rent + LOW_RESERVE
+}
 #[inline(never)]
 fn ix_delegate(c: &Ctx) -> Result<(), u32> {
     // [payer, pda, this program, buffer, record, metadata, delegation program, system]
-    authority(c)?;
+    // data: tag, idx, which (0), has_validator, validator 32, commit_ms u32
+    // The board's authority may delegate as it likes. Anyone may delegate a board that is back on Solana, but only with
+    // the arguments above.
+    if authority(c).is_err() {
+        board(c)?;
+        if !open_delegate_ok(c.ix) {
+            return Err(ERR_SIGNER);
+        }
+    }
     let (accs, ix, program_id) = (c.accs, c.ix, c.program_id);
     if c.n < 8 || ix.len() != 40 {
         return Err(ERR_ACCOUNTS);
@@ -691,6 +713,17 @@ fn ix_undelegate_callback(c: &Ctx) -> Result<(), u32> {
     Ok(())
 }
 
+// Hands a board back to Solana, saving it first: [caller s w, board w, magic program, magic context w]; data: tag, idx.
+fn commit_undelegate(c: &Ctx) -> Result<(),u32> {
+    if c.n<4 || c.ix.len()!=2 || !c.accs[0].is_signer {return Err(ERR_ACCOUNTS);}
+    board(c)?;
+    if c.ix[1]!=c.accs[1].data()[9] || !eq32(c.accs[2].key(),&MAGIC_PROGRAM) || !eq32(c.accs[3].key(),&MAGIC_CONTEXT) {return Err(ERR_ACCOUNTS);}
+    let is_authority=eq32(c.accs[0].key(),&c.accs[1].data()[16..48]);
+    if !may_hand_back(is_authority,unsafe{*c.accs[1].lamports},rent_minimum(BOARD_SIZE)) {return Err(ERR_SIGNER);}
+    invoke(c.accs,&Cpi{program:&MAGIC_PROGRAM,metas:&[(0,c.accs[0].is_writable,true),(3,true,false),(1,true,false)],data:&[2,0,0,0],seeds:&[]})?;
+    log("so: board handed back to Solana");
+    Ok(())
+}
 fn commit(c: &Ctx) -> Result<(),u32> {
     authority(c)?;
     if c.n<5 || c.ix.len()!=2 || c.ix[1]!=c.accs[1].data()[9] || !eq32(c.accs[2].key(),&MAGIC_PROGRAM) {return Err(ERR_ACCOUNTS);}
@@ -702,7 +735,7 @@ pub unsafe extern "C" fn entrypoint(input:*mut u8)->u64 {
     let mut accs=[Acc::empty();MAX_ACCOUNTS];let (n,ix,program_id)=parse(input,&mut accs);
     let c=Ctx{accs:&accs,n,ix,program_id};
     let r=if ix.len()>=8 && ix[..8]==EXTERNAL_UNDELEGATE {ix_undelegate_callback(&c)}
-    else {match ix.first(){Some(0)=>init(&c),Some(1)=>ix_delegate(&c),Some(2)=>record(&c),Some(3)=>commit(&c),Some(4)=>migrate(&c),_=>Err(ERR_TAG)}};
+    else {match ix.first(){Some(0)=>init(&c),Some(1)=>ix_delegate(&c),Some(2)=>record(&c),Some(3)=>commit(&c),Some(4)=>migrate(&c),Some(5)=>commit_undelegate(&c),_=>Err(ERR_TAG)}};
     match r {Ok(())=>0,Err(e)=>e as u64}
 }
 #[cfg(test)]
@@ -724,6 +757,20 @@ mod tests {
         wr16(&mut d,10,5);wr32(&mut d,12,12);wr32(&mut d,48,73);wr32(&mut d,52,21);wr32(&mut d,68,10);wr32(&mut d,76,18);d
     }
     fn live_state(a:u8,b:u8,mid:u32,winner:u8)->Vec<u8>{let(_,mut s)=fixture();s[16..48].fill(a);s[48..80].fill(b);wr32(&mut s,80,mid);s[14]=winner;s}
+    #[test]fn only_the_tee_validator_and_no_timed_commits_are_open_to_anyone(){
+        let ok=|has:u8,v:&[u8;32],ms:u32|{let mut ix=vec![1u8,0,0,has];ix.extend_from_slice(v);ix.extend_from_slice(&ms.to_le_bytes());open_delegate_ok(&ix)};
+        assert!(ok(1,&TEE_VALIDATOR,u32::MAX));
+        assert!(!ok(1,&TEE_VALIDATOR,30_000));assert!(!ok(0,&TEE_VALIDATOR,u32::MAX));
+        let mut other=TEE_VALIDATOR;other[0]^=1;assert!(!ok(1,&other,u32::MAX));
+        let mut short=vec![1u8,0,0,1];short.extend_from_slice(&TEE_VALIDATOR);assert!(!open_delegate_ok(&short));
+    }
+    #[test]fn anyone_may_hand_back_only_below_ten_paid_saves(){
+        let rent=52_506_880;
+        assert!(may_hand_back(true,rent+50_000_000,rent));
+        assert!(!may_hand_back(false,rent+LOW_RESERVE,rent));
+        assert!(may_hand_back(false,rent+LOW_RESERVE-1,rent));
+        assert_eq!(LOW_RESERVE,1_000_000);
+    }
     #[test]fn repeat_is_idempotent(){let(mut d,s)=fixture();apply_result(&mut d,&s,0,1).unwrap();let old=d.clone();apply_result(&mut d,&s,0,1).unwrap();assert_eq!(d,old);assert_eq!(rd32(&d,12),1);assert_eq!(rd16(&d,HEADER+R_WINS),1);assert_eq!(rd16(&d,HEADER+ROW+R_LOSSES),1);}
     #[test]fn rematch_and_reversed_sides(){let(mut d,mut s)=fixture();apply_result(&mut d,&s,0,1).unwrap();wr32(&mut s,80,2);s[14]=2;apply_result(&mut d,&s,0,2).unwrap();assert_eq!(rd16(&d,10),2);assert_eq!(rd16(&d,HEADER+R_WINS),1);assert_eq!(rd16(&d,HEADER+R_LOSSES),1);assert_eq!(rd16(&d,HEADER+ROW+R_WINS),1);}
     #[test]fn draws(){let(mut d,mut s)=fixture();s[14]=3;apply_result(&mut d,&s,0,1).unwrap();assert_eq!(rd16(&d,HEADER+R_DRAWS),1);assert_eq!(rd16(&d,HEADER+ROW+R_DRAWS),1);}

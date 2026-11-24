@@ -1,0 +1,25 @@
+[package]
+name = "smaran_save_fund"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Smaran save fund: one address anyone can fund, which only pays for saving the Smaran apps' accounts to Solana."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+solana-compiler-builtins = "=0.3.0"
+
+[profile.release]
+overflow-checks = true
+codegen-units = 1
+opt-level = 3
+lto = true
+
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1
+
+[workspace]

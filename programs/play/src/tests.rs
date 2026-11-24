@@ -853,7 +853,7 @@ fn commit_checks_its_accounts() {
 }
 
 #[test]
-fn commit_and_undelegate_is_operator_only() {
+fn commit_and_undelegate_is_operator_only_while_the_reserve_is_healthy() {
     let mut fx = Fx::ready();
     let m = |fx: &Fx, op: usize, sig: bool, pda: usize, ctx: usize| [(op, sig, true), (pda, false, true), (fx.magic, false, false), (ctx, false, true)];
     let ix = [3u8, KIND_ACH, 0];
@@ -872,6 +872,33 @@ fn commit_and_undelegate_is_operator_only() {
     let c = host::cpis();
     assert_eq!(c[0].program, MAGIC_PROGRAM);
     assert_eq!(c[0].data, vec![2, 0, 0, 0]);
+}
+
+#[test]
+fn anyone_can_hand_back_an_account_whose_reserve_is_low() {
+    let mut fx = Fx::ready();
+    let a = fx.ach[2];
+    let stranger = fx.player(5);
+    let m = [(stranger, true, true), (a, false, true), (fx.magic, false, false), (fx.ctx, false, true)];
+    let ix = [3u8, KIND_ACH, 2];
+    let low = rent_minimum(fx.w[a].data.len()) + LOW_RESERVE;
+    // ten paid saves left is not low yet
+    fx.w[a].lamports = low;
+    assert_eq!(call(&mut fx.w, &m, &ix), ERR_SIGNER);
+    // fewer than ten: anyone may hand it back
+    fx.w[a].lamports = low - 1;
+    let before = host::cpis().len();
+    assert_eq!(call(&mut fx.w, &m, &ix), 0);
+    let c = host::cpis();
+    assert_eq!(c.len(), before + 1);
+    assert_eq!(c[before].program, MAGIC_PROGRAM);
+    assert_eq!(c[before].data, vec![2, 0, 0, 0]);
+    // the stranger must still sign, and still name the right account and context
+    let unsigned = [(stranger, false, true), (a, false, true), (fx.magic, false, false), (fx.ctx, false, true)];
+    assert_eq!(call(&mut fx.w, &unsigned, &ix), ERR_SIGNER);
+    assert_eq!(call(&mut fx.w, &m, &[3, KIND_ACH, 1]), ERR_PDA);
+    let wrong_ctx = [(stranger, true, true), (a, false, true), (fx.magic, false, false), (fx.vault, false, true)];
+    assert_eq!(call(&mut fx.w, &wrong_ctx, &ix), ERR_ACCOUNTS);
 }
 
 // ================================================================ AT20: request state machine
@@ -1348,10 +1375,20 @@ fn delegate_hands_a_shard_to_the_delegation_program() {
         (fx.deleg, false, false),
         (fx.sys, false, false),
     ];
+    // anyone but the operator: only to this program's validator and at the operator's interval
     let stranger = fx.player(4);
+    fx.w[stranger].lamports = RICH;
     let mut bad = m;
     bad[0].0 = stranger;
-    assert_eq!(call(&mut fx.w, &bad, &delegate_ix(KIND_ACH, 1, 30_000)), ERR_SIGNER);
+    assert_eq!(call(&mut fx.w, &bad, &delegate_ix(KIND_ACH, 1, 10_000)), ERR_SIGNER, "other interval");
+    let mut other_validator = delegate_ix(KIND_ACH, 1, 30_000);
+    other_validator[4] ^= 1;
+    assert_eq!(call(&mut fx.w, &bad, &other_validator), ERR_SIGNER, "other validator");
+    let mut no_validator = delegate_ix(KIND_ACH, 1, 30_000);
+    no_validator[3] = 0;
+    assert_eq!(call(&mut fx.w, &bad, &no_validator), ERR_SIGNER, "no validator named");
+    bad[0].1 = false;
+    assert_eq!(call(&mut fx.w, &bad, &delegate_ix(KIND_ACH, 1, 30_000)), ERR_SIGNER, "unsigned");
     assert_eq!(call(&mut fx.w, &m, &delegate_ix(KIND_ACH, 0, 30_000)), ERR_PDA, "named shard is not this account");
     assert_eq!(call(&mut fx.w, &m, &delegate_ix(KIND_ACH, 1, 30_000)[..39]), ERR_ACCOUNTS);
     let mut bad = m;
@@ -1376,6 +1413,36 @@ fn delegate_hands_a_shard_to_the_delegation_program() {
     assert_eq!(d[33], 1);
     assert_eq!(&d[34..66], &VALIDATOR);
     assert_eq!(d.len(), 66);
+}
+
+#[test]
+fn a_stranger_can_delegate_an_account_back_to_the_same_validator() {
+    let mut fx = Fx::new();
+    let pda = fx.rel[3];
+    let buf_key = find_pda(&[b"buffer", &fx.w[pda].key], &PROG).0;
+    let buffer = fx.add(buf_key, SYS, 0, vec![], false);
+    let record = fx.add(pk(610), SYS, 0, vec![], false);
+    let meta = fx.add(pk(611), SYS, 0, vec![], false);
+    let stranger = fx.player(9);
+    fx.w[stranger].lamports = RICH;
+    let m = [
+        (stranger, true, true),
+        (pda, false, true),
+        (fx.prog, false, false),
+        (buffer, false, true),
+        (record, false, true),
+        (meta, false, true),
+        (fx.deleg, false, false),
+        (fx.sys, false, false),
+    ];
+    assert_eq!(call(&mut fx.w, &m, &delegate_ix(KIND_REL, 3, 30_000)), 0);
+    assert_eq!(fx.w[pda].owner, DELEGATION_PROGRAM);
+    let c = host::cpis();
+    let d = &c[c.len() - 1].data;
+    assert_eq!(c[c.len() - 1].program, DELEGATION_PROGRAM);
+    assert_eq!(rd32(d, 8), 30_000);
+    assert_eq!(&d[34..66], &VALIDATOR);
+    assert_eq!(fx.w[stranger].lamports, RICH, "the buffer's rent went back to the stranger");
 }
 
 #[test]
@@ -1648,22 +1715,31 @@ fn forced_commit_is_idempotent_rate_limited_and_permissionless() {
     let (sh, _) = fx.find_relic(&rnd).unwrap();
     let rel = fx.rel[sh];
     let stranger = fx.player(77);
+    let op = fx.op;
     // clean now: the plain commit is refused, a forced one is too soon
     assert_eq!(fx.commit_with(stranger, rel, &[2]), ERR_NOTHING_TO_SAVE);
     assert_eq!(fx.commit_with(stranger, rel, &[2, 1]), ERR_TOO_SOON);
     host::set_clock(11, 1_800_000_029);
-    assert_eq!(fx.commit_with(stranger, rel, &[2, 1]), ERR_TOO_SOON);
-    // after the pause anyone may schedule the save again, and then must wait again
+    assert_eq!(fx.commit_with(op, rel, &[2, 1]), ERR_TOO_SOON);
+    // after 30 seconds the operator may schedule the save again, and then must wait again
     let before = host::cpis().len();
     host::set_clock(12, 1_800_000_030);
-    assert_eq!(fx.commit_with(stranger, rel, &[2, 1]), 0);
+    assert_eq!(fx.commit_with(stranger, rel, &[2, 1]), ERR_TOO_SOON, "anyone else waits a day");
+    assert_eq!(fx.commit_with(op, rel, &[2, 1]), 0);
     assert_eq!(host::cpis().len(), before + 1);
     assert_eq!(rd32(&fx.w[rel].data, H_SAVED_TS), 1_800_000_030);
+    assert_eq!(fx.commit_with(op, rel, &[2, 1]), ERR_TOO_SOON);
+    // anyone may force a save a day after the last one, and then must wait again
+    host::set_clock(13, 1_800_000_030 + 86_399);
+    assert_eq!(fx.commit_with(stranger, rel, &[2, 1]), ERR_TOO_SOON);
+    host::set_clock(14, 1_800_000_030 + 86_400);
+    assert_eq!(fx.commit_with(stranger, rel, &[2, 1]), 0);
+    assert_eq!(rd32(&fx.w[rel].data, H_SAVED_TS), (1_800_000_030 + 86_400) as u32);
     assert_eq!(fx.commit_with(stranger, rel, &[2, 1]), ERR_TOO_SOON);
     // the data of the account is untouched by saving again
     assert_eq!(fx.w[rel].data[H_DIRTY], 0);
     // malformed force bytes and lengths
-    host::set_clock(13, 1_800_000_100);
+    host::set_clock(15, 1_800_000_100 + 2 * 86_400);
     assert_eq!(fx.commit_with(stranger, rel, &[2, 2]), ERR_DATA);
     assert_eq!(fx.commit_with(stranger, rel, &[2, 1, 1]), ERR_ACCOUNTS);
     // a funded-but-forced save still needs the reserve
