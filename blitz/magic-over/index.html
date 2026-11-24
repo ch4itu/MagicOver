@@ -1145,17 +1145,17 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <details>
         <summary>How to play</summary>
         <ul>
-          <li>Six balls, two wickets. Bat vs AI needs no sign-up. To earn a relic, sign in before the match and hit one four or six in any match (Bat vs AI, Full match or a friend), win or lose, then claim it on the result screen. A guest's four or six cannot be claimed. A MagicBlock VRF draw picks your relic.</li>
-          <li>You see each ball's pace, line and length, as a real batter would. Its variation (swing, spin or a slower ball) sits in a separate account on MagicBlock's private rollup that only a human bowler can read, never the batter or a watcher. It is revealed after the ball. The Swing bar fills on the normal arrival time, so a slower ball arrives after it.</li>
+          <li>Six balls, two wickets. Bat vs AI needs no sign-up. To earn a relic, sign in before the match and hit one four or six in any match (Bat vs AI, Full match or a friend), win or lose, then claim it on the result screen. A guest's four or six cannot be claimed. A fair random draw by MagicBlock (VRF) picks which relic you get.</li>
+          <li>You see each ball's pace, line and length, as a real batter would. Its variation (swing, spin or a slower ball) stays hidden from the batter and from anyone watching until the ball is played: it is kept on MagicBlock's private rollup, where only the bowler can read it. The Swing bar fills on the normal arrival time, so a slower ball arrives after it.</li>
           <li>Tap a shot as the ball reaches the bat: Defend, Drive, Cut, Pull, Loft or Leave. Keys: down defend, Space drive, left cut, right pull, up loft, L leave.</li>
-          <li>Timing is judged on-chain: within 60 ms is perfect, 130 ms good, 240 ms an edge, beyond that you miss.</li>
+          <li>Your timing is judged by the game's program, not by your browser: within 60 ms is perfect, 130 ms good, 240 ms an edge, beyond that you miss.</li>
           <li>Each side bats one over. A tie goes to another Super Over. Full match vs AI: bat one over, then bowl one.</li>
         </ul>
       </details>
       <details>
         <summary>About</summary>
-        <p>Anyone can play with just a username and a password: no wallet, no seed phrase and no SOL. Every ball is a transaction you sign, judged in 10 ms slots on MagicBlock's private rollup. The login is <a href="../../smaran/">Smaran</a>, and other apps can use it too.</p>
-        <p>Solana Devnet, a test network. No wagers, tokens or prizes. Made by ch4itu with help from AI tools. Open source under the MIT licence.</p>
+        <p>Anyone can play with just a username and a password: no wallet, no seed phrase and no crypto. Every ball is checked by the game's program in 10 ms steps, on MagicBlock's private rollup, so both players are judged the same way. The login is <a href="../../smaran/">Smaran</a>, and other apps can use it too.</p>
+        <p>Runs on Solana's test network (Devnet). No bets, coins or prizes. Made by ch4itu with help from AI tools. Open source under the MIT licence.</p>
       </details>
       <div class="homeFoot">
         <span class="badge" id="netBadge">Checking the private rollup…</span>
@@ -1169,7 +1169,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
 <section id="auth" class="screen card-screen" hidden>
   <div class="card">
     <h2 id="authTitle">Sign in</h2>
-    <p class="muted">One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL.</p>
+    <p class="muted">One username and password for every app with Smaran login. No wallet, no seed phrase, no crypto.</p>
     <div class="tabs" role="tablist"><button id="authTabIn" class="on" type="button" role="tab" aria-selected="true">Sign in</button><button id="authTabNew" type="button" role="tab" aria-selected="false">Create account</button></div>
     <form id="authForm" data-mode="in" autocomplete="on">
       <label for="authName">Username</label>
@@ -1218,7 +1218,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
     <div class="eyebrow">Magic Over · friend matches</div>
     <h2>Leaderboard</h2>
     <p class="muted">Updates automatically every 5 seconds while open. Returns to the latest results when you switch back to this tab.</p>
-    <p class="muted">Recorded friend-match totals stay when match tables are reused. They are shared across devices and saved back to Solana Devnet. Saving status is shown below.</p>
+    <p class="muted">Totals from friend matches. They are the same on every device and are saved on Solana's test network; the line below shows the saving.</p>
     <p class="muted">Win: 3 points · Draw: 1 · Loss: 0. Ties in points use wins, then player key. AI practice is separate. No entry fees or prizes.</p>
     <p class="muted">Runs off the bat, 4s, 6s and wickets taken count friend matches from 7 November 2026. Earlier results show only in W, L and D.</p>
     <p id="leaderboardStatus" class="muted" role="status"></p>

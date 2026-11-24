@@ -1,6 +1,6 @@
 # EternalBliss
 
-[Play it](https://ch4itu.github.io/MagicOver/eternalbliss/) · [Blitz version, with relics and the shared Smaran look](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/)
+[Play it](https://ch4itu.github.io/MagicOver/eternalbliss/) · [Smaran version, with relics and the shared sign-in](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/)
 
 EternalBliss is an RPG in 3D or 2D. Its shared world and its duels run on Solana Devnet through MagicBlock's public Ephemeral Rollup, and players sign in with Smaran: the same username and password as Magic Over and the other Smaran apps.
 

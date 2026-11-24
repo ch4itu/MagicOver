@@ -98,7 +98,7 @@
     </details>
   </section>
 
-  <p class="status" id="status">Checking the registry…</p>
+  <p class="status" id="status">Counting accounts…</p>
 
   <section class="card">
     <h2>Use it in an app</h2>
@@ -172,9 +172,9 @@ await player.signTransaction(tx);</code></pre>
       const s = await Smaran.status();
       const net = Smaran.network.charAt(0).toUpperCase() + Smaran.network.slice(1);
       $('status').textContent = s.players === null
-        ? `Registry on Solana ${net}: room for ${s.capacity} accounts. The rollup did not answer just now.`
-        : `Registry on Solana ${net}: ${s.players} accounts, room for ${s.capacity}.`;
-    } catch (e) { $('status').textContent = 'Could not read the registry: ' + (e.message || e); }
+        ? `Room for ${s.capacity} accounts on Solana ${net}. MagicBlock did not answer just now, so the count is missing.`
+        : `${s.players} accounts so far, room for ${s.capacity}, on Solana ${net}.`;
+    } catch (e) { $('status').textContent = 'Could not count the accounts: ' + (e.message || e); }
   }
 
   function showPlayer(p, created) {
@@ -185,7 +185,7 @@ await player.signTransaction(tx);</code></pre>
     $('key').textContent = p.publicKey;
     $('same').textContent = created
       ? `New account ${short(p.publicKey)}. Sign in with this username and password on any device.`
-      : `Account ${short(p.publicKey)}. This is the same key every app on this registry gets for ${p.name}.`;
+      : `Account ${short(p.publicKey)}. Every Smaran app gets this same key when ${p.name} signs in.`;
     $('sig').textContent = '';
   }
 

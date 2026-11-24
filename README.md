@@ -1,6 +1,6 @@
 # Magic Over
 
-**Solana Blitz v10:** Smaran, the login behind Magic Over, is now a front door for Entertainment Finance: one username and password for four games (Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow) and a daily habit app, Streaks. It is built for people who will never use a wallet and for places where crypto is hard to use. Start at [the Blitz page](https://ch4itu.github.io/MagicOver/blitz/). Why we built it, who pays, how long it lasts and the limits: [blitz/README.md](blitz/README.md).
+**New: one login for every game.** Smaran, the login behind Magic Over, now works across four games (Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow) and a daily habit app, Streaks: one username and password, no wallet, no seed phrase, no crypto. It is built for people who will never use a wallet and for places where crypto is hard to use. Start at [the Smaran apps](https://ch4itu.github.io/MagicOver/blitz/). Why we built it, who pays, how long it lasts, what is new for MagicBlock Solana Blitz v10 and the limits: [blitz/README.md](blitz/README.md).
 
 Magic Over shows that a Web2 player can start using a Solana app with just a username and a password. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same username and password bring the same player back.
 
