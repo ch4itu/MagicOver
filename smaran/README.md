@@ -2,11 +2,11 @@
 
 **A login built to outlive the app.**
 
-Smaran lets a player sign up for a Solana app with a player name and a passphrase. There is no wallet app, no seed phrase and no SOL to buy. The same name and passphrase bring the same player back on any device, and in any app that uses Smaran. Smaran is Sanskrit for remembering: remembering a name and a passphrase is all a player needs.
+Smaran lets a player sign up for a Solana app with a username and a password. There is no wallet app, no seed phrase and no SOL to buy. The same username and password bring the same player back on any device, and in any app that uses Smaran. Smaran is Sanskrit for remembering: remembering a username and a password is all a player needs. (This guide, like the code, calls the password a passphrase: at least 16 characters.)
 
-It is the sign-up that [Magic Over](../README.md) and [EternalBliss](../eternalbliss/) run, packaged two ways for other sites: a sign-in window on Smaran's own page, so the site never sees the passphrase or the key, and one file, `smaran.js`, that a page can load.
+It is the sign-up that [Magic Over](../README.md), [EternalBliss](../eternalbliss/), SmaranWorld, Ludo Freeflow and Smaran Streaks run (all five: [blitz/README.md](../blitz/README.md)), packaged two ways for other sites: a sign-in window on Smaran's own page, so the site never sees the passphrase or the key, and one file, `smaran.js`, that a page can load.
 
-**Try it:** [ch4itu.github.io/MagicOver/smaran](https://ch4itu.github.io/MagicOver/smaran/). If you already play Magic Over, sign in there with the same name and passphrase and you get the same player key. You can also change your passphrase there.
+**Try it:** [ch4itu.github.io/MagicOver/smaran](https://ch4itu.github.io/MagicOver/smaran/). If you already use a Smaran app, sign in there with the same username and password and you get the same key. You can also change your password there.
 
 <p align="center"><img src="../media/preview-signin-window.gif" width="760" alt="A demo site opens Smaran's sign-in window; the player signs in and approves a message there, and the site never sees the passphrase or the key"></p>
 
@@ -24,13 +24,11 @@ It is the sign-up that [Magic Over](../README.md) and [EternalBliss](../eternalb
 
 **It is built to outlive the app.** The login is saved on Solana, not on any login server, and the sign-in page is open source, so anyone can keep and host a copy. If the app that made it shuts down, its players can still sign in with the same name and passphrase and get the same key back. Anyone can refill the registry's save reserves when they run low, without our key, and nothing is held for players, so there is nothing to withdraw. What it still depends on: Solana itself (this deployment is on Devnet, which can be reset, so this only holds once Smaran is on mainnet), MagicBlock's rollup for new sign-ups and passphrase changes, and our upgrade key, which can still change the registry's rules.
 
-## Who it is for, who pays, where it works
+## Who it is for, who pays, how long it lasts
 
-- **For Web2 people.** No crypto knowledge and nothing to buy: a username and a password, the same in every app with Smaran login.
-- **Who pays.** Players pay nothing, ever. The operator pays the chain costs, mostly once as account deposits. The plan is to fund that with sponsorship and non-intrusive placements, never ads that interrupt play. [Smaran for founders](FOUNDERS.md) lists other ways an operator can cover it. There are no ads in this demo, and the plan is not proven yet.
-- **Where it works.** No crypto purchase, wallet or KYC step, and nothing with cash value, so it can be offered across countries wherever its pages, Solana and MagicBlock are reachable, within local rules on data, age and advertising. This is a design note, not legal advice.
-
-Apps show it as "username and password"; this guide calls the password a passphrase (at least 16 characters).
+- **For people who will never touch crypto,** and for places where buying or holding it is banned, restricted, heavily taxed or legally unclear. Players use a username and a password in any browser, on a phone or a computer. They never buy, hold or send any coin or token, there is no KYC step, and nothing has cash value. This is a design note, not legal advice.
+- **Who pays.** Players pay nothing, ever. Whoever runs the apps pays the chain costs, mostly once as account deposits, to be covered by non-intrusive ads only: a sponsor's name on a stadium board or a village sign, never anything that interrupts play. There are no ads in this demo, and the plan is not proven yet. Anyone can also top up the save reserves of the Smaran login groups once they run low, without our key.
+- **How long it lasts.** No server: the pages are static and open source, so anyone can host them. Logins are stored on Solana with their storage paid up front, so players can still sign in if we stop. Real-time play needs MagicBlock's rollups, our upgrade key can still change the rules, and Devnet can be reset, so lasting records need mainnet. Details: [Built to outlive us](../blitz/README.md#built-to-outlive-us).
 
 ## How it works
 
@@ -180,7 +178,7 @@ Close earlier attempts at the same idea: Ejara's 2020 Tezos demo stored password
 - **MagicBlock's charges:** rollup transactions cost 0 SOL in its current release, which Devnet and mainnet both run. Its session charge (0.003 SOL) and save charge (0.001 SOL per save after the first) come out of the delegation deposit when a group leaves the rollup, never more than the deposit. MagicBlock refuses an account's 11th save in a delegation unless the account pays for its own saves, so each group does: from its 26th save in a delegation, 0.0001 SOL per save from its reserve.
 - **Refilling a reserve:** anyone can do it, not just the sponsor. Once a group's reserve falls below 0.001 SOL above rent (fewer than 10 paid saves left), anyone can take the group off the rollup (instruction 5), send it SOL on Solana, and delegate it again (instruction 3). The refiller pays the top-up plus a new delegation deposit of about 0.003 SOL. While the group is off the rollup, sign-ups for names that land in it fail until it is back; sign-ins still work from the copy on Solana.
 
-The full numbers, who controls what, and how apps and the operator can earn: [Smaran for founders](FOUNDERS.md).
+The full numbers, who controls what, and how it is paid for: [Smaran for founders](FOUNDERS.md).
 
 ## Open problems
 
@@ -195,7 +193,7 @@ These are known gaps, not promises.
 - `api.js`: the small `Smaran` interface above.
 - `signin.html`: the sign-in window.
 - `connect.js`: the small file a site loads to open it. It has no dependencies; you can also copy it into your site.
-- `FOUNDERS.md`: costs, who controls what, and how apps and the operator can earn.
+- `FOUNDERS.md`: costs, who controls what, and how it is paid for.
 - `index.html`: the demo page.
 - The registry program is in [`programs/registry`](../programs/registry).
 

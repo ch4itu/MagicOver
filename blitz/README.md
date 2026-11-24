@@ -12,18 +12,31 @@ Smaran is for Web2 people. A player picks a username and a password and starts p
 | [Ludo Freeflow](https://ch4itu.github.io/MagicOver/blitz/ludo-freeflow/) | Four-colour Ludo with no turns. Online matches roll MagicBlock VRF dice on the rollup. |
 | [Smaran Streaks](https://ch4itu.github.io/MagicOver/blitz/streaks/) | Not a game: it shows the same login works for everyday apps too. Keep up to three daily habits with one check-in a day each. The program sets the day from its own clock in the time zone you start with, checks your username against the registry, and keeps a public streak board. Missing a day starts the streak again. |
 
-A relic records a deed, like a medal. It is not money: it cannot be bought or sold, there is no marketplace and no wagering. It is saved on Solana under its holder's Smaran key, which is why every app can show it.
+A relic records a deed, like a medal. It is not money: it cannot be bought or sold, there is no marketplace and no wagering. It is saved on Solana under its holder's Smaran key, which is why Magic Over, EternalBliss and SmaranWorld can all show it.
+
+## Why we built it
+
+Entertainment Finance, MagicBlock's theme for this Blitz, is apps where people collect, compete and win things they actually own. Those apps need players first, and today owning anything on Solana starts with a wallet, a seed phrase and some SOL. Smaran is the front door for everyone who stops there:
+
+- **People who will never touch crypto.** A username and a password, in any modern browser, on a phone or a computer, with no app to install. No wallet, no seed phrase, nothing to buy and no fees, ever.
+- **People where crypto is hard to use.** In many countries buying or holding crypto is banned, restricted, heavily taxed or legally unclear. Here players never buy, hold or send any coin or token, there is no KYC step, and nothing has cash value: no stakes, no money prizes, no trading. So players never do what most crypto rules are written for (buying, holding, trading or paying with coins or tokens), and the apps can be offered wherever their pages, Solana and MagicBlock are reachable. A few places block blockchain services or such sites, and whoever runs the apps still follows local rules on data protection, age limits and advertising. This is a design note, not legal advice.
+- **What players earn stays theirs.** A relic is stored on Solana under the player's own key, not in one game's database, so any app can show it and it outlives the game that gave it.
 
 ## Who pays
 
 - **Players pay nothing**, ever. Every game action is a MagicBlock rollup transaction, which costs 0 SOL in MagicBlock's current release, and players sign with no SOL.
-- **The operator pays the chain costs**, mostly once, as account deposits, the way an app pays for its servers. Today that is us.
-- **Plan:** sponsorship and non-intrusive placements, such as a sponsor's name on a stadium board or a village sign. Never ads that interrupt play. There are no ads in this demo, and the plan is not proven yet.
+- **Whoever runs the apps pays the chain costs**, mostly once, as account deposits, the way an app pays for its servers. Today that is us.
+- **Non-intrusive ads only.** The running costs are to be covered by ads that never get in the way, such as a sponsor's name on a stadium board or a village sign. Never pop-ups, video ads or anything that interrupts play. There are no ads in this demo, and the plan is not proven yet.
+- **Anyone can chip in.** Saves to Solana are paid from each account's save reserve: SOL kept in the account above its storage deposit. Anyone can top up the reserves of the Smaran login groups and of EternalBliss's worlds and character books once they run low, without our key. The reserves of the relic, achievement, Streaks and leaderboard accounts still need our key to refill (see Next).
 - No token, no packs, no marketplace, no fees on players.
 
-## Where it can be used
+## Built to outlive us
 
-Players never buy, hold or send crypto. There is no wallet, no KYC step and nothing with cash value: no stakes, no money prizes, no trading. So rules about buying or trading crypto do not come into play for players, and Smaran works wherever its web pages, Solana and MagicBlock are reachable. A few places restrict blockchain services or block such sites, and an operator still follows local rules on data protection, age limits and advertising. This is a design note, not legal advice.
+- **No server.** The pages are static files on GitHub Pages and talk straight to Solana and MagicBlock. The code is open source (MIT), so anyone can host a copy, and a copy works with the same programs and the same accounts.
+- **Records stay on Solana.** Logins, relics, achievements, streaks and EternalBliss's worlds are stored in Solana accounts whose storage is paid up front, so they stay as long as Solana keeps them, whatever happens to us or this site. Players can still sign in with the same username and password and get the same key back if we stop.
+- **New saves need reserves.** Logins and EternalBliss keep saving to Solana without us, because anyone can refill their reserves. Relics, achievements, streaks and the leaderboard keep working on the rollup when their reserves run out, but their copies on Solana stop updating until our key refills them (see Next).
+- **What it still depends on:** Solana; MagicBlock's rollups for real-time play, new sign-ups, matches and relic claims (sign-in still works from the copy on Solana when the rollup is down); and our upgrade key, which can still change the programs' rules.
+- **Devnet today.** Devnet can be reset, so all of this holds only once the apps run on mainnet.
 
 ## What it holds today
 
@@ -42,9 +55,8 @@ Measured on Solana Devnet on 23 November 2026.
 - **Smaran accounts:** 420 places open, 70 used. The same program opens more in steps, with no upgrade: 2,100 places for about 2.8 SOL more, up to 8,820 for about 14 SOL more.
 - **Relics:** 364 places. **Achievements:** 424 places. More need new accounts.
 
-**How long it lasts:**
+**Save reserves today** (why it lasts: [Built to outlive us](#built-to-outlive-us)):
 
-- Every account is paid for with a deposit, so it stays as long as the network keeps it. Devnet can be reset; lasting records need mainnet.
 - MagicBlock saves each account to Solana 25 times per delegation for free, then charges 0.0001 SOL per save.
   - Registry groups carry 0.005 SOL each (50 paid saves). That is enough to fill every place, and anyone can refill them.
   - Relic and achievement accounts carry 0.0001 SOL each (one paid save). Right now the four relic accounts have about 95 saves left between them, roughly 90 more claims or gifts. New achievements fill one account first, which has about 18 saves left.
@@ -107,10 +119,13 @@ No server: the pages are static files on GitHub Pages and talk straight to Solan
 - **The programs check what they can see,** such as a boundary in the match's own count. That is not the same as cheat-proof: a modified page can still play badly or skip recording a result.
 - **No password reset.** The locked copy of each key is public, so a weak password can be guessed offline. Smaran accounts hold no money.
 - **Our upgrade key** can still change the programs' rules.
-- **Built to outlive us, not promised to.** Logins and relics live on Solana and the pages are open source, but new sign-ups, matches and relic claims need MagicBlock's rollups.
+- **Built to outlive us, not promised to.** See [Built to outlive us](#built-to-outlive-us): today our upgrade key and some save reserves still tie the apps to us.
 
 ## Next (designed, not built)
 
+- **Let anyone refill every reserve,** as the Smaran registry already allows: the relic, achievement, Streaks and leaderboard programs would accept a hand-back from anyone once a reserve runs low.
+- **Give up or share the upgrade key** once the rules are settled, so no one can change them alone.
+- **Mainnet.**
 - A village for every player, opened by the first relic they earn themselves. Villages cannot be transferred.
 - More deeds to earn: Six Storm, Homecoming, Duel Victor.
 - Relic perks: an emblem and conveniences outside duels in EternalBliss; cosmetic only in Ludo Freeflow.

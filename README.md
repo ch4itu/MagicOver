@@ -1,6 +1,6 @@
 # Magic Over
 
-**Solana Blitz v10:** the same login now runs four games (Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow) and a daily habit app, Streaks. Start at [the Blitz page](https://ch4itu.github.io/MagicOver/blitz/). Players at once, capacity, costs and limits: [blitz/README.md](blitz/README.md).
+**Solana Blitz v10:** Smaran, the login behind Magic Over, is now a front door for Entertainment Finance: one username and password for four games (Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow) and a daily habit app, Streaks. It is built for people who will never use a wallet and for places where crypto is hard to use. Start at [the Blitz page](https://ch4itu.github.io/MagicOver/blitz/). Why we built it, who pays, how long it lasts and the limits: [blitz/README.md](blitz/README.md).
 
 Magic Over shows that a Web2 player can start using a Solana app with just a username and a password. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same username and password bring the same player back.
 
@@ -24,11 +24,11 @@ Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this rep
 
 <p align="center"><sub>Top: two deliveries drawn by the game's own 3D scene. Below: the home screen, sign-up and a Bat vs AI match on the live site, at phone size. The ping is high because these were taken on a test machine far from the rollup.</sub></p>
 
-## Who it is for, who pays, where it works
+## Who it is for, who pays, how long it lasts
 
-- **For Web2 people.** No crypto knowledge and nothing to buy: a username and a password, the same in every app with Smaran login.
-- **Who pays.** Players pay nothing, ever. The operator pays the chain costs, mostly once as account deposits. The plan is to fund that with sponsorship and non-intrusive placements, never ads that interrupt play. There are no ads in this demo, and the plan is not proven yet.
-- **Where it works.** No crypto purchase, wallet or KYC step, and nothing with cash value, so it can be offered across countries wherever its pages, Solana and MagicBlock are reachable, within local rules on data, age and advertising. This is a design note, not legal advice.
+- **For people who will never touch crypto,** and for places where buying or holding it is banned, restricted, heavily taxed or legally unclear. Players use a username and a password in any browser, on a phone or a computer. They never buy, hold or send any coin or token, there is no KYC step, and nothing has cash value. This is a design note, not legal advice.
+- **Who pays.** Players pay nothing, ever. Whoever runs the apps pays the chain costs, mostly once as account deposits, to be covered by non-intrusive ads only: a sponsor's name on a stadium board or a village sign, never anything that interrupts play. There are no ads in this demo, and the plan is not proven yet. Anyone can also top up the save reserves of the Smaran login groups once they run low, without our key.
+- **How long it lasts.** No server: the pages are static and open source, so anyone can host them. Logins are stored on Solana with their storage paid up front, so players can still sign in if we stop. Real-time play needs MagicBlock's rollups, our upgrade key can still change the rules, and Devnet can be reset, so lasting records need mainnet. Details: [Built to outlive us](blitz/README.md#built-to-outlive-us).
 
 ## How sign-up works
 

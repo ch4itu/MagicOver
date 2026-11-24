@@ -9,7 +9,7 @@ A daily habit check-in for anyone with a Smaran username. Deployed on Solana Dev
 - **Missing a day starts the streak again at 1.** The best streak is kept.
 - **The username is checked on chain.** It must belong to the signing key in the Smaran registry, the same check EternalBliss makes.
 - **Players need no SOL.** Each check-in is a zero-fee rollup transaction signed by the player's own Smaran key.
-- **Saving to Solana:** a group saves itself at most once an hour, paid from its own reserve (0.02 SOL each) through MagicBlock's fee vault. A check-in still works if the reserve runs low; it just waits to be saved.
+- **Saving to Solana:** a group saves itself at most once an hour, paid from its own reserve (0.02 SOL each) through MagicBlock's fee vault. A check-in still works if the reserve runs low; it just waits to be saved. Refilling means taking the group off the rollup (instruction 8), which only the operator key can do today; letting anyone do it once a reserve runs low, as the Smaran registry does, is planned.
 - **Removing:** a person can change or remove a habit, or remove their whole record (instruction 5).
 
 A streak shows that someone checked in, not that they did the habit.
