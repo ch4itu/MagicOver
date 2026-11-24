@@ -1,5 +1,12 @@
 # Smaran: one login for every game
 
+> **Smaran: one username and password for every game. No wallet, no seed phrase, no crypto.**
+
+- **Problem.** To own anything in a Solana game today, a player first needs a wallet, a seed phrase and some SOL. Most people stop there, and in many countries crypto is hard or risky to use.
+- **Solution.** Smaran gives each player a Solana key, locked with their password and kept on Solana itself. The same username and password open it in every app, on any device, and what a player wins (a relic) stays theirs in every game.
+- **How it lasts.** Players never pay. Running costs are meant to come from non-intrusive ads only, and one [save fund](../programs/save-fund) that anyone can send SOL to keeps the apps saving to Solana. There is no server to switch off.
+- **MagicBlock.** Every move runs on MagicBlock's rollups, so play is instant and free for players. The private rollup keeps hidden what must stay hidden (the bowler's variation in Magic Over), and VRF draws relics and Ludo dice fairly.
+
 **Play:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/) · **Video:** [Smaran demo](https://ch4itu.github.io/MagicOver/media/smaran-blitz-demo.mp4)
 
 Make one account with a username and a password, and use it in every app below, on a phone or a computer. There is no wallet to install, no seed phrase to write down, no crypto to buy and no fees. What you win is yours: a relic you earn in the cricket game also shows in the adventure game and in the shared world, and it stays with you even if a game closes.

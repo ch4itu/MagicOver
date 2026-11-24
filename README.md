@@ -1,5 +1,12 @@
 # Magic Over
 
+> **Smaran: one username and password for every game. No wallet, no seed phrase, no crypto.**
+
+- **Problem.** To own anything in a Solana game today, a player first needs a wallet, a seed phrase and some SOL. Most people stop there, and in many countries crypto is hard or risky to use.
+- **Solution.** Smaran gives each player a Solana key, locked with their password and kept on Solana itself. The same username and password open it in every app, on any device, and what a player wins (a relic) stays theirs in every game.
+- **How it lasts.** Players never pay. Running costs are meant to come from non-intrusive ads only, and one [save fund](programs/save-fund) that anyone can send SOL to keeps the apps saving to Solana. There is no server to switch off.
+- **MagicBlock.** Every move runs on MagicBlock's rollups, so play is instant and free for players. The private rollup keeps hidden what must stay hidden (the bowler's variation in Magic Over), and VRF draws relics and Ludo dice fairly.
+
 **New: one login for every game.** Smaran, the login behind Magic Over, now works across four games (Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow) and a daily habit app, Streaks: one username and password, no wallet, no seed phrase, no crypto. It is built for people who will never use a wallet and for places where crypto is hard to use. Start at [the Smaran apps](https://ch4itu.github.io/MagicOver/blitz/). Why we built it, who pays, how long it lasts, what is new for MagicBlock Solana Blitz v10 and the limits: [blitz/README.md](blitz/README.md).
 
 Magic Over shows that a Web2 player can start using a Solana app with just a username and a password. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same username and password bring the same player back.
