@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Smaran login</title>
-<meta name="description" content="One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL.">
+<meta name="description" content="Smaran: a username-and-password login for Solana apps. One account for every Smaran app. No wallet, no seed phrase, no SOL.">
 <link rel="stylesheet" href="../blitz/arcade.css">
 <style>
   * { box-sizing: border-box; }
@@ -31,7 +31,12 @@
   .status { margin: 14px 0 0; color: var(--px-ink-2); }
   details { margin-top: 16px; border-top: 4px dotted var(--px-ink); padding-top: 12px; }
   summary { cursor: pointer; font-family: var(--px-head); font-size: 10px; text-transform: uppercase; }
-  ul { padding-left: 22px; }
+  ul, ol { padding-left: 22px; margin: 0; }
+  .points li, .steps li, .apps li { margin: 0 0 8px; }
+  .points b { font-weight: 400; color: var(--px-red); }
+  .hint { margin: 0 0 6px; color: var(--px-ink-2); }
+  pre { margin: 10px 0; padding: 10px; overflow-x: auto; background: var(--px-paper-2); border: 4px solid var(--px-ink); font: 17px/1.3 var(--px-body); white-space: pre; }
+  code { font-family: var(--px-body); }
   a { color: var(--px-blue); }
   [hidden] { display: none !important; }
 </style>
@@ -39,10 +44,20 @@
 <body>
 <main>
   <h1>SMARAN</h1>
-  <p class="lead">One username and password for every app with Smaran login. No wallet, no seed phrase, no SOL. The same username and password bring you back on any device, in any app that uses Smaran.</p>
+  <p class="lead"><b>A login for Solana apps that works like any website login:</b> a username and a password. No wallet to install, no seed phrase to write down, no SOL to buy, no fees.</p>
+
+  <section class="card">
+    <h2>What you get</h2>
+    <ul class="points">
+      <li><b>One account for every Smaran app.</b> The same username and password sign you in to Magic Over, EternalBliss, SmaranWorld, Ludo Freeflow and Smaran Streaks, on a phone or a computer.</li>
+      <li><b>What you earn is yours.</b> Your account is a real Solana key. A relic you win in Magic Over is stored on Solana under that key, so EternalBliss and SmaranWorld show it too.</li>
+      <li><b>Free, with nothing to buy.</b> You never buy, hold or send a coin or token, and nothing here has a cash value.</li>
+    </ul>
+  </section>
 
   <section class="card" id="form">
     <h2 id="formTitle">Sign in</h2>
+    <p class="hint">See your account, change your password, or create an account here. It is the same account in every Smaran app.</p>
     <div class="px-tabs" role="tablist">
       <button role="tab" id="tabIn" aria-selected="true">Sign in</button>
       <button role="tab" id="tabNew" aria-selected="false">Create account</button>
@@ -85,12 +100,49 @@
 
   <p class="status" id="status">Checking the registry…</p>
 
-  <ul>
-    <li>Your password never leaves this page. It unlocks your key here, in this browser.</li>
-    <li>The locked copy of your key is kept on MagicBlock's rollup and saved to Solana Devnet.</li>
-    <li>There is no password reset, so choose one you will remember.</li>
-  </ul>
-  <p class="status">Already using a Smaran app? Sign in here with the same username and password: you get the same key. <a href="../blitz/">All Smaran apps</a>. Developers: <a href="https://github.com/ch4itu/MagicOver/tree/main/smaran">add Smaran to your app</a>.</p>
+  <section class="card">
+    <h2>Use it in an app</h2>
+    <ul class="apps">
+      <li><a href="../blitz/magic-over/">Magic Over</a>: 3D cricket duels. One four or six earns a relic.</li>
+      <li><a href="../blitz/eternalbliss/">EternalBliss</a>: an RPG with shared worlds and duels.</li>
+      <li><a href="../blitz/smaranworld/">SmaranWorld</a>: one shared world with 144 villages for relic holders.</li>
+      <li><a href="../blitz/ludo-freeflow/">Ludo Freeflow</a>: four-colour Ludo with no turns.</li>
+      <li><a href="../blitz/streaks/">Smaran Streaks</a>: daily habits, one check-in a day.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li>When you create an account, your browser makes a new Solana key for you.</li>
+      <li>It locks a copy of that key with your password and stores the locked copy under your username on Solana. Your password never leaves your browser.</li>
+      <li>When you sign in, in any Smaran app on any device, the locked copy is fetched and your password unlocks it, in your browser. Same username and password, same key.</li>
+    </ol>
+  </section>
+
+  <section class="card">
+    <h2>Good to know</h2>
+    <ul class="points">
+      <li><b>No password reset.</b> Nobody, us included, can recover a forgotten password. Choose one you will remember, at least 16 characters.</li>
+      <li><b>A login, not a wallet.</b> The locked copy is public, so a weak password can be guessed offline. That is why Smaran accounts hold no money.</li>
+      <li><b>No login server.</b> Logins are kept on Solana and the pages are open source, so you can still sign in if we stop. Saving to Solana is paid from a <a href="https://github.com/ch4itu/MagicOver/tree/main/programs/save-fund">save fund</a> that anyone can add SOL to.</li>
+      <li><b>Solana Devnet today:</b> a test network, which can be reset.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Add Smaran to your app</h2>
+    <p class="hint">Open Smaran's sign-in window from a click. The password stays on Smaran's page, and your app gets the player's name and key and the signatures they approve.</p>
+<pre><code>&lt;script src="https://ch4itu.github.io/MagicOver/smaran/connect.js"&gt;&lt;/script&gt;
+
+const player = await SmaranConnect.connect();
+player.name;       // their username
+player.publicKey;  // their Solana address
+await player.signTransaction(tx);</code></pre>
+    <p class="hint">Or load <code>smaran.js</code> and sign in on your own page, as these apps do. Both ways, with the pros and cons: <a href="https://github.com/ch4itu/MagicOver/tree/main/smaran">the guide</a>.</p>
+  </section>
+
+  <p class="status"><a href="../blitz/">All Smaran apps</a> · <a href="https://github.com/ch4itu/MagicOver">Source code</a> (MIT)</p>
 </main>
 <script src="smaran.js"></script>
 <script>

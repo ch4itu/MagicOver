@@ -1065,6 +1065,11 @@ details p, details li { color: var(--muted); font-size: 14px; }
   #home .stack { gap: 14px !important; }
   #home .stack button { font-size: 12px !important; padding: 14px 12px !important; }
   .homeLinks { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin: 16px 0 6px; }
+#home .relicRule { font-family: var(--px-body); font-size: 19px; line-height: 1.15; margin: 0 0 10px; color: var(--px-ink-2); }
+#home .relicRule b { color: var(--px-red); font-weight: 400; font-family: var(--px-head); font-size: 9px; text-transform: uppercase; }
+#home .homeAccount { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; padding: 6px 0; border-top: 3px solid var(--px-ink); border-bottom: 3px solid var(--px-ink); font-family: var(--px-body); font-size: 19px; color: var(--px-ink); }
+#home .homeAccount span { min-width: 0; overflow-wrap: anywhere; }
+#home .homeSign { flex: none; width: auto !important; min-height: 40px; padding: 8px 12px !important; font-size: 9px !important; }
   .homeLinks .relic-controls { display: contents; }
   .homeLinks button, #relicFinish .relic-controls button { background: none !important; border: 0 !important; box-shadow: none !important; padding: 6px 0 !important; min-height: 0 !important; font-size: 9px !important; text-decoration: underline; text-underline-offset: 4px; }
   #home details { margin-top: 8px; }
@@ -1122,7 +1127,9 @@ details p, details li { color: var(--muted); font-size: 14px; }
 <section id="home" class="screen card-screen" hidden>
   <div class="card">
     <h1>Magic <span>Over</span></h1>
-    <p class="tag">Six balls. Two wickets. Hit a four or a six and win a relic.</p>
+    <p class="tag">Six balls. Two wickets.</p>
+    <p class="relicRule" id="relicRule"><b>Relic:</b> hit one four or six in any match (Bat vs AI, Full match or a friend), win or lose. Sign in before the match to claim it.</p>
+    <div class="homeAccount"><span id="homeWho">Not signed in</span><button id="btnHomeSign" class="homeSign" type="button">Sign in</button></div>
     <div class="stack">
       <button id="btnAi" class="primary" type="button">Bat vs AI</button>
       <button id="btnFriend" class="teal" type="button">Play a friend</button>
@@ -1138,7 +1145,7 @@ details p, details li { color: var(--muted); font-size: 14px; }
       <details>
         <summary>How to play</summary>
         <ul>
-          <li>Six balls, two wickets. Bat vs AI needs no sign-up. To win a relic, sign in and hit a four or a six in any match, win or lose, then claim it on the result screen. A MagicBlock VRF draw picks your relic.</li>
+          <li>Six balls, two wickets. Bat vs AI needs no sign-up. To earn a relic, sign in before the match and hit one four or six in any match (Bat vs AI, Full match or a friend), win or lose, then claim it on the result screen. A guest's four or six cannot be claimed. A MagicBlock VRF draw picks your relic.</li>
           <li>You see each ball's pace, line and length, as a real batter would. Its variation (swing, spin or a slower ball) sits in a separate account on MagicBlock's private rollup that only a human bowler can read, never the batter or a watcher. It is revealed after the ball. The Swing bar fills on the normal arrival time, so a slower ball arrives after it.</li>
           <li>Tap a shot as the ball reaches the bat: Defend, Drive, Cut, Pull, Loft or Leave. Keys: down defend, Space drive, left cut, right pull, up loft, L leave.</li>
           <li>Timing is judged on-chain: within 60 ms is perfect, 130 ms good, 240 ms an edge, beyond that you miss.</li>
@@ -4853,6 +4860,8 @@ globalThis.SOCompetition = (() => {
     N.setPlayer(account, name, guest);
     $('who').textContent = guest ? 'Playing as guest' : `Signed in as ${name}`;
     $('whoKey').textContent = short(N.player.b58);
+    $('homeWho').textContent = guest ? 'Not signed in' : `Signed in as ${name}`;
+    $('btnHomeSign').textContent = guest ? 'Sign in' : 'Sign out';
   }
 
   let connecting;
@@ -4886,7 +4895,7 @@ globalThis.SOCompetition = (() => {
     } catch (e) { toast(e.message || String(e), 'bad'); }
     finally { busy(b, false); }
   };
-  let homeRelics, returningToRelics = false;
+  let homeRelics, returningToRelics = false, returningHome = false;
   async function enterFriendLobby() {
     const button = $('btnFriend');
     busy(button, true, 'Connecting to MagicBlock…');
@@ -4895,13 +4904,19 @@ globalThis.SOCompetition = (() => {
     finally { busy(button, false); }
   }
   $('btnFriend').onclick = () => {
-    returningToRelics = false;
+    returningToRelics = false; returningHome = false;
     if (N.player && !N.player.guest) return enterFriendLobby();
     show('auth');
   };
   for (const btn of document.querySelectorAll('[data-back]')) btn.onclick = () => show(btn.dataset.back);
   // the account key lives only in this page's memory, so a fresh page is a clean sign-out
   $('btnSignOut').onclick = () => location.reload();
+  $('btnHomeSign').onclick = () => {
+    if (N.player && !N.player.guest) return location.reload();
+    returningToRelics = false; returningHome = true;
+    authTab('in');
+    show('auth');
+  };
 
   // ------------------------------------------------------------ sign in / create (Sabha registry on MagicBlock ER, 0 SOL)
   $('authTabIn').onclick = () => authTab('in');
@@ -4942,6 +4957,9 @@ globalThis.SOCompetition = (() => {
       if (returningToRelics) {
         returningToRelics = false;
         homeRelics.openMine();
+      } else if (returningHome) {
+        returningHome = false;
+        toast(`Signed in as ${normalized}. Any match you play now can earn a relic.`);
       } else await enterFriendLobby();
     } catch (e) { $('authMsg').textContent = e.message || String(e); }
     finally { busy(b, false); }
@@ -4980,7 +4998,7 @@ globalThis.SOCompetition = (() => {
     const reader = createRelicReader({ rpcUrl: "https://api.devnet.solana.com", programId: "HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B" });
     const currentPlayer = () => N.player?.guest ? null : N.player?.b58;
     homeRelics = mountRelicPanels({ root: $('relicHome'), read: reader, currentPlayer, give: relicGive,
-      signIn: () => { returningToRelics = true; authTab('in'); show('auth'); }
+      signIn: () => { returningToRelics = true; returningHome = false; authTab('in'); show('auth'); }
     });
     mountRelicPanels({ root: $('relicLobby'), read: reader, currentPlayer, give: relicGive });
     finishRelics = mountRelicPanels({ root: $('relicFinish'), read: reader, currentPlayer, give: relicGive });
