@@ -1,0 +1,58 @@
+/* Smaran arcade look, shared by every Smaran app.
+   Fonts: Press Start 2P (headings, buttons, numbers) and VT323 (reading text), both under the SIL Open Font License 1.1
+   (see fonts/). They are served from this repository, so no page depends on a font service.
+   Rules: flat colours from the palette below, 4px pixel borders, hard drop shadows, square corners.
+   No gradients, glows, blur, glass or emoji. */
+@font-face { font-family: "Press Start 2P"; src: url("fonts/press-start-2p.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "VT323"; src: url("fonts/vt323.woff2") format("woff2"); font-display: swap; }
+
+:root {
+  --px-paper: #fcf8ec;
+  --px-paper-2: #efe6cc;
+  --px-ink: #1e1e1e;
+  --px-ink-2: #5d584b;
+  --px-red: #b8302b;
+  --px-green: #2f8a3a;
+  --px-gold: #e8a317;
+  --px-blue: #2f5fb0;
+  --px-head: "Press Start 2P", ui-monospace, monospace;
+  --px-body: "VT323", ui-monospace, monospace;
+}
+
+.px-page { margin: 0; background: var(--px-paper); color: var(--px-ink); font: 22px/1.25 var(--px-body); -webkit-font-smoothing: none; }
+.px-page a { color: var(--px-blue); }
+.px-head { font-family: var(--px-head); text-transform: uppercase; line-height: 1.6; letter-spacing: 0; }
+.px-title { font-family: var(--px-head); text-transform: uppercase; color: var(--px-red); font-size: 16px; line-height: 1.6; margin: 0 0 8px; font-weight: 400; }
+.px-panel { background: var(--px-paper); color: var(--px-ink); border: 4px solid var(--px-ink); box-shadow: 6px 6px 0 var(--px-ink); border-radius: 0; padding: 16px; }
+.px-well { background: var(--px-paper-2); border: 4px solid var(--px-ink); padding: 10px 12px; }
+.px-label { display: block; font-family: var(--px-head); font-size: 10px; text-transform: uppercase; margin: 14px 0 6px; }
+.px-input { width: 100%; box-sizing: border-box; font: 24px/1.1 var(--px-body); color: var(--px-ink); background: #fff; border: 4px solid var(--px-ink); border-radius: 0; padding: 6px 10px; }
+.px-input:focus { outline: 4px solid var(--px-gold); outline-offset: 0; }
+.px-btn { font-family: var(--px-head); font-size: 11px; line-height: 1.4; text-transform: uppercase; letter-spacing: 0; color: var(--px-ink); background: var(--px-paper); border: 4px solid var(--px-ink); border-radius: 0; box-shadow: 4px 4px 0 var(--px-ink); padding: 11px 14px; cursor: pointer; }
+.px-btn:hover { background: var(--px-paper-2); }
+.px-btn:active { transform: translate(4px, 4px); box-shadow: none; }
+.px-btn:focus-visible { outline: 4px solid var(--px-gold); outline-offset: 2px; }
+.px-btn:disabled { opacity: .5; cursor: default; transform: none; }
+.px-btn.go { background: var(--px-green); color: var(--px-paper); }
+.px-btn.warn { background: var(--px-red); color: var(--px-paper); }
+.px-btn.gold { background: var(--px-gold); color: var(--px-ink); }
+.px-btn.flat { box-shadow: none; border-width: 0; background: none; padding: 6px 4px; text-decoration: underline; text-underline-offset: 4px; }
+.px-tag { display: inline-block; font-family: var(--px-head); font-size: 8px; line-height: 1; text-transform: uppercase; padding: 5px 6px; border: 3px solid var(--px-ink-2); color: var(--px-ink-2); }
+.px-tag.on { border-color: var(--px-ink); background: var(--px-gold); color: var(--px-ink); }
+.px-rule { border: 0; border-top: 4px dotted var(--px-ink); margin: 14px 0; }
+.px-blink { animation: px-blink 1s steps(2, start) infinite; }
+@keyframes px-blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .px-blink { animation: none; } }
+dialog.px-panel::backdrop { background: rgba(30, 30, 30, .6); }
+
+/* Relic windows (My Relics, Relic Leaderboard), the same in every app. */
+.relic-controls button, .relic-dialog button { font-family: var(--px-head); font-size: 10px; font-weight: 400; text-transform: uppercase; letter-spacing: 0; color: var(--px-ink); background: var(--px-paper); border: 3px solid var(--px-ink); border-radius: 0; box-shadow: 3px 3px 0 var(--px-ink); padding: 9px 12px; min-height: 44px; }
+.relic-controls button:active, .relic-dialog button:active { transform: translate(3px, 3px); box-shadow: none; }
+.relic-dialog { color: var(--px-ink); background: var(--px-paper); border: 4px solid var(--px-ink); border-radius: 0; box-shadow: 6px 6px 0 var(--px-ink); font: 20px/1.25 var(--px-body); }
+.relic-dialog h2, .relic-dialog h3 { font-family: var(--px-head); font-weight: 400; font-size: 12px; line-height: 1.6; text-transform: uppercase; color: var(--px-red); }
+.relic-dialog::backdrop { background: rgba(30, 30, 30, .6); }
+.relic-cards li { border: 3px solid var(--px-ink); border-radius: 0; background: var(--px-paper-2); color: var(--px-ink); }
+.relic-cards img { image-rendering: pixelated; }
+.relic-dialog table { border-collapse: collapse; width: 100%; }
+.relic-dialog th { font-family: var(--px-head); font-weight: 400; font-size: 8px; text-transform: uppercase; color: var(--px-paper); background: var(--px-ink); padding: 6px; text-align: left; }
+.relic-dialog td { padding: 4px 6px; border-bottom: 2px solid var(--px-paper-2); }
