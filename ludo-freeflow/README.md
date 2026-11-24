@@ -7,13 +7,13 @@ Four colours on one board, and no turns: every player rolls and moves whenever t
 
 - **Capacity:** 8 tables of 4 seats, so 32 players online at once.
 
-## Who it is for, who pays, where it works
+## Who it is for, who pays, how long it lasts
 
-- **For Web2 people.** No crypto knowledge and nothing to buy: a username and a password, the same in every app with Smaran login.
-- **Who pays.** Players pay nothing, ever. The operator pays the chain costs, mostly once as account deposits. The plan is to fund that with sponsorship and non-intrusive placements, never ads that interrupt play. There are no ads in this demo, and the plan is not proven yet.
-- **Where it works.** No crypto purchase, wallet or KYC step, and nothing with cash value, so it can be offered across countries wherever its pages, Solana and MagicBlock are reachable, within local rules on data, age and advertising. This is a design note, not legal advice.
+- **For people who will never touch crypto,** and for places where buying or holding it is banned, restricted, heavily taxed or legally unclear. Players use a username and a password in any browser, on a phone or a computer. They never buy, hold or send any coin or token, there is no KYC step, and nothing has cash value. This is a design note, not legal advice.
+- **Who pays.** Players pay nothing, ever. Whoever runs the apps pays the chain costs, mostly once as account deposits, to be covered by non-intrusive ads only: a sponsor's name on a stadium board or a village sign, never anything that interrupts play. There are no ads in this demo, and the plan is not proven yet. Anyone can also top up the save reserves of the Smaran login groups once they run low, without our key.
+- **How long it lasts.** No server: the pages are static and open source, so anyone can host them. Logins are stored on Solana with their storage paid up front, so players can still sign in if we stop. Real-time play needs MagicBlock's rollups, our upgrade key can still change the rules, and Devnet can be reset, so lasting records need mainnet. Details: [Built to outlive us](../blitz/README.md#built-to-outlive-us).
 
-More on all four Blitz apps: [blitz/README.md](../blitz/README.md).
+More on all the Blitz apps (four games and Smaran Streaks): [blitz/README.md](../blitz/README.md).
 
 ## How an online match works
 

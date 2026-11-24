@@ -1,8 +1,8 @@
 # EternalBliss
 
-[Play it](https://ch4itu.github.io/MagicOver/eternalbliss/)
+[Play it](https://ch4itu.github.io/MagicOver/eternalbliss/) · [Blitz version, with relics and the shared Smaran look](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/)
 
-EternalBliss is an RPG in 3D or 2D. Its shared world and its duels run on Solana Devnet through MagicBlock's public Ephemeral Rollup, and players sign in with Smaran: the same player name and passphrase as Magic Over.
+EternalBliss is an RPG in 3D or 2D. Its shared world and its duels run on Solana Devnet through MagicBlock's public Ephemeral Rollup, and players sign in with Smaran: the same username and password as Magic Over and the other Smaran apps.
 
 - **Solo adventure**: no sign-in; progress saves on your device. There are two maps, and a new player starts in the Farlands. The Eternal Kingdom is 300 × 300 tiles. The Farlands is a 10,000 × 10,000 realm with nine regions, nine waystations and 28 named places, made as you walk. Its Atlas pins a place or takes a caravan or ferry between waystations, and the First Survey sends you to three landmarks near the start. Both maps share one character and inventory.
 - **Shared worlds**: the Eternal Kingdom, up to 32 players in a world at a time. Characters are kept in character books on the rollup, and a world seat is taken only while you play, so everyone online plays in the first world until 32 are there together; then the next world opens. Five worlds are open, so there are seats for 160 players at once, and two character books of 80 hold 160 characters. The program allows 64 worlds and 256 books, and the page finds new ones by itself, so opening more needs no change to the program or the page. Players in different worlds don't see each other. In a world, enemies, treasure and shops are shared, and everyone sees the same season and time of day, set by the rollup's clock. Leaving writes your character back to its book with all its progress.
@@ -10,6 +10,12 @@ EternalBliss is an RPG in 3D or 2D. Its shared world and its duels run on Solana
 - **Trees** stand well above the heroes in 3D.
 - **Duels**: walk up to another player and challenge them. Turn based, no stakes: attack, magic or a healing potion.
 - **Saved to Solana**: every few minutes while people play, and when a player leaves, the page asks for the world to be saved to Solana, and after leaving, the player's character book too. Each pays MagicBlock's fee from its own reserve, never the player. If a reserve runs low, anyone can take that world or book off the rollup, top it up on Solana and put it back.
+
+## Who it is for, who pays, how long it lasts
+
+- **For people who will never touch crypto,** and for places where buying or holding it is banned, restricted, heavily taxed or legally unclear. Players use a username and a password in any browser, on a phone or a computer. They never buy, hold or send any coin or token, there is no KYC step, and nothing has cash value: duels have no stakes. This is a design note, not legal advice.
+- **Who pays.** Players pay nothing, ever. Whoever runs the game pays the chain costs, mostly once as account deposits, to be covered by non-intrusive ads only, never anything that interrupts play. There are no ads in this demo, and the plan is not proven yet. Anyone can also top up the save reserves of the worlds and character books once they run low (see Saved to Solana above), and of the Smaran login groups, without our key.
+- **How long it lasts.** No server: the page is static and open source, so anyone can host it. Worlds, character books and logins are stored on Solana with their storage paid up front. Real-time play needs MagicBlock's rollup, our upgrade key can still change the rules, and Devnet can be reset, so lasting records need mainnet. Details: [Built to outlive us](../blitz/README.md#built-to-outlive-us).
 
 ## On chain (Devnet)
 

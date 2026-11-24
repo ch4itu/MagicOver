@@ -9,7 +9,7 @@ The program behind Magic Over's Boundary Hitter relic, shown in Magic Over, Eter
 - **Achievements:** 4 accounts of 106 places. Boundary Hitter is claimed (instruction 7) by a player of a finished Magic Over match whose side hit at least one four or six, win, lose or tie. The program reads the match from the Magic Over table itself.
 - **Relics:** 4 accounts of 91 places. For each achievement, MagicBlock VRF draws one relic (instruction 8). The relic records its holder's Smaran key.
 - **Giving:** only the holder can give a relic to another key (instruction 10).
-- **Saving to Solana:** after a change, the program asks MagicBlock to save the account in the same transaction. The account pays from its own reserve above rent (0.0001 SOL) through MagicBlock's fee vault. When the reserve is too low, the change stays on the rollup and anyone can save it later (instruction 2) once the reserve is refilled.
+- **Saving to Solana:** after a change, the program asks MagicBlock to save the account in the same transaction. The account pays from its own reserve above rent (0.0001 SOL) through MagicBlock's fee vault. When the reserve is too low, the change stays on the rollup and anyone can save it later (instruction 2) once the reserve is refilled. Refilling means taking the account off the rollup (instruction 3), which only the operator key can do today; letting anyone do it once a reserve runs low, as the Smaran registry does, is planned.
 - **Operator only:** set up and delegate accounts (0, 1), save and take an account off the rollup (3), register a game and set or freeze relic odds (4 to 6).
 - Instructions 11 to 13 (`vault.rs`) keep relic ownership in base-layer vault accounts, which are never delegated.
 
