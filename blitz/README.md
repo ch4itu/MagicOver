@@ -1,11 +1,33 @@
-# Smaran: one login for every game
+# Smaran: one login for every app
 
-> **Smaran: one username and password for every game. No wallet, no seed phrase, no crypto.**
+> **Smaran: one username and password for every Solana app. No wallet, no seed phrase, no crypto.**
 
-- **Problem.** To own anything in a Solana game today, a player first needs a wallet, a seed phrase and some SOL. Most people stop there, and in many countries crypto is hard or risky to use.
-- **Solution.** Smaran gives each player a Solana key, locked with their password and kept on Solana itself. The same username and password open it in every app, on any device, and what a player wins (a relic) stays theirs in every game.
-- **How it lasts.** Players never pay. Running costs are meant to come from non-intrusive ads only, and one [save fund](../programs/save-fund) that anyone can send SOL to keeps the apps saving to Solana. There is no server to switch off.
-- **MagicBlock.** Every move runs on MagicBlock's rollups, so play is instant and free for players. The private rollup keeps hidden what must stay hidden (the bowler's variation in Magic Over), and VRF draws relics and Ludo dice fairly.
+## Problem
+
+To use a Solana app, or own anything in it, a person first needs a wallet, a seed phrase and some SOL. Most people stop there. In many countries crypto is also hard or risky to use.
+
+## Solution
+
+Smaran gives each person a Solana key, locked with their password and kept on Solana itself. The same username and password open it in every app that supports Smaran, games or not, on any device. What someone earns in one app (a relic) stays theirs and shows in the others. Here it runs four games and a daily habit app.
+
+## Sustainability
+
+People never pay. Running costs are meant to come from non-intrusive ads only. One [save fund](../programs/save-fund), an address anyone can send SOL to, keeps the apps saving to Solana. There is no server to switch off, so the apps keep working as long as Solana and MagicBlock run ([what that depends on](#built-to-outlive-us)).
+
+## How MagicBlock is used
+
+| App | On MagicBlock |
+| --- | --- |
+| Smaran login | The registry of usernames lives on the public rollup. Sign-up and password changes are rollup transactions signed with 0 SOL, then saved to Solana. |
+| Magic Over | Every match runs on the private rollup, so the bowler's hidden variation stays hidden from the batter until the ball is played. VRF picks the AI's choices. |
+| Relics and achievements | On the private rollup. The program reads the finished match from Magic Over's table there, and VRF draws which relic a player gets. |
+| EternalBliss | Shared worlds, duels and character books on the public rollup, saved to Solana every few minutes. |
+| SmaranWorld | Where players stand, what they say and each village's sign, on the public rollup. Who keeps a village comes from the relic records. |
+| Ludo Freeflow | Every table on the public rollup, and every die from VRF. |
+| Smaran Streaks | Check-ins on the public rollup, saved to Solana at most once an hour. |
+| Save fund | On Solana itself: it refills the accounts that pay MagicBlock for their saves to Solana. |
+
+Every action people take is a rollup transaction that costs them nothing. Each app's README explains its part.
 
 **Play:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/) · **Video:** [Smaran demo](https://ch4itu.github.io/MagicOver/media/smaran-blitz-demo.mp4)
 
@@ -15,7 +37,7 @@ Make one account with a username and a password, and use it in every app below, 
 | --- | --- |
 | [Magic Over](https://ch4itu.github.io/MagicOver/blitz/magic-over/) | Bat in a 3D cricket duel against the computer or a friend. Sign in, hit one four or six in any match, win or lose, and claim a relic. You can give a relic to another player. |
 | [EternalBliss](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/) | An adventure game with quests, battles, shared worlds and duels. Your relics show in its menu. |
-| [SmaranWorld](https://ch4itu.github.io/MagicOver/blitz/smaranworld/) | A shared world, the Alderlands, where signed-in players see each other walk and chat, on one clock for everyone. Its 144 villages are kept by relic holders, each with a monument and a sign the keeper writes. |
+| [SmaranWorld](https://ch4itu.github.io/MagicOver/blitz/smaranworld/) | A shared world, the Alderlands: 144 villages spread across fields, forests, hills, lakes, desert and tundra, where signed-in players see each other walk and chat, on one clock for everyone. Each village is kept by a relic holder, with a monument and a sign the keeper writes. |
 | [Ludo Freeflow](https://ch4itu.github.io/MagicOver/blitz/ludo-freeflow/) | Ludo with no turns: everyone rolls and moves at once. Pick a table online, and every die is a fair random draw. |
 | [Smaran Streaks](https://ch4itu.github.io/MagicOver/blitz/streaks/) | Not a game: keep up to three daily habits, one check-in a day. It shows the same login works for everyday apps too. |
 
@@ -33,7 +55,7 @@ Games where people collect, compete and win things they really own (MagicBlock c
 
 ## Who pays
 
-- **Players pay nothing**, ever. Every game action is a MagicBlock rollup transaction, which costs 0 SOL in MagicBlock's current release, and players sign with no SOL.
+- **Players pay nothing**, ever. Every action in every app is a MagicBlock rollup transaction, which costs 0 SOL in MagicBlock's current release, and players sign with no SOL.
 - **Whoever runs the apps pays the chain costs**, mostly once, as account deposits, the way an app pays for its servers. Today that is us.
 - **Non-intrusive ads only.** The running costs are to be covered by ads that never get in the way, such as a sponsor's name on a stadium board or a village sign. Never pop-ups, video ads or anything that interrupts play. There are no ads in this demo, and the plan is not proven yet.
 - **Anyone can chip in, at one address.** Saves to Solana are paid from each account's save reserve: SOL kept in the account above its storage deposit. Anyone can send SOL from any wallet to the **save fund**, `9NLZkhdU3vG1kDi2RBW29pRyLcVW9MHSANWKMdE61myj`. The fund can only top up these apps' accounts (logins, relics, achievements, streaks, the leaderboard, EternalBliss's worlds and character books), only when one runs low, and at most 0.1 SOL a day. It has no withdraw, so its SOL cannot go anywhere else. It is a gift, not an investment: nothing comes back. How it works: [programs/save-fund](../programs/save-fund).
@@ -54,7 +76,7 @@ Games where people collect, compete and win things they really own (MagicBlock c
 
 - **Relics and achievements** ([`programs/play`](../programs/play)): one program that records what a player did and which relic they hold. Magic Over checks the match on the private rollup and MagicBlock VRF draws which relic you get. Relics can be given to another player.
 - **Relics shown across apps:** EternalBliss's menu and SmaranWorld's villages read the same relic records, under the same Smaran key.
-- **SmaranWorld:** the shared world, its 144 villages, chat and shared clock (built on our earlier city-builder engine).
+- **SmaranWorld:** the shared world, its 144 villages in open country, chat and shared clock (built on our earlier city-builder engine). The land is made from one seed on every page, so it needs no map file and can grow past 1,000 villages ([SmaranWorld README](smaranworld/README.md)).
 - **Ludo Freeflow online:** tables of four on MagicBlock with VRF dice, sign-in on the page and a list of every table (the local game is older).
 - **Smaran Streaks**, the non-game app.
 - **The save fund** ([`programs/save-fund`](../programs/save-fund)): one address anyone can fund, so saves to Solana keep going without us, and the rule changes that let anyone refill a low account.
@@ -164,7 +186,8 @@ No server: the pages are static files on GitHub Pages and talk straight to Solan
 - **Give up or share the upgrade key** once the rules are settled, so no one can change them alone.
 - **Mainnet.**
 - A village for every player, opened by the first relic they earn themselves. Villages cannot be transferred.
+- SmaranWorld past 144 villages: the map already grows ring by ring (a 1,024-village world is made and tested, and the first 144 villages keep their names and places). The SmaranWorld program still limits signs to 144 villages and stores the village number in one byte, so it needs a small upgrade first.
 - More deeds to earn: Six Storm, Homecoming, Duel Victor.
 - Relic perks: an emblem and conveniences outside duels in EternalBliss; cosmetic only in Ludo Freeflow.
 
-More detail: [Magic Over](../README.md), [Smaran](../smaran/README.md), [Smaran for founders](../smaran/FOUNDERS.md), [Ludo Freeflow](../ludo-freeflow/README.md).
+More detail: [Magic Over](../README.md), [Smaran](../smaran/README.md), [Smaran for founders](../smaran/FOUNDERS.md), [EternalBliss](../eternalbliss/README.md), [SmaranWorld](smaranworld/README.md), [Ludo Freeflow](../ludo-freeflow/README.md), [Smaran Streaks](../programs/streaks/README.md), [relics](../programs/play/README.md), [save fund](../programs/save-fund/README.md).

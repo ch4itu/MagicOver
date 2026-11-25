@@ -38,6 +38,13 @@ It is the sign-up that [Magic Over](../README.md), [EternalBliss](../eternalblis
 4. **Sign in anywhere.** Another device or app reads the locked copy by the name, unlocks it in the browser with the passphrase, and checks the key matches the registered public key.
 5. **Change the passphrase.** A player who still knows the passphrase can lock the same key with a new one. Only that player's key can replace its locked copy, and the player key never changes.
 
+## How MagicBlock is used
+
+- **The registry runs on MagicBlock's public rollup** (devnet-as, validator `MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57`). Its groups were created on Solana once and delegated to the rollup. Sign-up and password changes are rollup transactions, signed by the player's own key with 0 SOL, and they take effect at once.
+- **Saved to Solana.** After each change, the player's registry group asks MagicBlock to save it to Solana. MagicBlock saves an account 25 times per delegation for free, then charges 0.0001 SOL per save, which the group pays from its own reserve. The [save fund](../programs/save-fund) refills a reserve that runs low.
+- **Sign-in reads either copy.** A page reads the locked key from the rollup, or from the last copy saved on Solana when the rollup cannot be reached.
+- **Each app on Smaran uses MagicBlock for its own play:** see [blitz/README.md](../blitz/README.md#how-magicblock-is-used).
+
 ## Add it to your app
 
 There are two ways. With the **sign-in window**, the player types the passphrase on Smaran's own page, and your site never sees the passphrase or the key. With **smaran.js in your page**, your page unlocks the key itself: simpler, but players have to trust your site with their key.

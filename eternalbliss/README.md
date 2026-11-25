@@ -17,6 +17,14 @@ EternalBliss is an RPG in 3D or 2D. Its shared world and its duels run on Solana
 - **Who pays.** Players pay nothing, ever. Whoever runs the game pays the chain costs, mostly once as account deposits, to be covered by non-intrusive ads only, never anything that interrupts play. There are no ads in this demo, and the plan is not proven yet. Anyone can also send SOL to the [save fund](../programs/save-fund), which tops up the save reserves of the worlds, the character books and the Smaran login groups once they run low (see Saved to Solana above). It is a gift, not an investment: nothing comes back.
 - **How long it lasts.** As long as Solana and MagicBlock run, once the save fund has SOL, someone runs its refill script (anyone can, with a little SOL for fees) and our upgrade key is given up, which we plan for mainnet. No server: the page is static and open source, so anyone can host it. Worlds, character books and logins are stored on Solana with their storage paid up front. Devnet can be reset, so lasting records need mainnet. Details: [Built to outlive us](../blitz/README.md#built-to-outlive-us).
 
+## How MagicBlock is used
+
+- **Shared worlds, duels and character books are accounts on MagicBlock's public rollup** (devnet-as). They were created on Solana and delegated to the rollup. Every step, fight, find and duel move in a shared world is a rollup transaction signed by the player's own Smaran key with 0 SOL.
+- **One clock per world.** The season and the time of day come from the rollup's clock, so everyone in a world sees the same.
+- **Saved to Solana.** Every few minutes while people play, and when a player leaves, the page asks for the world, and then the player's character book, to be saved to Solana. Each account pays MagicBlock's fee from its own reserve, never the player, and the [save fund](../programs/save-fund) refills a reserve that runs low.
+- **Names checked on chain.** A character's username must belong to the signing key in the Smaran registry, which also runs on the public rollup.
+- **Relics** in the menu come from the relic records that Magic Over writes on MagicBlock's private rollup, read from their copy saved on Solana.
+
 ## On chain (Devnet)
 
 | | Address |

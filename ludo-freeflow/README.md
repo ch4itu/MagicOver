@@ -15,6 +15,13 @@ Four colours on one board, and no turns: every player rolls and moves whenever t
 
 More on all the Smaran apps (four games and Smaran Streaks): [blitz/README.md](../blitz/README.md).
 
+## How MagicBlock is used
+
+- **Tables on the public rollup.** The 8 tables are accounts created on Solana and delegated to MagicBlock's public rollup (devnet-as). Creating, joining, rolling and moving are rollup transactions that cost players nothing.
+- **Every die from VRF.** A roll asks MagicBlock VRF for randomness tied to that table, match, seat and action, and the die exists only once the VRF program's signed answer has been applied on chain (details below).
+- **No pop-ups while playing.** A seat belongs to a Smaran key, and a key made for the match signs its rolls and moves.
+- **Not saved to Solana.** Tables are reused match after match and stay on the rollup, so they pay for no saves.
+
 ## How an online match works
 
 | Part | What it is |
@@ -24,7 +31,7 @@ More on all the Smaran apps (four games and Smaran Streaks): [blitz/README.md](.
 | Tables | 8 accounts, PDA `["lf-table", i]`, delegated to the rollup |
 | Dice | MagicBlock VRF (`Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz`, rollup queue `5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc`) |
 
-- **Seats belong to Smaran keys.** Create and Join are approved once in Smaran's sign-in window. They name a *session key* that this page makes for the match, and that key signs every roll and move. The Smaran key never enters this page. "Continue here" on another device (one approval) gives the seat a new session key, and the old one stops working at once. A reloaded tab keeps playing with its session key.
+- **Seats belong to Smaran keys.** Create and Join are approved once with the player's Smaran key: here in Smaran's sign-in window, so the Smaran key never enters this page, or, in the [Smaran apps version](../blitz/ludo-freeflow/), on the page itself after signing in there like the other Smaran apps. The approval names a *session key* that the page makes for the match, and that key signs every roll and move. "Continue here" on another device (one approval) gives the seat a new session key, and the old one stops working at once. A reloaded tab keeps playing with its session key.
 - **Rolls.** A roll asks MagicBlock VRF for randomness tied to the table, the match, the seat and the seat's action number. The die exists only once the VRF program's signed callback for exactly that request has been applied. A seat waiting for its die never blocks another seat. If no answer comes within 8 seconds, the seat may roll again: the new request replaces the old one, whose late answer is then refused.
 - **Fair dice.** The die is the first randomness byte below 252, mod 6, plus 1. Each face gets exactly 42 of those 252 byte values.
 - **No double actions.** Every roll and move carries the seat's next action number, so a retry, a replay or the same player on two devices can never apply an action twice. A move also names the token's current square: if a capture sent that token home first, the move is refused instead of becoming a different move.

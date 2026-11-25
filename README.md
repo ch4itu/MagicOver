@@ -1,13 +1,29 @@
 # Magic Over
 
-> **Smaran: one username and password for every game. No wallet, no seed phrase, no crypto.**
+> **Smaran: one username and password for every Solana app. No wallet, no seed phrase, no crypto.**
 
-- **Problem.** To own anything in a Solana game today, a player first needs a wallet, a seed phrase and some SOL. Most people stop there, and in many countries crypto is hard or risky to use.
-- **Solution.** Smaran gives each player a Solana key, locked with their password and kept on Solana itself. The same username and password open it in every app, on any device, and what a player wins (a relic) stays theirs in every game.
-- **How it lasts.** Players never pay. Running costs are meant to come from non-intrusive ads only, and one [save fund](programs/save-fund) that anyone can send SOL to keeps the apps saving to Solana. There is no server to switch off.
-- **MagicBlock.** Every move runs on MagicBlock's rollups, so play is instant and free for players. The private rollup keeps hidden what must stay hidden (the bowler's variation in Magic Over), and VRF draws relics and Ludo dice fairly.
+## Problem
 
-**New: one login for every game.** Smaran, the login behind Magic Over, now works across four games (Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow) and a daily habit app, Streaks: one username and password, no wallet, no seed phrase, no crypto. It is built for people who will never use a wallet and for places where crypto is hard to use. Start at [the Smaran apps](https://ch4itu.github.io/MagicOver/blitz/). Why we built it, who pays, how long it lasts, what is new for MagicBlock Solana Blitz v10 and the limits: [blitz/README.md](blitz/README.md).
+To use a Solana app, or own anything in it, a person first needs a wallet, a seed phrase and some SOL. Most people stop there. In many countries crypto is also hard or risky to use.
+
+## Solution
+
+Smaran gives each person a Solana key, locked with their password and kept on Solana itself. The same username and password open it in every app that supports Smaran, games or not, on any device. What someone earns in one app (a relic) stays theirs and shows in the others. Magic Over, the cricket game in this repository, is where Smaran started; today four games and a daily habit app use it.
+
+## Sustainability
+
+People never pay. Running costs are meant to come from non-intrusive ads only. One [save fund](programs/save-fund), an address anyone can send SOL to, keeps the apps saving to Solana. There is no server to switch off, so the apps keep working as long as Solana and MagicBlock run ([what that depends on](#who-it-is-for-who-pays-how-long-it-lasts)).
+
+## How MagicBlock is used
+
+- **Private rollup:** every Magic Over match, so the bowler's hidden variation stays hidden from the batter until the ball is played; also relics, achievements and the leaderboard.
+- **Public rollup:** Smaran logins, and the shared parts of EternalBliss, SmaranWorld, Ludo Freeflow and Streaks.
+- **VRF:** the AI's choices in Magic Over, which relic a player gets, and every Ludo die.
+- **Free for people:** every action is a rollup transaction signed with 0 SOL. Each shared account pays MagicBlock for its own saves to Solana from a small reserve, which the save fund refills.
+
+Details for Magic Over: [How it uses MagicBlock](#how-it-uses-magicblock). Every other app's README has its own section.
+
+**New: one login for every app.** Smaran, the login behind Magic Over, now works across four games (Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow) and a daily habit app, Streaks: one username and password, no wallet, no seed phrase, no crypto. It is built for people who will never use a wallet and for places where crypto is hard to use. Start at [the Smaran apps](https://ch4itu.github.io/MagicOver/blitz/). Why we built it, who pays, how long it lasts, what is new for MagicBlock Solana Blitz v10 and the limits: [blitz/README.md](blitz/README.md).
 
 Magic Over shows that a Web2 player can start using a Solana app with just a username and a password. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same username and password bring the same player back.
 
