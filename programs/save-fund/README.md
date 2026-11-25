@@ -11,6 +11,10 @@ The apps keep their shared accounts on MagicBlock rollups, where play is free an
 
 The save fund keeps those reserves topped up from one place. Anyone who wants the apps to keep going can help by sending SOL to one address. It is a gift, not an investment: nothing comes back to whoever sends SOL.
 
+## How MagicBlock is used
+
+The save fund is the one part that does not run on a rollup: it lives on Solana. It exists because of how MagicBlock saves. An account delegated to a rollup is saved back to Solana 25 times per delegation for free, and after that each save costs 0.0001 SOL from the account's own reserve. When a reserve runs low, the refill script hands the account back from its rollup to Solana, the fund tops it up, and the script delegates it again, only to the same validator with the same settings ([How a refill happens](#how-a-refill-happens)).
+
 ## What it can do, and nothing else
 
 - **Top up one listed account,** only while that account is on Solana (not on a rollup) and low: under 0.001 SOL above rent, which means fewer than 10 paid saves left. It tops the account up to 0.01 SOL above rent, which is 100 paid saves.

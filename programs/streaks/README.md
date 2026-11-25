@@ -1,6 +1,6 @@
-# Smaran Streaks program
+# Smaran Streaks
 
-A daily habit check-in for anyone with a Smaran username. Deployed on Solana Devnet as [`A98As1brXWi2DuJFChgat6bL9XbmaRRiF5vMFZswALoi`](https://explorer.solana.com/address/A98As1brXWi2DuJFChgat6bL9XbmaRRiF5vMFZswALoi?cluster=devnet). Its four groups run on MagicBlock's devnet rollup (devnet-as), the same rollup as the Smaran registry. The page is [`blitz/streaks`](../../blitz/streaks/).
+A daily habit check-in for anyone with a Smaran username: up to three habits, one check-in a day each. It is the one app here that is not a game, to show that the same username and password work for everyday apps too. Deployed on Solana Devnet as [`A98As1brXWi2DuJFChgat6bL9XbmaRRiF5vMFZswALoi`](https://explorer.solana.com/address/A98As1brXWi2DuJFChgat6bL9XbmaRRiF5vMFZswALoi?cluster=devnet). Its four groups run on MagicBlock's devnet rollup (devnet-as), the same rollup as the Smaran registry. The page is [`blitz/streaks`](../../blitz/streaks/).
 
 ## Rules
 
@@ -13,6 +13,13 @@ A daily habit check-in for anyone with a Smaran username. Deployed on Solana Dev
 - **Removing:** a person can change or remove a habit, or remove their whole record (instruction 5).
 
 A streak shows that someone checked in, not that they did the habit.
+
+## How MagicBlock is used
+
+- **Public rollup (devnet-as).** The four groups of 79 people are accounts delegated to MagicBlock's public rollup, next to the Smaran registry. Each check-in is a rollup transaction signed by the person's own Smaran key with 0 SOL.
+- **The rollup's clock sets the day,** so changing the clock on a phone cannot add a check-in.
+- **Saved to Solana at most once an hour,** paid by the group from its own reserve. The [save fund](../save-fund) refills a reserve that runs low.
+- **The username is checked against the Smaran registry** on the same rollup.
 
 ## Build and test
 

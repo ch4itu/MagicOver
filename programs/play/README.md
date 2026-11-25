@@ -18,6 +18,13 @@ A relic records a deed. It has no price, and nothing in the program sells, stake
 
 `operator.bin` holds the operator's public key, `HDbeKypeJHXMM5Xs2RHKj8XGQgJeP4jnQ1Jiugf8mXPn`. It is a public key, not a secret. To build for another operator, write that operator's 32-byte public key there.
 
+## How MagicBlock is used
+
+- **Private rollup (devnet-tee).** The relic and achievement accounts are delegated to MagicBlock's private rollup, the same rollup as Magic Over's match tables. A claim reads the finished match straight from its Magic Over table there, so the program sees the match's own count of fours and sixes.
+- **VRF.** For each achievement, MagicBlock VRF draws which relic the player gets (instruction 8).
+- **Players pay nothing.** Claims and gifts are rollup transactions signed with the player's Smaran key.
+- **Saved to Solana in the same transaction** (see Saving to Solana above), so apps that read Solana, such as EternalBliss and SmaranWorld, see every relic and its holder.
+
 ## Build and test
 
 - **Build:** run `cargo build-bpf` in this folder. It uses `programs/.cargo/config.toml`, the pinned nightly toolchain and `sbpf-linker 0.2.5`.
