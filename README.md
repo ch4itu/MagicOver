@@ -1,149 +1,308 @@
-# Magic Over
+# Smaran: One Login for Every Solana App
+### A simple login for sunset-proof apps. A username and a password: no wallet, no seed phrase, no crypto.
 
-> **Smaran: one username and password for every Solana app. No wallet, no seed phrase, no crypto.**
+[![Registry on Solana Devnet](https://img.shields.io/badge/Registry-Solana%20Devnet-black)](https://explorer.solana.com/address/CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P?cluster=devnet)
+[![Built on MagicBlock](https://img.shields.io/badge/Rollups-MagicBlock-b33a2b)](https://docs.magicblock.gg)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-## Problem
+**Try it:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/) · **Video:** [Smaran demo](https://ch4itu.github.io/MagicOver/media/smaran-blitz-demo.mp4) · **Blitz v10 judges:** [what we built this week](blitz/README.md#for-the-judges-magicblock-solana-blitz-v10)
 
-To use a Solana app, or own anything in it, a person first needs a wallet, a seed phrase and some SOL. Most people stop there. In many countries crypto is also hard or risky to use.
+| At a glance | |
+| --- | --- |
+| **Problem** | To use a Solana app, a person first needs a wallet, a seed phrase and some SOL. Most people stop there, and in many countries crypto is hard or risky to use. |
+| **Solution** | Smaran: one username and password for every app that supports it, games or not. Each person's key is kept on Solana, locked with their password. |
+| **Sustainability** | People never pay. Costs are to be covered by non-intrusive ads only, plus one save fund that anyone can top up. There is no server to switch off. |
+| **MagicBlock** | Its rollups make every action instant and free for people, its private rollup keeps a bowler's secret hidden, and its VRF makes the draws fair. |
 
-## Solution
+---
 
-Smaran gives each person a Solana key, locked with their password and kept on Solana itself. The same username and password open it in every app that supports Smaran, games or not, on any device. What someone earns in one app (a relic) stays theirs and shows in the others. Magic Over, the cricket game in this repository, is where Smaran started; today four games and a daily habit app use it.
+## The Problem
+
+> **Today: install a wallet, write down 24 words, buy some SOL. Only then can you start.**
+
+| What stands in the way | What it means for people |
+| --- | --- |
+| **A wallet to install** | One more app before they can even look around |
+| **A seed phrase to keep** | 12 or 24 words; lose them and the wallet is gone |
+| **SOL to buy first** | An exchange, an ID check and a card, just to begin |
+| **Crypto rules** | In many countries buying or holding crypto is banned, restricted, heavily taxed or legally unclear |
+| **Apps that close** | When an app's company stops, its logins and what its players earned usually go with its servers |
+
+**Most people stop here.** So apps lose people before they see what the app does, and where crypto is banned or restricted, many cannot start at all.
+
+---
+
+## The Solution
+
+People already know usernames and passwords. Smaran keeps that, and puts the account itself on Solana.
+
+```
+Usual Solana app                     With Smaran
+────────────────                     ───────────
+Install a wallet                     Pick a username
+Write down a seed phrase             Pick a password
+Buy SOL for fees                     Start: every action costs 0 SOL
+       ↓                                    ↓
+Most people stop here                The same login works in every Smaran app
+```
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ APPS        Magic Over · EternalBliss · SmaranWorld              │
+│             Ludo Freeflow · Smaran Streaks · yours               │
+└──────────────────────────────────────────────────────────────────┘
+                                 │ one username and password
+                                 ▼
+┌──────────────────────────────────────────────────────────────────┐
+│ SMARAN      a key for each person, locked with their password,   │
+│             unlocked only in their own browser                   │
+└──────────────────────────────────────────────────────────────────┘
+                                 │ actions that cost people 0 SOL
+                                 ▼
+┌──────────────────────────────────────────────────────────────────┐
+│ MAGICBLOCK  public rollup: logins, worlds, tables, habits        │
+│             private rollup: matches, relics                      │
+│             VRF: fair draws                                      │
+└──────────────────────────────────────────────────────────────────┘
+                                 │ saved
+                                 ▼
+┌──────────────────────────────────────────────────────────────────┐
+│ SOLANA      the lasting copy of logins, relics and records       │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**How it works**
+
+1. The browser makes a new Solana key for the person. The key does not come from the password.
+2. It locks the key with the password (Argon2id and XChaCha20-Poly1305) and stores the locked copy in Smaran's registry on MagicBlock's public rollup, which saves it to Solana.
+3. On any device, the same username and password unlock it again, in the browser. No server ever sees the password.
+4. Apps then use that key on MagicBlock's rollups, where every action costs the person 0 SOL.
+
+Smaran is Sanskrit for remembering: all a person needs is to remember a username and a password. Full guide: [smaran/README.md](smaran/README.md).
+
+---
+
+## Proof: Five Working Apps on One Login
+
+### 1. Magic Over: 3D cricket duel
+Bat against the computer or a friend. Hit a four or a six while signed in, win or lose, and claim a relic.
+
+| | |
+| --- | --- |
+| **Play** | [blitz/magic-over](https://ch4itu.github.io/MagicOver/blitz/magic-over/) |
+| **Read more** | [MAGIC_OVER.md](MAGIC_OVER.md) |
+| **Uses MagicBlock** | Every match on the private rollup, so the bowler's hidden variation stays hidden until the ball is played; VRF for the AI's choices |
+
+### 2. EternalBliss: adventure with shared worlds
+Quests, battles, shared worlds and duels. Your relics show in its menu.
+
+| | |
+| --- | --- |
+| **Play** | [blitz/eternalbliss](https://ch4itu.github.io/MagicOver/blitz/eternalbliss/) |
+| **Read more** | [eternalbliss/README.md](eternalbliss/README.md) |
+| **Uses MagicBlock** | Shared worlds, duels and character books on the public rollup, saved to Solana every few minutes |
+
+### 3. SmaranWorld: 144 villages to walk and talk in
+A shared world of villages in open country: fields, forests, hills, lakes, desert and tundra. Each village is kept by a relic holder.
+
+| | |
+| --- | --- |
+| **Play** | [blitz/smaranworld](https://ch4itu.github.io/MagicOver/blitz/smaranworld/) |
+| **Read more** | [blitz/smaranworld/README.md](blitz/smaranworld/README.md) |
+| **Uses MagicBlock** | Where players stand, what they say and each village's sign, on the public rollup |
+
+### 4. Ludo Freeflow: Ludo with no turns
+Everyone rolls and moves at once. Pick a table online.
+
+| | |
+| --- | --- |
+| **Play** | [blitz/ludo-freeflow](https://ch4itu.github.io/MagicOver/blitz/ludo-freeflow/) |
+| **Read more** | [ludo-freeflow/README.md](ludo-freeflow/README.md) |
+| **Uses MagicBlock** | Tables on the public rollup; every die from VRF |
+
+### 5. Smaran Streaks: daily habits (not a game)
+Keep up to three habits, one check-in a day. It shows the same login works for everyday apps too.
+
+| | |
+| --- | --- |
+| **Play** | [blitz/streaks](https://ch4itu.github.io/MagicOver/blitz/streaks/) |
+| **Read more** | [programs/streaks/README.md](programs/streaks/README.md) |
+| **Uses MagicBlock** | Check-ins on the public rollup, saved to Solana at most once an hour |
+
+**Relics tie them together.** A relic is a record of something you did, like a medal. You earn it in Magic Over, it shows in EternalBliss and SmaranWorld, and you can give it to another player. It has no money value: no buying, no selling, no marketplace, no betting. More: [programs/play/README.md](programs/play/README.md).
+
+> **One username, one password, five apps. A relic earned in one shows in the others.**
+
+---
+
+## How MagicBlock Is Used
+
+| MagicBlock | What it does here |
+| --- | --- |
+| **Public rollup** (devnet-as) | Smaran logins, EternalBliss's worlds and duels, SmaranWorld's players, chat and signs, Ludo Freeflow's tables, Streaks' check-ins |
+| **Private rollup** (devnet-tee) | Every Magic Over match, the relics and achievements, and the leaderboard. A ball's hidden variation can be read only by a human bowler, never by the batter or a watcher |
+| **VRF** | The AI's choices in Magic Over, which relic a player gets, every Ludo die |
+| **0-SOL actions** | People sign every action on the rollups with a key that holds no SOL. No wallet, no fee |
+| **Saves to Solana** | Each shared account is saved from the rollup to Solana. MagicBlock does 25 saves per delegation free, then the account pays 0.0001 SOL per save from its own small reserve |
+| **Delegation** | When a reserve runs low, anyone can bring the account back to Solana, top it up from the save fund and delegate it again with the same settings |
+
+Each app's README has its own "How MagicBlock is used" section.
+
+---
 
 ## Sustainability
 
-People never pay. Running costs are meant to come from non-intrusive ads only. One [save fund](programs/save-fund), an address anyone can send SOL to, keeps the apps saving to Solana. There is no server to switch off, so the apps keep working as long as Solana and MagicBlock run ([what that depends on](#who-it-is-for-who-pays-how-long-it-lasts)).
-
-## How MagicBlock is used
-
-- **Private rollup:** every Magic Over match, so the bowler's hidden variation stays hidden from the batter until the ball is played; also relics, achievements and the leaderboard.
-- **Public rollup:** Smaran logins, and the shared parts of EternalBliss, SmaranWorld, Ludo Freeflow and Streaks.
-- **VRF:** the AI's choices in Magic Over, which relic a player gets, and every Ludo die.
-- **Free for people:** every action is a rollup transaction signed with 0 SOL. Each shared account pays MagicBlock for its own saves to Solana from a small reserve, which the save fund refills.
-
-Details for Magic Over: [How it uses MagicBlock](#how-it-uses-magicblock). Every other app's README has its own section.
-
-**New: one login for every app.** Smaran, the login behind Magic Over, now works across four games (Magic Over, EternalBliss, SmaranWorld and Ludo Freeflow) and a daily habit app, Streaks: one username and password, no wallet, no seed phrase, no crypto. It is built for people who will never use a wallet and for places where crypto is hard to use. Start at [the Smaran apps](https://ch4itu.github.io/MagicOver/blitz/). Why we built it, who pays, how long it lasts, what is new for MagicBlock Solana Blitz v10 and the limits: [blitz/README.md](blitz/README.md).
-
-Magic Over shows that a Web2 player can start using a Solana app with just a username and a password. There is no wallet app to install, no seed phrase to write down and no SOL to buy. On another device, the same username and password bring the same player back.
-
-The sign-up is called **Smaran**, Sanskrit for remembering: all a player needs is to remember a username and a password. It is also packaged for other web apps, as a sign-in window they open or as one file they load, where a Magic Over player signs in with the same username, password and key: see [Smaran](smaran/). (Below, as in the code, the password is called a passphrase.)
-
-Smaran is built to outlive the app: the login is saved on Solana, not on any login server, the page is open source, and anyone can keep the registry saving with SOL from one [save fund](programs/save-fund) that anyone can send SOL to, so players can still sign in if we stop. Smaran's guide says [what it still depends on](smaran/README.md#what-smaran-is-and-what-it-is-not).
-
-To show this working in a real-time app, it comes with a 3D cricket game on MagicBlock's Ephemeral Rollups, running on Solana Devnet.
-
-[Play it](https://ch4itu.github.io/MagicOver/) · [Onboarding demo, 37 s](https://ch4itu.github.io/MagicOver/media/onboarding.mp4) · [Pitch and gameplay](https://cdn.jsdelivr.net/gh/ch4itu/MagicOver@main/media/pitch.mp4)
-
-Smaran also signs players into [EternalBliss](eternalbliss/), an RPG in this repository whose shared worlds and duels run on MagicBlock's public Ephemeral Rollup, like Smaran's registry, and into [Ludo Freeflow](https://ch4itu.github.io/MagicOver/ludo-freeflow/), four-colour Ludo with no turns whose online matches roll MagicBlock VRF dice on the rollup.
-
-<p align="center"><img src="media/preview-play.gif" width="640" alt="Magic Over's 3D scene: a drive for four, then a pull for six"></p>
-
-<p align="center">
-  <img src="media/preview-home.png" width="250" alt="Home screen">
-  <img src="media/preview-signup.png" width="250" alt="Sign-up with a username and a password">
-  <img src="media/preview-match.png" width="250" alt="A Bat vs AI match: after the ball, the hidden spin is revealed">
-</p>
-
-<p align="center"><sub>Top: two deliveries drawn by the game's own 3D scene. Below: the home screen, sign-up and a Bat vs AI match on the live site, at phone size. The ping is high because these were taken on a test machine far from the rollup.</sub></p>
-
-## Who it is for, who pays, how long it lasts
-
-- **For people who will never touch crypto,** and for places where buying or holding it is banned, restricted, heavily taxed or legally unclear. Players use a username and a password in any browser, on a phone or a computer. They never buy, hold or send any coin or token, there is no KYC step, and nothing has cash value. This is a design note, not legal advice.
-- **Who pays.** Players pay nothing, ever. Whoever runs the apps pays the chain costs, mostly once as account deposits, to be covered by non-intrusive ads only: a sponsor's name on a stadium board or a village sign, never anything that interrupts play. There are no ads in this demo, and the plan is not proven yet. Anyone can also send SOL to the [save fund](programs/save-fund), one address that can only pay for saving these apps' accounts to Solana. It is a gift, not an investment: nothing comes back.
-- **How long it lasts.** As long as Solana and MagicBlock run, once the save fund has SOL, someone runs its refill script (anyone can, with a little SOL for fees) and our upgrade key is given up, which we plan for mainnet. No server: the pages are static and open source, so anyone can host them. Logins are stored on Solana with their storage paid up front, so players can still sign in if we stop. Devnet can be reset, so lasting records need mainnet. Details: [Built to outlive us](blitz/README.md#built-to-outlive-us).
-
-## How sign-up works
-
-1. The player picks a name (3 to 32 characters: a to z, 0 to 9, `_` or `-`) and a passphrase of at least 16 characters.
-2. The browser creates a random signing key. The key does not come from the passphrase.
-3. The browser locks a copy of the key with the passphrase. Argon2id (64 MiB, three passes) turns the passphrase into a wrapping key, and XChaCha20-Poly1305 encrypts the key. The locked copy is tied to the player name, the player's public key and the network.
-4. After a small anti-bot proof of work, which the program checks, the browser registers three things in the player registry on MagicBlock's public Ephemeral Rollup: a hash of the name, the public key and the locked copy. The player signs this transaction with 0 SOL.
-5. The page then asks the rollup to save the registry back to Solana Devnet. Sign-up does not wait for that confirmation.
-
-**On another device**, the same name and passphrase are enough. The browser reads the locked copy from the rollup, or the last copy saved on Solana, unlocks it locally and checks that the key matches the registered public key.
-
-The passphrase never leaves the browser, there is no login server, and the unlocked key is kept only in memory. There is no passphrase reset: if the passphrase is lost, so is the player ID. A player who still knows the passphrase can change it on the [Smaran page](https://ch4itu.github.io/MagicOver/smaran/); the player key stays the same.
-
-**Guests** can skip all of this. Games against the AI use a temporary key made in the browser.
-
-**Why players need no SOL:** the registry and the match tables were created and paid for once, then delegated to MagicBlock's rollups. Sign-up and every move in a match are rollup transactions that the player signs at no cost.
-
-## The game
-
-Each side bats one over of six balls, with two wickets.
-
-- **Bowling:** the bowler picks pace, line and length, which the batter can see, plus a hidden variation: swing, spin or a slower ball.
-- **Batting:** the batter taps a shot as the ball arrives: defend, drive, cut, pull, loft or leave.
-- **Result:** the chasing side needs one more run than the first innings. A tie goes to a Super Over, one more over each, up to three times. If the scores are still level, the match is tied.
-
-The program judges shot timing on the rollup in 10 ms slots: perfect within ±60 ms, good within ±130 ms and an edge within ±240 ms. These are scoring windows on the rollup, not a promise of 10 ms end-to-end latency. Network delay still affects the player.
-
-Ways to play:
-
-- **Bat vs AI** (no sign-up): chase a target of 3 to 8 runs set by MagicBlock VRF, which also picks the AI's deliveries.
-- **Full match vs AI** (no sign-up): bat an over against the AI, then bowl one at it, as in a friend match. VRF picks the AI's deliveries and its shots. The AI sees pace, line and length like any batter, never your hidden variation.
-- **Play a friend** (needs a player ID): create a match and share its code, or join an open one.
-- **Watch** (no sign-up): follow any live match from the home screen. The watching page only reads the table and sends nothing. It sees what the batter sees, so the hidden variation stays hidden until the ball is played.
-
-## How it uses MagicBlock
-
-| Feature | Use in Magic Over |
+| Question | Answer |
 | --- | --- |
-| **Public ER** | Runs the delegated player registry, so players can register without any SOL. |
-| **Private ER / PER** | Runs every match, against a friend or the AI: create, join, bowl, shot and resolution across eight reusable match tables. It also runs the friend leaderboard, which reads each finished result straight from its match table, so players record results without any SOL. |
-| **Private account permissions** | A separate ball account holds the hidden variation. Only a human bowler can read it: never the batter or a watcher, and nobody while the AI bowls. Pace, line and length are visible; the variation is revealed after the ball is resolved. |
-| **VRF** | Picks the AI's target, its deliveries and, in a full match, its shots. The program checks the expected callback signer, table and sequence. The hidden variation also mixes in a private secret, so the VRF output alone does not reveal it. |
-| **Zero-SOL player actions** | Player keys with no SOL sign every rollup move in the browser, with no wallet pop-ups. Sponsor costs still exist. |
-| **Solana commits** | Registration asks for a registry save to Solana Devnet. Each newly recorded friend result asks for a save of the leaderboard totals. Match tables stay delegated so they can be reused quickly. |
+| **Who pays?** | Never the people using the apps. Whoever runs the apps pays the chain costs, mostly once, as account deposits. |
+| **How is that covered?** | Non-intrusive ads only: a sponsor's name on a stadium board or a village sign, never anything that interrupts play. There are no ads in this demo, and the plan is not proven yet. |
+| **Can others help?** | Yes. Anyone can send SOL to the [save fund](programs/save-fund), `9NLZkhdU3vG1kDi2RBW29pRyLcVW9MHSANWKMdE61myj`. It can only top up these apps' accounts when they run low, at most 0.1 SOL a day, and has no withdraw. It is a gift, not an investment: nothing comes back. |
+| **What if we stop?** | There is no server to switch off. The pages are static and open source, so anyone can host them. Logins and relics are on Solana, so people can still sign in and keep what they earned. |
+| **How long does it last?** | The aim is as long as Solana and MagicBlock run. That needs SOL in the save fund, someone to run its refill script (anyone can) and our upgrade key given up, which we plan for mainnet. Devnet can be reset, so lasting records need mainnet. Details: [Built to outlive us](blitz/README.md#built-to-outlive-us). |
 
-The browser checks that it is talking to the expected MagicBlock validators. It does not verify a hardware attestation quote itself. The page bundles Solana web3.js for keys and addresses, and builds its transactions directly.
+**Who it is for:** people who will never touch crypto, and places where buying or holding it is hard. People never buy, hold or send any coin or token, there is no KYC step, and nothing has cash value. This is a design note, not legal advice.
 
-## Friend matches and the leaderboard
+---
 
-Create a match and share its code, or pick an open match from the lobby. After the result, both players can choose **Rematch with this friend**. The original host reopens the same table after its 15-second reset, and the friend joins that exact next match.
+## What Makes This Different?
 
-The **shared leaderboard** keeps recorded totals by player key in a separate result register, so reusing a match table does not erase them. A win is worth 3 points and a draw 1. It also adds up each player's runs off the bat, fours, sixes and wickets taken, Super Overs included, for friend matches from 7 November 2026; earlier results count only for wins, losses and draws. AI practice is separate. Completed forfeits count, and a result recorded twice counts once.
+| Usual approach | Smaran |
+| --- | --- |
+| A wallet app or extension | A username and a password, in any modern browser, on a phone or a computer |
+| A seed phrase to write down | A password the person picks |
+| A login on the app company's server | No login server: the locked key is on Solana and the password never leaves the browser |
+| One account per app | One account for every Smaran app |
+| A fee on every action | 0 SOL for people, for every action on the rollups |
+| Progress in one app's database | Relics and records on Solana, under the person's own key |
 
-The leaderboard refreshes every five seconds while it is open and catches up when the player returns to the tab. It shows whether totals are saved on Solana. The page tries to save a finished friend result before reusing its table.
+**What Smaran is not:** a wallet (its accounts hold no money) or proof of a unique person (one person can make many usernames). A forgotten password cannot be reset: that account is lost and the person starts a new one. More: [what Smaran is, and what it is not](smaran/README.md#what-smaran-is-and-what-it-is-not).
+
+---
 
 ## Programs on Solana Devnet
 
-| Program | Explorer |
+| Program | Address | Runs on |
+| --- | --- | --- |
+| Smaran registry | [`CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P`](https://explorer.solana.com/address/CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P?cluster=devnet) | public rollup |
+| Magic Over | [`HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT`](https://explorer.solana.com/address/HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT?cluster=devnet) | private rollup |
+| Magic Over result register | [`BcS2Gb1Gihfzqs1UkViNnbQzjGcCGyvXu81VhwsFrUzU`](https://explorer.solana.com/address/BcS2Gb1Gihfzqs1UkViNnbQzjGcCGyvXu81VhwsFrUzU?cluster=devnet) | private rollup |
+| Relics and achievements | [`HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B`](https://explorer.solana.com/address/HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B?cluster=devnet) | private rollup |
+| EternalBliss | [`6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb`](https://explorer.solana.com/address/6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb?cluster=devnet) | public rollup |
+| SmaranWorld | [`HPEA1Ht9rBnqEQVdaEQ9QuqwiWAbY6fgCKs2ZPuQvcCW`](https://explorer.solana.com/address/HPEA1Ht9rBnqEQVdaEQ9QuqwiWAbY6fgCKs2ZPuQvcCW?cluster=devnet) | public rollup |
+| Ludo Freeflow | [`2i2REZWzDeAqKuJBEypH9fBtVZB6jmZbBRX7YH4fiETp`](https://explorer.solana.com/address/2i2REZWzDeAqKuJBEypH9fBtVZB6jmZbBRX7YH4fiETp?cluster=devnet) | public rollup |
+| Smaran Streaks | [`A98As1brXWi2DuJFChgat6bL9XbmaRRiF5vMFZswALoi`](https://explorer.solana.com/address/A98As1brXWi2DuJFChgat6bL9XbmaRRiF5vMFZswALoi?cluster=devnet) | public rollup |
+| Save fund | [`PRU4HhX5x3Kf5wpTCt7amrjTbwXZ88NxU3DwwnHrcuo`](https://explorer.solana.com/address/PRU4HhX5x3Kf5wpTCt7amrjTbwXZ88NxU3DwwnHrcuo?cluster=devnet) | Solana only |
+
+Source for every program is in [`programs/`](programs) and [`eternalbliss/program`](eternalbliss/program).
+
+---
+
+## Quick Start
+
+### For people
+Open [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/), pick any app, press **Sign in** and create an account. Use the same username and password in the other apps.
+
+### For app builders
+Add Smaran's sign-in window to your page. Your site never sees the password or the key, and the person approves every signature in Smaran's window:
+
+```html
+<script src="https://ch4itu.github.io/MagicOver/smaran/connect.js"></script>
+<script>
+  signInButton.onclick = async () => {
+    const player = await SmaranConnect.connect(); // opens Smaran's sign-in window
+    player.name;                                  // 'asha-k'
+    player.publicKey;                             // the person's Solana address
+    await player.signTransaction(tx);             // the person approves it in the window
+  };
+</script>
+```
+
+Everything else, including `smaran.js` for your own page: [smaran/README.md](smaran/README.md#add-it-to-your-app).
+
+---
+
+## Documentation
+
+| Document | What it covers |
 | --- | --- |
-| Cricket game | [`HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT`](https://explorer.solana.com/address/HwXp4A62RG3nBkmxTTaHbSi1wNj8vaVqZ6Kn5VkYBswT?cluster=devnet) |
-| Player registry | [`CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P`](https://explorer.solana.com/address/CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P?cluster=devnet) |
-| Relics and achievements ([source](programs/play)) | [`HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B`](https://explorer.solana.com/address/HUS4FPeXKqybWdZh4MGb6bjhH87A1oRCoSNQQck2SN5B?cluster=devnet) |
-| Result register | [`BcS2Gb1Gihfzqs1UkViNnbQzjGcCGyvXu81VhwsFrUzU`](https://explorer.solana.com/address/BcS2Gb1Gihfzqs1UkViNnbQzjGcCGyvXu81VhwsFrUzU?cluster=devnet) |
-| EternalBliss worlds, character books and duels | [`6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb`](https://explorer.solana.com/address/6e5ied8gFYVSEoc6wWGwBwVSFAC9DZNYAgKg53M1rGdb?cluster=devnet) |
-| Save fund ([source](programs/save-fund)); send SOL to `9NLZkhdU3vG1kDi2RBW29pRyLcVW9MHSANWKMdE61myj` | [`PRU4HhX5x3Kf5wpTCt7amrjTbwXZ88NxU3DwwnHrcuo`](https://explorer.solana.com/address/PRU4HhX5x3Kf5wpTCt7amrjTbwXZ88NxU3DwwnHrcuo?cluster=devnet) |
+| [Smaran](smaran/README.md) | The login: how it works, how to add it, pros, cons and the numbers |
+| [Smaran for founders](smaran/FOUNDERS.md) | What Smaran means for an app's founders |
+| [Blitz v10 entry](blitz/README.md) | What we built this week, how to try it in two minutes, costs and limits |
+| [Magic Over](MAGIC_OVER.md) | The cricket game, its rules and how it uses MagicBlock |
+| [EternalBliss](eternalbliss/README.md) | The adventure game and its shared worlds |
+| [SmaranWorld](blitz/smaranworld/README.md) | The world of 144 villages and how its land is made |
+| [Ludo Freeflow](ludo-freeflow/README.md) | Ludo with no turns, and how an online match works |
+| [Smaran Streaks](programs/streaks/README.md) | The daily habit app and its rules |
+| [Relics](programs/play/README.md) | Relics and achievements |
+| [Save fund](programs/save-fund/README.md) | The one address that keeps saves going, and its refill script |
 
-## Files and building
+---
 
-- `index.html`: the whole game in one file. Open it in a modern browser with internet access, or serve it from any static host.
-- `smaran/`: the sign-up for other apps: a sign-in window (`signin.html`, opened with `connect.js`) and one file (`smaran.js`, built from this page by `smaran/build.py`), with a [demo page](https://ch4itu.github.io/MagicOver/smaran/) and a short guide.
-- `programs/`: source for the game, the player registry, the result register, relics (`programs/play`), Streaks (`programs/streaks`) and the save fund with its refill script (`programs/save-fund`), with a shared pinned build setup.
-- `ludo-freeflow/`: Ludo Freeflow in one file; its program is `programs/ludo`.
-- `eternalbliss/`: EternalBliss in one file, with its program's source, checks and deployed build in `eternalbliss/program/` (its own pinned build setup).
-- `media/onboarding.mp4`: 37-second recording on the live site. A player is created in one browser and recovered in a second browser with nothing saved.
-- `media/pitch.mp4`: narrated, captioned pitch with desktop and mobile gameplay.
-- `media/preview-*`: the pictures in these guides, taken from the live site on 5 and 6 November 2026.
-- `LICENSE` and `THIRD_PARTY_NOTICES.md`: project and bundled dependency licences.
+## Security and Limits
 
-No package installation or login server is needed. The game talks directly to Solana and MagicBlock. To build the programs, use the pinned toolchain and `sbpf-linker 0.2.5`, then run `cargo build-bpf` from `programs/`.
+### Built-in protections
+- The password never leaves the browser, and the unlocked key is kept only in memory.
+- Argon2id (64 MiB, three passes) makes each password guess slow; XChaCha20-Poly1305 locks the key.
+- A small proof of work slows sign-up bots.
+- Smaran's sign-in window shows the real address of the site asking, asks the person for every signature, and never signs a sign-up or password change for a site.
+- The programs check what they can see, such as a four or a six in the match's own count.
 
-## Limits
+### Honest limits
+- **Devnet prototype.** Devnet can be reset and erase test data.
+- **No password reset.** The locked copy is public, so a weak password can be guessed offline. Smaran accounts hold no money.
+- **One person can make many usernames.** A login tied to a key is not proof of a unique person.
+- **Not cheat-proof.** A modified page can still play badly or skip recording a result.
+- **Our upgrade key** can still change the programs' rules until we give it up at mainnet.
 
-This is a Devnet prototype.
+More: [Blitz v10 limits](blitz/README.md#limits) and [Smaran's cons](smaran/README.md#cons).
 
-- **Registry size:** the player registry grows in capacity steps. Each group holds 35 names, because a program can create an account of at most 10,240 bytes in one instruction. Step 0 has 4 groups (140 names), and each later step doubles the groups: 8, 16, 32, 64 and 128, up to 8,820 names across six steps. A name goes into the first step that has room for it and never moves, so opening a step needs no program upgrade and no migration. The sponsor opens a step by creating its groups, at about 0.06 SOL per group including MagicBlock's deposit and a small save reserve. Steps 0 and 1 are open now, for 420 names.
-- **Sign-up bots:** a small proof of work slows scripted sign-ups (about 1 second in a desktop browser, a few seconds on a phone), but it cannot stop a determined bot. Because capacity opens one paid step at a time, a flood can only fill the step that is open. Registry groups can only be delegated to the registry's MagicBlock validator, and anyone but the admin must delegate them with no timed saves. Only the registry admin can take a group with a healthy save reserve off the rollup; once a group's reserve falls below 0.001 SOL, anyone can (see Saves).
-- **Leaderboard size:** the leaderboard holds 140 players, for the same account-size reason.
-- **Match results:** there are eight match tables, reused between matches. Only recorded results persist, and a custom client can skip recording.
-- **Saves:** MagicBlock refuses an account's 11th save to Solana in a delegation unless the account pays for its own saves. The registry groups and the leaderboard each pay from a small sponsor reserve: from the 26th save in a delegation, 0.0001 SOL per save. MagicBlock's session and save charges come out of the delegation deposit, never more than the deposit. A save needs a change to save, so empty saves cannot drain a reserve. Anyone can refill the registry groups and the leaderboard, without our key: once a reserve falls below 0.001 SOL (fewer than 10 paid saves left), anyone can take the account off the rollup, have the [save fund](programs/save-fund) top it up and delegate it again with the same settings, paying a new MagicBlock deposit of about 0.003 SOL. The save fund's refill script does all three. The fund pays at most 0.1 SOL a day, so someone who forces many real saves can use up a day's refills, but not more.
-- **Passphrase:** there is no passphrase reset. The locked copy is public, so a weak passphrase can be guessed offline: Smaran is a login, not a wallet, and its accounts hold no money. The [Smaran guide](smaran/README.md) has the numbers and all the pros and cons.
-- **Devnet:** Devnet itself may reset and erase test data.
+---
 
-Next: better cricket motion from real shot references, teams and player skins, clearer cameras, useful replays, stadium atmosphere and smooth mobile play. **No wagers, stakes, entry fees, tokens or prize payouts are included in the game.**
+## Roadmap
 
-Project code: [MIT](LICENSE). Dependencies: [third-party notices](THIRD_PARTY_NOTICES.md).
+### Done
+- [x] Smaran sign-up and sign-in on MagicBlock's public rollup, saved to Solana
+- [x] Magic Over on the private rollup, with VRF and a friend leaderboard
+- [x] Smaran's sign-in window and `smaran.js` for other sites
+- [x] EternalBliss on MagicBlock with Smaran sign-in
+- [x] Relics and achievements with VRF draws, shown across apps
+- [x] SmaranWorld: 144 villages, chat, signs and one shared clock
+- [x] Ludo Freeflow online, with VRF dice
+- [x] Smaran Streaks, the first app that is not a game
+- [x] The save fund: one address anyone can fund, and refills anyone can run
+
+### Planned
+- [ ] Mainnet
+- [ ] Give up or share the upgrade key once the rules are settled
+- [ ] Non-intrusive sponsor boards and village signs, to cover the running costs
+- [ ] SmaranWorld past 144 villages (a small program upgrade), and a village for every player
+- [ ] More deeds to earn, and relic perks in EternalBliss and Ludo Freeflow
+- [ ] Better cricket motion, teams and smooth mobile play in Magic Over
+
+---
+
+## Hackathons
+
+- **MagicBlock Solana Blitz v10** (20 to 27 November 2026): relics, SmaranWorld, Ludo Freeflow online, Smaran Streaks and the save fund were built this week. [What is new and what is reused](blitz/README.md#for-the-judges-magicblock-solana-blitz-v10).
+- **MagicBlock Forge:** Smaran began here, with Magic Over.
+
+---
+
+## Team
+
+**Chaitanya Kumar Jagabathula** ([ch4itu](https://github.com/ch4itu))
+
+---
+
+## License
+
+Project code: [MIT](LICENSE). Bundled libraries: [third-party notices](THIRD_PARTY_NOTICES.md).
+
+---
+
+## Acknowledgments
+
+- **MagicBlock:** Ephemeral Rollups, the private rollup and VRF.
+- **Solana:** the lasting home of every login and relic.
+- **GitHub Pages:** static hosting, with no server of our own.
+- **AI assistance:** code, tests and documents were built with help from AI tools.
