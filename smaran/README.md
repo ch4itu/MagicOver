@@ -4,7 +4,7 @@
 
 Smaran lets a player sign up for a Solana app with a username and a password. There is no wallet app, no seed phrase and no SOL to buy. The same username and password bring the same player back on any device, and in any app that uses Smaran. Smaran is Sanskrit for remembering: remembering a username and a password is all a player needs. (This guide, like the code, calls the password a passphrase: at least 16 characters.)
 
-It is the sign-up that [Magic Over](../README.md), [EternalBliss](../eternalbliss/), SmaranWorld, Ludo Freeflow and Smaran Streaks run (all five: [blitz/README.md](../blitz/README.md)), packaged two ways for other sites: a sign-in window on Smaran's own page, so the site never sees the passphrase or the key, and one file, `smaran.js`, that a page can load.
+It is the sign-up that [Magic Over](../MAGIC_OVER.md), [EternalBliss](../eternalbliss/), SmaranWorld, Ludo Freeflow and Smaran Streaks run (all five: [blitz/README.md](../blitz/README.md)), packaged two ways for other sites: a sign-in window on Smaran's own page, so the site never sees the passphrase or the key, and one file, `smaran.js`, that a page can load.
 
 **Try it:** [ch4itu.github.io/MagicOver/smaran](https://ch4itu.github.io/MagicOver/smaran/). If you already use a Smaran app, sign in there with the same username and password and you get the same key. You can also change your password there.
 

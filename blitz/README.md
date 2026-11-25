@@ -1,12 +1,15 @@
-# Smaran: one login for every app
+# Smaran: One Login for Every App
+### Our MagicBlock Solana Blitz v10 entry: four games and a daily habit app on one username and password.
+
+**Play:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/) · **Video:** [Smaran demo](https://ch4itu.github.io/MagicOver/media/smaran-blitz-demo.mp4) · **Judges:** [what is new this week](#for-the-judges-magicblock-solana-blitz-v10) · **Overview:** [main README](../README.md)
 
 > **Smaran: one username and password for every Solana app. No wallet, no seed phrase, no crypto.**
 
-## Problem
+## The Problem
 
 To use a Solana app, or own anything in it, a person first needs a wallet, a seed phrase and some SOL. Most people stop there. In many countries crypto is also hard or risky to use.
 
-## Solution
+## The Solution
 
 Smaran gives each person a Solana key, locked with their password and kept on Solana itself. The same username and password open it in every app that supports Smaran, games or not, on any device. What someone earns in one app (a relic) stays theirs and shows in the others. Here it runs four games and a daily habit app.
 
@@ -14,7 +17,7 @@ Smaran gives each person a Solana key, locked with their password and kept on So
 
 People never pay. Running costs are meant to come from non-intrusive ads only. One [save fund](../programs/save-fund), an address anyone can send SOL to, keeps the apps saving to Solana. There is no server to switch off, so the apps keep working as long as Solana and MagicBlock run ([what that depends on](#built-to-outlive-us)).
 
-## How MagicBlock is used
+## How MagicBlock Is Used
 
 | App | On MagicBlock |
 | --- | --- |
@@ -28,8 +31,6 @@ People never pay. Running costs are meant to come from non-intrusive ads only. O
 | Save fund | On Solana itself: it refills the accounts that pay MagicBlock for their saves to Solana. |
 
 Every action people take is a rollup transaction that costs them nothing. Each app's README explains its part.
-
-**Play:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/) · **Video:** [Smaran demo](https://ch4itu.github.io/MagicOver/media/smaran-blitz-demo.mp4)
 
 Make one account with a username and a password, and use it in every app below, on a phone or a computer. There is no wallet to install, no seed phrase to write down, no crypto to buy and no fees. What you win is yours: a relic you earn in the cricket game also shows in the adventure game and in the shared world, and it stays with you even if a game closes.
 
@@ -190,4 +191,4 @@ No server: the pages are static files on GitHub Pages and talk straight to Solan
 - More deeds to earn: Six Storm, Homecoming, Duel Victor.
 - Relic perks: an emblem and conveniences outside duels in EternalBliss; cosmetic only in Ludo Freeflow.
 
-More detail: [Magic Over](../README.md), [Smaran](../smaran/README.md), [Smaran for founders](../smaran/FOUNDERS.md), [EternalBliss](../eternalbliss/README.md), [SmaranWorld](smaranworld/README.md), [Ludo Freeflow](../ludo-freeflow/README.md), [Smaran Streaks](../programs/streaks/README.md), [relics](../programs/play/README.md), [save fund](../programs/save-fund/README.md).
+More detail: [overview](../README.md), [Magic Over](../MAGIC_OVER.md), [Smaran](../smaran/README.md), [Smaran for founders](../smaran/FOUNDERS.md), [EternalBliss](../eternalbliss/README.md), [SmaranWorld](smaranworld/README.md), [Ludo Freeflow](../ludo-freeflow/README.md), [Smaran Streaks](../programs/streaks/README.md), [relics](../programs/play/README.md), [save fund](../programs/save-fund/README.md).
