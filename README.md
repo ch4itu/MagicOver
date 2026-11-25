@@ -1,6 +1,8 @@
 # Smaran: One Login for Solana Apps
 ### A simple login for sunset-proof apps. A username and a password: no wallet, no seed phrase, no crypto.
 
+> **Smaran has moved to [github.com/ch4itu/Smaran](https://github.com/ch4itu/Smaran), with its full history.** This repo and its pages stay up so existing links keep working.
+
 [![Registry on Solana Devnet](https://img.shields.io/badge/Registry-Solana%20Devnet-black)](https://explorer.solana.com/address/CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P?cluster=devnet)
 [![Built on MagicBlock](https://img.shields.io/badge/Rollups-MagicBlock-b33a2b)](https://docs.magicblock.gg)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
