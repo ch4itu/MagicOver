@@ -1,4 +1,4 @@
-# Smaran: One Login for Every Solana App
+# Smaran: One Login for Solana Apps
 ### A simple login for sunset-proof apps. A username and a password: no wallet, no seed phrase, no crypto.
 
 [![Registry on Solana Devnet](https://img.shields.io/badge/Registry-Solana%20Devnet-black)](https://explorer.solana.com/address/CW9AQnTKvTnBfsdUChQiYKfCPhWb7FWkUWyVxv1iaN5P?cluster=devnet)

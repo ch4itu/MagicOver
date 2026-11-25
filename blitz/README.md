@@ -1,9 +1,9 @@
-# Smaran: One Login for Every App
+# Smaran: One Login for Solana Apps
 ### Our MagicBlock Solana Blitz v10 entry: four games and a daily habit app on one username and password.
 
 **Play:** [ch4itu.github.io/MagicOver/blitz](https://ch4itu.github.io/MagicOver/blitz/) · **Video:** [Smaran demo](https://ch4itu.github.io/MagicOver/media/smaran-blitz-demo.mp4) · **Judges:** [what is new this week](#for-the-judges-magicblock-solana-blitz-v10) · **Overview:** [main README](../README.md)
 
-> **Smaran: one username and password for every Solana app. No wallet, no seed phrase, no crypto.**
+> **Smaran: one username and password for Solana apps. No wallet, no seed phrase, no crypto.**
 
 ## The Problem
 
