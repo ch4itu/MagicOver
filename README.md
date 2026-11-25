@@ -276,6 +276,8 @@ More: [Blitz v10 limits](blitz/README.md#limits) and [Smaran's cons](smaran/READ
 - [ ] Give up or share the upgrade key once the rules are settled
 - [ ] Non-intrusive sponsor boards and village signs, to cover the running costs
 - [ ] SmaranWorld past 144 villages (a small program upgrade), and a village for every player
+- [ ] Village building: a keeper builds in a plot 12 tiles around the village's centre
+- [ ] SmaranWorld on the rollup's clock, as EternalBliss already is, so a wrong device clock does not matter
 - [ ] More deeds to earn, and relic perks in EternalBliss and Ludo Freeflow
 - [ ] Better cricket motion, teams and smooth mobile play in Magic Over
 

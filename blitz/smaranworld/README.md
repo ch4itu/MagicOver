@@ -8,7 +8,7 @@ A shared world on Smaran login: the Alderlands, 144 villages in open country, wh
 - **144 villages.** Each village has a square with a monument stone in the middle, lanes, houses and, in farming country, fields. The villages lie ring by ring around the heart of the world: 4 at the heart, then rings of 12, 20, 28, 36 and 44.
 - **Open country between them.** Meadows, farmland, forests, pine forests, hills, mountains, lakes, rivers, marsh, steppe, desert, tundra and the sea. Neighbouring villages are about 44 tiles apart (24 at the closest), and roads and bridges join every village to the rest, so all 144 can be reached on foot. The Villages list (by ring, with a search) and the world atlas take you to any of them at once.
 - **Kept by relic holders.** A relic earned in Magic Over keeps a village: the n-th relic ever made belongs to village n (counting from the heart), and its holder's monument and welcome sign stand in the village square. Give the relic away and the village goes with it. Once all 144 have a relic, a new relic goes to village n mod 144, kept by whoever holds that village's highest-points relic.
-- **One clock.** The time of day, the season, the residents' walks and the weather follow one UTC clock, so every page shows the same world at the same moment.
+- **One clock.** The time of day, the season, the residents' walks and the weather follow one UTC clock, so every page shows the same world at the same moment, wherever the player is, as long as the device's clock is right (phones and computers set it from the internet).
 
 ## How the land is made
 
@@ -47,4 +47,13 @@ The whole map is made in the browser from one fixed seed when the page opens, in
 - 42 signed-in players are shown to each other at once. A 43rd can still walk around, but is shown to the others only after someone leaves.
 - Chat keeps the last 24 lines, and signs are short (56 characters).
 - 144 villages until the program upgrade above.
+- A keeper can change only the village's welcome sign. Houses, lanes, fields and names come from the map's seed.
+- Anyone can write to the sign accounts, and pages show only the keeper's line. When an account's 32 places are full, a new line replaces the oldest, so someone flooding them can push a keeper's sign out until the keeper saves it again.
+- The world follows the device's clock. A clock 10 seconds off runs that player's world an hour off and moves the residents several steps, and a clock about half a minute fast or more can hide other players.
 - Built on our earlier city-builder engine; the land, the villages and the plants are new for this world.
+
+## Next (on the roadmap, not built)
+
+- **Village building.** A keeper builds in a plot 12 tiles around the village's centre. The map already keeps that ground dry and fairly level, and no two village centres are closer than 24 tiles, so plots never overlap.
+- **The rollup's clock.** SmaranWorld takes its time from the rollup, as EternalBliss already does, so a wrong device clock no longer matters.
+- **Past 144 villages,** after the small program upgrade above.

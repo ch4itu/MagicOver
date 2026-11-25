@@ -188,6 +188,8 @@ No server: the pages are static files on GitHub Pages and talk straight to Solan
 - **Mainnet.**
 - A village for every player, opened by the first relic they earn themselves. Villages cannot be transferred.
 - SmaranWorld past 144 villages: the map already grows ring by ring (a 1,024-village world is made and tested, and the first 144 villages keep their names and places). The SmaranWorld program still limits signs to 144 villages and stores the village number in one byte, so it needs a small upgrade first.
+- Village building: a keeper builds in a plot 12 tiles around the village's centre. The map already keeps that ground dry and fairly level, and no two village centres are closer than 24 tiles, so plots never overlap. The changes would be stored on the rollup and drawn over the village on every page.
+- SmaranWorld on the rollup's clock, as EternalBliss already is, so a wrong device clock no longer shifts the world or hides other players.
 - More deeds to earn: Six Storm, Homecoming, Duel Victor.
 - Relic perks: an emblem and conveniences outside duels in EternalBliss; cosmetic only in Ludo Freeflow.
 
